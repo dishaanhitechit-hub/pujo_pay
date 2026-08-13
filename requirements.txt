@@ -1,0 +1,10 @@
+Flask==3.1.0
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.7
+Flask-JWT-Extended==4.7.1
+marshmallow==3.23.1
+psycopg2-binary==2.9.10
+python-dotenv==1.0.1
+qrcode[pil]==8.0
+Pillow==11.1.0
+Werkzeug==3.1.3
