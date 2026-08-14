@@ -1,6 +1,8 @@
 from flask import Flask
 
 from .config import get_config
+from flask_cors import CORS
+
 from .extensions import db, migrate, jwt, is_blocklisted
 
 
@@ -9,6 +11,7 @@ def create_app():
     app.config.from_object(get_config())
 
     # ── Extensions ──────────────────────────────────────────
+    CORS(app)
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
