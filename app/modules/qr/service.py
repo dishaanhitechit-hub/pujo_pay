@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode
 
 import qrcode
-from qrcode.image.pure import PyPNGImage
+from qrcode.image.pil import PilImage
 
 from ...extensions import db
 from ...models.payment import Payment, StatusEnum
@@ -28,7 +28,7 @@ def generate_upi_qr_base64(upi_id: str, org_name: str, amount: str) -> str:
     )
     qr.add_data(upi_link)
     qr.make(fit=True)
-    img = qr.make_image(image_factory=PyPNGImage)
+    img = qr.make_image(image_factory=PilImage)
 
     buf = io.BytesIO()
     img.save(buf)
