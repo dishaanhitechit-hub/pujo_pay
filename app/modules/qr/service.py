@@ -106,9 +106,12 @@ def _save_pdf_async(payment: Payment) -> None:
     def _run():
         with _PDF_SEMAPHORE:
             with app.app_context():
-                p = Payment.query.get(payment_id)
+                # fresh session — no stale state from the request context
+                from ...extensions import db as _db
+                p = _db.session.get(Payment, payment_id)
                 if p:
                     _save_pdf(p)
+                _db.session.remove()
 
     threading.Thread(target=_run, daemon=True).start()
 
