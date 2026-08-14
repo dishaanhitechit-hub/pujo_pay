@@ -37,9 +37,9 @@ class User(db.Model):
             "name": self.name,
             "email": self.email,
             "phone": self.phone,
-            "upi_id": self.upi_id,
-            "whatsapp_no": self.whatsapp_no,
+            "upiId": self.upi_id,
+            "whatsappNo": self.whatsapp_no,
             "role": self.role.value,
-            "is_active": self.is_active,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "isActive": self.is_active,
+            "createdAt": self.created_at.isoformat() if self.created_at else None,
         }

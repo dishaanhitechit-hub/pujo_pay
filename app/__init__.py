@@ -19,11 +19,11 @@ def create_app():
         return is_blocklisted(jwt_payload["jti"])
 
     # ── Blueprints ──────────────────────────────────────────
-    from .routes import register_blueprints
-    register_blueprints(app)
+    from .modules import register_all
+    register_all(app)
 
     # ── Import models so Flask-Migrate can detect all tables ─
-    from .models import User, Donor, Payment, RolePermission  # noqa: F401
+    from .models import User, Donor, Payment, RolePermission, AppConfig  # noqa: F401
 
     # ── DB seed (first-run admin + default permissions) ─────
     # Skipped silently if tables don't exist yet (before first migration)

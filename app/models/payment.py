@@ -33,6 +33,7 @@ class Payment(db.Model):
     # set when the QR page is first opened; used to enforce 10-min window
     payment_page_opened_at = db.Column(db.DateTime)
     confirmed_at = db.Column(db.DateTime)
+    receipt_pdf_path = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
     donor = db.relationship("Donor", back_populates="payments")
@@ -45,7 +46,7 @@ class Payment(db.Model):
     def to_dict(self) -> dict:
         return {
             "id": self.id,
-            "receipt_no": self.receipt_no,
+            "receiptNo": self.receipt_no,
             "donor": self.donor.to_dict() if self.donor else None,
             "collector": {
                 "id": self.collector.id,
@@ -53,9 +54,10 @@ class Payment(db.Model):
             } if self.collector else None,
             "amount": str(self.amount),
             "method": self.method.value,
-            "utr_number": self.utr_number,
+            "utrNumber": self.utr_number,
             "status": self.status.value,
-            "whatsapp_sent": self.whatsapp_sent,
-            "confirmed_at": self.confirmed_at.isoformat() if self.confirmed_at else None,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "whatsappSent": self.whatsapp_sent,
+            "confirmedAt": self.confirmed_at.isoformat() if self.confirmed_at else None,
+            "receiptPdfPath": self.receipt_pdf_path,
+            "createdAt": self.created_at.isoformat() if self.created_at else None,
         }

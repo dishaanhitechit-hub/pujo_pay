@@ -12,6 +12,7 @@ class BaseConfig:
     SECRET_KEY = os.environ["SECRET_KEY"]
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.environ["JWT_SECRET_KEY"]
+    PDF_STORAGE_PATH = os.getenv("PDF_STORAGE_PATH", "/srv/pujo/recipet/storages/pdf")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(
         hours=int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES_HOURS", 8))
     )
