@@ -1,10 +1,7 @@
 from flask import Flask
-from dotenv import load_dotenv
 
 from .config import get_config
 from .extensions import db, migrate, jwt, is_blocklisted
-
-load_dotenv()
 
 
 def create_app():
@@ -29,9 +26,13 @@ def create_app():
     from .models import User, Donor, Payment, RolePermission  # noqa: F401
 
     # ── DB seed (first-run admin + default permissions) ─────
+    # Skipped silently if tables don't exist yet (before first migration)
     with app.app_context():
-        _seed_admin()
-        _seed_permissions()
+        try:
+            _seed_admin()
+            _seed_permissions()
+        except Exception:
+            pass
 
     return app
 

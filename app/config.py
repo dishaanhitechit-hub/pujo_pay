@@ -1,5 +1,11 @@
 import os
+from pathlib import Path
 from datetime import timedelta
+from dotenv import load_dotenv
+
+# Resolve .env relative to this file's location so it works
+# regardless of which directory the flask CLI is invoked from.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 class BaseConfig:
@@ -17,7 +23,7 @@ class BaseConfig:
 class DevelopmentConfig(BaseConfig):
     DEBUG = True
     SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL", "postgresql://pujo_user:password@localhost:5432/pujo_pay"
+        "DATABASE_URL", "postgresql+psycopg://pujo_user:password@localhost:5432/pujo_pay"
     )
 
 
