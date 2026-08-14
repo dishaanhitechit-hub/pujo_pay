@@ -6,6 +6,9 @@ import threading
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode
 
+
+_PDF_SEMAPHORE = threading.Semaphore(4)
+
 import qrcode
 from qrcode.image.pil import PilImage
 
@@ -92,10 +95,11 @@ def _save_pdf_async(payment: Payment) -> None:
     payment_id = payment.id
 
     def _run():
-        with app.app_context():
-            p = Payment.query.get(payment_id)
-            if p:
-                _save_pdf(p)
+        with _PDF_SEMAPHORE:
+            with app.app_context():
+                p = Payment.query.get(payment_id)
+                if p:
+                    _save_pdf(p)
 
     threading.Thread(target=_run, daemon=True).start()
 
