@@ -4,7 +4,7 @@ from marshmallow import ValidationError
 
 from ...middleware.permissions import require_permission
 from ...utils.helpers import res
-from .service import initiate_schema, initiate_payment, get_payment
+from .service import initiate_schema, initiate_payment, get_payment, get_payment_by_receipt_no
 
 bp = Blueprint("payment", __name__)
 
@@ -45,4 +45,13 @@ def receipt(payment_id):
         return res("payment not found", code=404)
     if payment.status.value == "pending":
         return res("payment not confirmed yet", code=400)
+    return res(data=payment.to_dict())
+
+
+@bp.route("/by-receipt/<receipt_no>", methods=["GET"])
+@require_permission("payment.view_receipt")
+def by_receipt_no(receipt_no):
+    payment = get_payment_by_receipt_no(receipt_no)
+    if not payment:
+        return res("receipt not found", code=404)
     return res(data=payment.to_dict())

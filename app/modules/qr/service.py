@@ -73,6 +73,15 @@ def confirm_upi_payment(payment: Payment, utr_number: str | None) -> tuple[bool,
     return True, "confirmed"
 
 
+def cancel_payment(payment: Payment) -> tuple[bool, str]:
+    if payment.status in (StatusEnum.confirmed, StatusEnum.expired, StatusEnum.cancelled):
+        return False, f"cannot cancel — payment is already {payment.status.value}"
+    payment.status = StatusEnum.cancelled
+    payment.cancelled_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return True, "cancelled"
+
+
 def confirm_cash_payment(payment: Payment) -> tuple[bool, str]:
     if payment.status != StatusEnum.pending:
         return False, "payment already processed"

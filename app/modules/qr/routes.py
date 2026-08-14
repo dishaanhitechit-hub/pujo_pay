@@ -7,6 +7,7 @@ from .service import (
     open_qr_page,
     confirm_upi_payment,
     confirm_cash_payment,
+    cancel_payment,
 )
 
 bp = Blueprint("qr", __name__)
@@ -57,6 +58,13 @@ def qr_confirm(payment_id):
     return redirect(url_for("qr.receipt_page", payment_id=payment_id))
 
 
+@bp.route("/qr/<int:payment_id>/cancel", methods=["POST"])
+def qr_cancel(payment_id):
+    payment = Payment.query.get_or_404(payment_id)
+    cancel_payment(payment)
+    return render_template("pay/cancelled.html", payment=payment)
+
+
 # ── Cash confirm page ──────────────────────────────────────────────────────
 
 @bp.route("/cash/<int:payment_id>", methods=["GET"])
@@ -75,6 +83,13 @@ def cash_confirm(payment_id):
                                collector=payment.collector,
                                flash_error=msg)
     return redirect(url_for("qr.receipt_page", payment_id=payment_id))
+
+
+@bp.route("/cash/<int:payment_id>/cancel", methods=["POST"])
+def cash_cancel(payment_id):
+    payment = Payment.query.get_or_404(payment_id)
+    cancel_payment(payment)
+    return render_template("pay/cancelled.html", payment=payment)
 
 
 # ── HTML receipt page ──────────────────────────────────────────────────────

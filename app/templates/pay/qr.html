@@ -31,6 +31,9 @@
   .btn-primary { background: #4361ee; color: #fff; }
   .btn-primary:hover:not(:disabled) { opacity: .88; }
   .btn:disabled { background: #ccc; cursor: not-allowed; }
+  .btn-cancel { background: #fff; color: #c62828; border: 2px solid #e57373;
+                margin-top: 12px; font-size: 14px; padding: 10px; }
+  .btn-cancel:hover { background: #ffebee; }
   .expired-msg { display: none; color: #c62828; font-weight: 600; margin-bottom: 16px; font-size: 14px; }
   .flash-error { background: #ffebee; color: #c62828; border-radius: 8px;
                  padding: 10px 14px; margin-bottom: 20px; font-size: 13px; font-weight: 600; }
@@ -64,6 +67,11 @@
       <div class="hint">Enter the 12-digit UTR shown in your UPI app after payment</div>
     </div>
     <button type="submit" class="btn btn-primary" id="confirmBtn">✓ Payment Done</button>
+  </form>
+
+  <form method="POST" action="/pay/qr/{{ payment.id }}/cancel"
+        onsubmit="return confirm('Cancel this payment? This cannot be undone.')">
+    <button type="submit" class="btn btn-cancel" id="cancelBtn">✕ Cancel Payment</button>
   </form>
 </div>
 

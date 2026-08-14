@@ -12,6 +12,7 @@ class StatusEnum(str, enum.Enum):
     pending = "pending"
     confirmed = "confirmed"
     expired = "expired"
+    cancelled = "cancelled"
 
 
 def _generate_receipt_no() -> str:
@@ -33,6 +34,7 @@ class Payment(db.Model):
     # set when the QR page is first opened; used to enforce 10-min window
     payment_page_opened_at = db.Column(db.DateTime)
     confirmed_at = db.Column(db.DateTime)
+    cancelled_at = db.Column(db.DateTime)
     receipt_pdf_path = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
@@ -58,6 +60,7 @@ class Payment(db.Model):
             "status": self.status.value,
             "whatsappSent": self.whatsapp_sent,
             "confirmedAt": self.confirmed_at.isoformat() if self.confirmed_at else None,
+            "cancelledAt": self.cancelled_at.isoformat() if self.cancelled_at else None,
             "receiptPdfPath": self.receipt_pdf_path,
             "createdAt": self.created_at.isoformat() if self.created_at else None,
         }

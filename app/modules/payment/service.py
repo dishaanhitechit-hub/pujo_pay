@@ -50,3 +50,7 @@ def initiate_payment(data: dict, collector_id: int) -> Payment:
 
 def get_payment(payment_id: int) -> Payment | None:
     return Payment.query.get(payment_id)
+
+
+def get_payment_by_receipt_no(receipt_no: str) -> Payment | None:
+    return Payment.query.filter_by(receipt_no=receipt_no.upper()).first()

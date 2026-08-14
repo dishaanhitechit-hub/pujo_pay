@@ -26,6 +26,8 @@
   .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px;
          font-weight: 700; cursor: pointer; background: #2d9d5a; color: #fff; transition: opacity .2s; }
   .btn:hover { opacity: .88; }
+  .btn-cancel { background: #fff; color: #c62828; border: 2px solid #e57373;
+                margin-top: 12px; font-size: 14px; padding: 10px; }
 </style>
 </head>
 <body>
@@ -58,6 +60,11 @@
 
   <form method="POST" action="/pay/cash/{{ payment.id }}/confirm">
     <button type="submit" class="btn">✓ Confirm Cash Received</button>
+  </form>
+
+  <form method="POST" action="/pay/cash/{{ payment.id }}/cancel"
+        onsubmit="return confirm('Cancel this payment? This cannot be undone.')">
+    <button type="submit" class="btn btn-cancel">✕ Cancel Payment</button>
   </form>
 </div>
 </body>
