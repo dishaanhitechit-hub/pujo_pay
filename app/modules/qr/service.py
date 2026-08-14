@@ -2,6 +2,7 @@ import io
 import os
 import re
 import base64
+import threading
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode
 
@@ -65,7 +66,7 @@ def confirm_upi_payment(payment: Payment, utr_number: str | None) -> tuple[bool,
     payment.assign_receipt_no()
     db.session.commit()
 
-    _save_pdf(payment)
+    _save_pdf_async(payment)
     return True, "confirmed"
 
 
@@ -78,11 +79,26 @@ def confirm_cash_payment(payment: Payment) -> tuple[bool, str]:
     payment.assign_receipt_no()
     db.session.commit()
 
-    _save_pdf(payment)
+    _save_pdf_async(payment)
     return True, "confirmed"
 
 
 # ── PDF receipt ────────────────────────────────────────────────────────────
+
+def _save_pdf_async(payment: Payment) -> None:
+    """Fire-and-forget PDF generation in a background thread."""
+    from flask import current_app
+    app = current_app._get_current_object()
+    payment_id = payment.id
+
+    def _run():
+        with app.app_context():
+            p = Payment.query.get(payment_id)
+            if p:
+                _save_pdf(p)
+
+    threading.Thread(target=_run, daemon=True).start()
+
 
 def _save_pdf(payment: Payment) -> None:
     """Render receipt HTML → PDF → save to disk. Silently skips on failure."""
