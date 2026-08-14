@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pay via UPI — PujoPay</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f4f6fb; min-height: 100vh;
+         display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.1);
+          padding: 32px 28px; max-width: 420px; width: 100%; text-align: center; }
+  .badge { display: inline-block; background: #e8f5e9; color: #2e7d32;
+           font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 99px; margin-bottom: 16px; }
+  h1 { font-size: 22px; color: #1a1a2e; margin-bottom: 4px; }
+  .sub { color: #666; font-size: 14px; margin-bottom: 20px; }
+  .amount { font-size: 40px; font-weight: 800; color: #4361ee; margin-bottom: 24px; }
+  .qr-wrap { background: #f9f9f9; border-radius: 12px; padding: 16px; display: inline-block; margin-bottom: 20px; }
+  .qr-wrap img { display: block; width: 200px; height: 200px; }
+  .timer-box { background: #fff3e0; border-radius: 8px; padding: 10px 16px;
+               margin-bottom: 24px; font-size: 14px; color: #e65100; font-weight: 600; }
+  .timer-box span { font-size: 20px; font-variant-numeric: tabular-nums; }
+  .field { text-align: left; margin-bottom: 20px; }
+  .field label { display: block; font-size: 13px; color: #555; font-weight: 600; margin-bottom: 6px; }
+  .field input { width: 100%; padding: 10px 14px; border: 1.5px solid #ddd; border-radius: 8px;
+                 font-size: 15px; outline: none; transition: border .2s; }
+  .field input:focus { border-color: #4361ee; }
+  .field .hint { font-size: 11px; color: #999; margin-top: 4px; }
+  .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px;
+         font-weight: 700; cursor: pointer; transition: opacity .2s; }
+  .btn-primary { background: #4361ee; color: #fff; }
+  .btn-primary:hover:not(:disabled) { opacity: .88; }
+  .btn:disabled { background: #ccc; cursor: not-allowed; }
+  .expired-msg { display: none; color: #c62828; font-weight: 600; margin-bottom: 16px; font-size: 14px; }
+  .flash-error { background: #ffebee; color: #c62828; border-radius: 8px;
+                 padding: 10px 14px; margin-bottom: 20px; font-size: 13px; font-weight: 600; }
+  .collector-info { font-size: 13px; color: #888; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="badge">UPI Payment</div>
+  <h1>{{ payment.donor.name }}</h1>
+  <p class="sub collector-info">Collecting: <strong>{{ collector.name }}</strong></p>
+  <div class="amount">₹{{ "%.2f"|format(payment.amount|float) }}</div>
+
+  {% if flash_error %}
+  <div class="flash-error">⚠ {{ flash_error }}</div>
+  {% endif %}
+
+  <div class="qr-wrap">
+    <img src="data:image/png;base64,{{ qr_b64 }}" alt="UPI QR Code">
+  </div>
+
+  <div class="timer-box" id="timerBox">
+    ⏱ Session expires in <span id="timerDisplay">10:00</span>
+  </div>
+  <div class="expired-msg" id="expiredMsg">⛔ Session expired. Please start a new payment.</div>
+
+  <form method="POST" action="/pay/qr/{{ payment.id }}/confirm" id="confirmForm">
+    <div class="field">
+      <label for="utr_number">UTR / Transaction Number <em style="font-weight:400;color:#999">(optional)</em></label>
+      <input type="text" id="utr_number" name="utr_number" placeholder="e.g. 426112345678">
+      <div class="hint">Enter the 12-digit UTR shown in your UPI app after payment</div>
+    </div>
+    <button type="submit" class="btn btn-primary" id="confirmBtn">✓ Payment Done</button>
+  </form>
+</div>
+
+<script>
+  const expiryTs = {{ expiry_ts }};
+  const timerDisplay = document.getElementById("timerDisplay");
+  const timerBox = document.getElementById("timerBox");
+  const expiredMsg = document.getElementById("expiredMsg");
+  const confirmBtn = document.getElementById("confirmBtn");
+  const confirmForm = document.getElementById("confirmForm");
+
+  function tick() {
+    const remaining = expiryTs - Math.floor(Date.now() / 1000);
+    if (remaining <= 0) {
+      timerBox.style.display = "none";
+      expiredMsg.style.display = "block";
+      confirmBtn.disabled = true;
+      confirmForm.onsubmit = e => e.preventDefault();
+      return;
+    }
+    const m = String(Math.floor(remaining / 60)).padStart(2, "0");
+    const s = String(remaining % 60).padStart(2, "0");
+    timerDisplay.textContent = `${m}:${s}`;
+    if (remaining <= 60) timerBox.style.background = "#ffebee";
+    setTimeout(tick, 1000);
+  }
+  tick();
+</script>
+</body>
+</html>

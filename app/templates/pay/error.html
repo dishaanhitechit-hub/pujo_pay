@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Error — PujoPay</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f4f6fb; min-height: 100vh;
+         display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.1);
+          padding: 40px 28px; max-width: 420px; width: 100%; text-align: center; }
+  .icon { font-size: 48px; margin-bottom: 16px; }
+  h1 { font-size: 18px; color: #c62828; margin-bottom: 10px; }
+  p { color: #666; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">⚠️</div>
+  <h1>Something went wrong</h1>
+  <p>{{ message }}</p>
+</div>
+</body>
+</html>

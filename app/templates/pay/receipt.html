@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Receipt — PujoPay</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f4f6fb; min-height: 100vh;
+         display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.1);
+          padding: 32px 28px; max-width: 420px; width: 100%; }
+  .top { text-align: center; margin-bottom: 24px; }
+  .check { font-size: 48px; margin-bottom: 8px; }
+  h1 { font-size: 20px; color: #1a1a2e; margin-bottom: 4px; }
+  .receipt-no { font-size: 13px; color: #999; }
+  .receipt-no strong { color: #4361ee; font-size: 15px; }
+  .divider { border: none; border-top: 1.5px dashed #e0e0e0; margin: 20px 0; }
+  .amount-box { text-align: center; margin-bottom: 20px; }
+  .amount-box .label { font-size: 12px; color: #999; text-transform: uppercase;
+                       letter-spacing: .5px; margin-bottom: 4px; }
+  .amount-box .value { font-size: 44px; font-weight: 800; color: #2d9d5a; }
+  .method-badge { display: inline-block; padding: 3px 12px; border-radius: 99px;
+                  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+  .method-cash { background: #e3f2fd; color: #1565c0; }
+  .method-upi  { background: #f3e5f5; color: #6a1b9a; }
+  .row { display: flex; justify-content: space-between; align-items: flex-start;
+         padding: 11px 0; border-bottom: 1px solid #f5f5f5; font-size: 14px; }
+  .row:last-child { border-bottom: none; }
+  .row .lbl { color: #888; flex-shrink: 0; margin-right: 12px; }
+  .row .val { font-weight: 600; color: #1a1a2e; text-align: right; word-break: break-all; }
+  .footer { text-align: center; margin-top: 28px; }
+  .footer p { font-size: 12px; color: #bbb; }
+  .footer strong { color: #4361ee; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="top">
+    <div class="check">✅</div>
+    <h1>Payment Confirmed</h1>
+    <p class="receipt-no">Receipt No: <strong>{{ payment.receipt_no }}</strong></p>
+  </div>
+
+  <div class="amount-box">
+    <div class="label">Amount Paid</div>
+    <div class="value">₹{{ "%.2f"|format(payment.amount|float) }}</div>
+    <span class="method-badge method-{{ payment.method.value }}">{{ payment.method.value }}</span>
+  </div>
+
+  <hr class="divider">
+
+  <div class="row">
+    <span class="lbl">Donor</span>
+    <span class="val">{{ payment.donor.name }}</span>
+  </div>
+  {% if payment.donor.phone %}
+  <div class="row">
+    <span class="lbl">Phone</span>
+    <span class="val">{{ payment.donor.phone }}</span>
+  </div>
+  {% endif %}
+  {% if payment.donor.address %}
+  <div class="row">
+    <span class="lbl">Address</span>
+    <span class="val">{{ payment.donor.address }}</span>
+  </div>
+  {% endif %}
+  <div class="row">
+    <span class="lbl">Collected by</span>
+    <span class="val">{{ payment.collector.name }}</span>
+  </div>
+  {% if payment.utr_number %}
+  <div class="row">
+    <span class="lbl">UTR / Txn No</span>
+    <span class="val">{{ payment.utr_number }}</span>
+  </div>
+  {% endif %}
+  <div class="row">
+    <span class="lbl">Date & Time</span>
+    <span class="val">{{ payment.confirmed_at.strftime("%d %b %Y, %I:%M %p") if payment.confirmed_at else "—" }}</span>
+  </div>
+
+  <div class="footer">
+    <p>Thank you for your contribution 🙏</p>
+    <p style="margin-top:6px">Powered by <strong>PujoPay</strong></p>
+  </div>
+</div>
+</body>
+</html>

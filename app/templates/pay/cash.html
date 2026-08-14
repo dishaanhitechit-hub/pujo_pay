@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confirm Cash Payment — PujoPay</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f4f6fb; min-height: 100vh;
+         display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.1);
+          padding: 32px 28px; max-width: 420px; width: 100%; text-align: center; }
+  .badge { display: inline-block; background: #e3f2fd; color: #1565c0;
+           font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 99px; margin-bottom: 16px; }
+  h1 { font-size: 22px; color: #1a1a2e; margin-bottom: 4px; }
+  .sub { color: #666; font-size: 14px; margin-bottom: 24px; }
+  .amount { font-size: 48px; font-weight: 800; color: #2d9d5a; margin-bottom: 8px; }
+  .amount-label { font-size: 13px; color: #999; margin-bottom: 28px; }
+  .info-row { display: flex; justify-content: space-between; align-items: center;
+              padding: 12px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+  .info-row:last-of-type { border-bottom: none; margin-bottom: 24px; }
+  .info-row .label { color: #888; }
+  .info-row .value { font-weight: 600; color: #1a1a2e; }
+  .flash-error { background: #ffebee; color: #c62828; border-radius: 8px;
+                 padding: 10px 14px; margin-bottom: 20px; font-size: 13px; font-weight: 600; }
+  .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px;
+         font-weight: 700; cursor: pointer; background: #2d9d5a; color: #fff; transition: opacity .2s; }
+  .btn:hover { opacity: .88; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="badge">Cash Payment</div>
+  <h1>{{ payment.donor.name }}</h1>
+  <p class="sub">Collector: <strong>{{ collector.name }}</strong></p>
+
+  <div class="amount">₹{{ "%.2f"|format(payment.amount|float) }}</div>
+  <p class="amount-label">Amount to collect in cash</p>
+
+  {% if flash_error %}
+  <div class="flash-error">⚠ {{ flash_error }}</div>
+  {% endif %}
+
+  <div class="info-row">
+    <span class="label">Donor</span>
+    <span class="value">{{ payment.donor.name }}</span>
+  </div>
+  {% if payment.donor.phone %}
+  <div class="info-row">
+    <span class="label">Phone</span>
+    <span class="value">{{ payment.donor.phone }}</span>
+  </div>
+  {% endif %}
+  <div class="info-row">
+    <span class="label">Payment Method</span>
+    <span class="value">Cash</span>
+  </div>
+
+  <form method="POST" action="/pay/cash/{{ payment.id }}/confirm">
+    <button type="submit" class="btn">✓ Confirm Cash Received</button>
+  </form>
+</div>
+</body>
+</html>
