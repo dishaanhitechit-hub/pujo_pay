@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PujoPay — Token</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f0f4ff; min-height: 100vh; padding: 24px 16px; }
+  nav { display: flex; justify-content: space-between; align-items: center;
+        background: #fff; border-radius: 12px; padding: 14px 20px; margin-bottom: 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+  nav h2 { font-size: 16px; color: #4361ee; }
+  .nav-right { display: flex; gap: 10px; align-items: center; }
+  .nav-right span { font-size: 13px; color: #888; }
+  .btn-nav { padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+  .btn-dash { background: #e8f0fe; color: #4361ee; }
+  .btn-out  { background: #ffebee; color: #c62828; }
+
+  .page-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1100px; margin: 0 auto; }
+  @media(max-width:800px) { .page-grid { grid-template-columns: 1fr; } }
+  .full { grid-column: 1 / -1; }
+
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 16px rgba(0,0,0,.07); padding: 24px; }
+  .card h2 { font-size: 15px; color: #1a1a2e; margin-bottom: 16px; padding-bottom: 10px;
+             border-bottom: 1.5px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+
+  label { display: block; font-size: 12px; font-weight: 600; color: #666; margin-bottom: 5px; }
+  input, select { width: 100%; padding: 9px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px;
+                  font-size: 13px; outline: none; margin-bottom: 12px; transition: border .2s; }
+  input:focus, select:focus { border-color: #4361ee; }
+
+  .btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 13px; font-weight: 700;
+         cursor: pointer; transition: opacity .2s; }
+  .btn:hover { opacity: .85; }
+  .btn:disabled { background: #ccc !important; cursor: not-allowed; }
+  .btn-primary { background: #4361ee; color: #fff; width: 100%; padding: 11px; }
+  .btn-green   { background: #2d9d5a; color: #fff; }
+  .btn-red     { background: #e03131; color: #fff; }
+  .btn-gray    { background: #eee; color: #333; font-size: 12px; padding: 5px 12px; }
+  .btn-purple  { background: #6a1b9a; color: #fff; }
+
+  .msg { padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; margin-top: 10px; display: none; }
+  .err { background: #ffebee; color: #c62828; }
+  .ok  { background: #e8f5e9; color: #2e7d32; }
+
+  .method-row { display: flex; gap: 10px; margin-bottom: 12px; }
+  .method-btn { flex: 1; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;
+                font-size: 13px; font-weight: 600; cursor: pointer; background: #fff; transition: all .2s; text-align: center; }
+  .method-btn.active-single { border-color: #4361ee; background: #e8f0fe; color: #4361ee; }
+  .method-btn.active-dual   { border-color: #6a1b9a; background: #f3e5f5; color: #6a1b9a; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 10px; background: #f8f9ff; color: #666;
+       font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+  td { padding: 9px 10px; border-bottom: 1px solid #f5f5f5; color: #333; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+  .badge-single  { background: #e8f0fe; color: #2a47b8; }
+  .badge-dual    { background: #f3e5f5; color: #4a148c; }
+  .badge-bulk    { background: #fff3e0; color: #bf360c; }
+  .badge-active  { background: #e8f5e9; color: #2e7d32; }
+  .badge-void    { background: #ffebee; color: #c62828; }
+
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .config-row { display: flex; gap: 8px; }
+  .config-row input { margin-bottom: 0; }
+  .sep { border: none; border-top: 1.5px solid #f0f0f0; margin: 14px 0; }
+
+  #adminSection { display: none; }
+  #bulkResult { display: none; margin-top: 12px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <h2>🪔 PujoPay — Token</h2>
+  <div class="nav-right">
+    <span id="navUser"></span>
+    <button class="btn-nav btn-dash" onclick="goto('dashboard.html')">Dashboard</button>
+    <button class="btn-nav btn-dash" onclick="goto('collect.html')">Collect</button>
+    <button class="btn-nav btn-dash" onclick="goto('admin.html')">Admin</button>
+    <button class="btn-nav btn-out" onclick="logout()">Logout</button>
+  </div>
+</nav>
+
+<div class="page-grid">
+
+  <!-- ── Admin: Token Config (admin only) ── -->
+  <div class="card" id="adminSection">
+    <h2>⚙️ Token Config <span style="font-size:11px;font-weight:400;color:#888">(Admin Only)</span></h2>
+
+    <label>Prefix</label>
+    <input type="text" id="cfg_prefix" placeholder="e.g. PP-">
+
+    <label>Suffix</label>
+    <input type="text" id="cfg_suffix" placeholder="e.g. -A">
+
+    <label>Padding Width (digits)</label>
+    <input type="number" id="cfg_pad" placeholder="4" min="1" max="10">
+
+    <label>Start Number</label>
+    <input type="number" id="cfg_start" placeholder="1" min="1">
+
+    <label>Default Topic</label>
+    <input type="text" id="cfg_topic" placeholder="e.g. Cultural Program">
+
+    <button class="btn btn-primary" onclick="saveConfig()">Save Token Config</button>
+    <div class="msg err" id="cfgErr"></div>
+    <div class="msg ok"  id="cfgOk"></div>
+
+    <hr class="sep">
+
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#1a1a2e">Reset Counter</div>
+        <div style="font-size:12px;color:#888;margin-top:2px">Resets token number back to Start Number</div>
+      </div>
+      <button class="btn btn-red" onclick="resetCounter()" style="flex-shrink:0">Reset</button>
+    </div>
+    <div class="msg err" id="resetErr"></div>
+    <div class="msg ok"  id="resetOk"></div>
+  </div>
+
+  <!-- ── Generate Token ── -->
+  <div class="card">
+    <h2>🎫 Generate Token</h2>
+
+    <label>Token Type</label>
+    <div class="method-row">
+      <button class="method-btn" id="btnSingle" onclick="selectType('single')">🎫 Single</button>
+      <button class="method-btn" id="btnDual"   onclick="selectType('dual')">🎫🎫 Dual</button>
+    </div>
+
+    <label>Participant Name *</label>
+    <input type="text" id="gen_name" placeholder="e.g. Suresh Mondal">
+
+    <label>Topic <span style="font-weight:400;color:#aaa">(optional)</span></label>
+    <input type="text" id="gen_topic" placeholder="e.g. Cultural Program">
+
+    <button class="btn btn-primary" id="genBtn" onclick="generateToken()">Generate Token →</button>
+    <div class="msg err" id="genErr"></div>
+    <div class="msg ok"  id="genOk"></div>
+    <div id="genResult" style="display:none;margin-top:12px">
+      <div style="background:#e8f0fe;border-radius:8px;padding:12px 14px">
+        <div style="font-size:11px;color:#888;margin-bottom:4px">Token Generated</div>
+        <div id="genTokenNo" style="font-size:22px;font-weight:900;color:#4361ee"></div>
+        <div id="genSlNo"    style="font-size:12px;color:#666;margin-top:2px"></div>
+      </div>
+      <button class="btn btn-green" style="width:100%;margin-top:10px" id="genPrintBtn" onclick="printToken()">
+        🖨 Print Token
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Bulk Generate ── -->
+  <div class="card">
+    <h2>📦 Bulk Generate</h2>
+    <p style="font-size:12px;color:#888;margin-bottom:16px">
+      Blank tokens with no participant details. Good for pre-printing stock.
+    </p>
+
+    <label>Number of Tokens * (1 – 500)</label>
+    <input type="number" id="bulk_count" placeholder="e.g. 50" min="1" max="500">
+
+    <button class="btn btn-primary btn-purple" onclick="generateBulk()">Generate Bulk Tokens →</button>
+    <div class="msg err" id="bulkErr"></div>
+    <div class="msg ok"  id="bulkOk"></div>
+    <div id="bulkResult">
+      <div style="background:#f3e5f5;border-radius:8px;padding:12px 14px">
+        <div style="font-size:11px;color:#888;margin-bottom:4px">Batch Generated</div>
+        <div id="bulkCount"   style="font-size:18px;font-weight:800;color:#6a1b9a"></div>
+        <div id="bulkBatchId" style="font-size:11px;color:#aaa;margin-top:2px;word-break:break-all"></div>
+      </div>
+      <button class="btn btn-purple" style="width:100%;margin-top:10px" id="bulkPrintBtn" onclick="printBulk()">
+        🖨 Print All Tokens
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Token List ── -->
+  <div class="card full">
+    <h2>
+      📋 Token History
+      <button class="btn btn-gray" onclick="loadTokens()">↻ Refresh</button>
+    </h2>
+    <div style="overflow-x:auto">
+      <table id="tokenTable">
+        <thead>
+          <tr>
+            <th>SL #</th><th>Token No</th><th>Type</th>
+            <th>Participant</th><th>Topic</th>
+            <th>Gen By</th><th>Gen At</th><th>Status</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tokenBody">
+          <tr><td colspan="9" style="text-align:center;color:#aaa;padding:20px">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="msg err" id="listErr"></div>
+    <div id="pagination" style="margin-top:14px;text-align:center;font-size:13px;color:#888"></div>
+  </div>
+
+</div>
+
+<script>
+  const BASE = "http://132.154.156.82:5999";
+  const token = localStorage.getItem("token");
+  if (!token) window.location.href = "login.html";
+
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  document.getElementById("navUser").textContent = user.name || "";
+
+  let selectedType = null;
+  let lastTokenNo = null;
+  let lastBatchId = null;
+  let currentPage = 1;
+
+  function authH() { return { "Content-Type": "application/json", "Authorization": "Bearer " + token }; }
+  function goto(p) { window.location.href = p; }
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+  function showMsg(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.style.display = "block"; }
+  function hideMsg(id) { document.getElementById(id).style.display = "none"; }
+  function hideMsgs(...ids) { ids.forEach(hideMsg); }
+
+  // ── Token type select ──
+  function selectType(t) {
+    selectedType = t;
+    document.getElementById("btnSingle").className = "method-btn" + (t === "single" ? " active-single" : "");
+    document.getElementById("btnDual").className   = "method-btn" + (t === "dual"   ? " active-dual"   : "");
+  }
+
+  // ── Admin section ──
+  if (user.role === "admin") {
+    document.getElementById("adminSection").style.display = "block";
+    loadConfig();
+  }
+
+  async function loadConfig() {
+    const r = await fetch(`${BASE}/api/admin/token-config`, { headers: authH() }).catch(() => null);
+    if (!r || !r.ok) return;
+    const j = await r.json();
+    const c = j.data.config || {};
+    if (c.tokenPrefix)      document.getElementById("cfg_prefix").value = c.tokenPrefix;
+    if (c.tokenSuffix)      document.getElementById("cfg_suffix").value = c.tokenSuffix;
+    if (c.tokenPadWidth)    document.getElementById("cfg_pad").value    = c.tokenPadWidth;
+    if (c.tokenStartNumber) document.getElementById("cfg_start").value  = c.tokenStartNumber;
+    if (c.tokenDefaultTopic)document.getElementById("cfg_topic").value  = c.tokenDefaultTopic;
+  }
+
+  async function saveConfig() {
+    hideMsgs("cfgErr","cfgOk");
+    const body = {
+      tokenPrefix:       document.getElementById("cfg_prefix").value.trim(),
+      tokenSuffix:       document.getElementById("cfg_suffix").value.trim(),
+      tokenPadWidth:     document.getElementById("cfg_pad").value.trim(),
+      tokenStartNumber:  document.getElementById("cfg_start").value.trim(),
+      tokenDefaultTopic: document.getElementById("cfg_topic").value.trim(),
+    };
+    const r = await fetch(`${BASE}/api/admin/token-config`, {
+      method: "POST", headers: authH(), body: JSON.stringify(body),
+    }).catch(() => null);
+    if (!r) return showMsg("cfgErr", "Cannot reach server");
+    const j = await r.json();
+    r.ok ? showMsg("cfgOk", "Config saved!") : showMsg("cfgErr", j.message);
+  }
+
+  async function resetCounter() {
+    if (!confirm("Reset token counter to start number? All future tokens will get new numbers. Existing tokens are NOT affected.")) return;
+    hideMsgs("resetErr","resetOk");
+    const r = await fetch(`${BASE}/api/admin/token-config/reset`, {
+      method: "POST", headers: authH(),
+    }).catch(() => null);
+    if (!r) return showMsg("resetErr", "Cannot reach server");
+    const j = await r.json();
+    r.ok
+      ? showMsg("resetOk", `Counter reset! Next token starts at ${j.data.nextTokenStartsAt}`)
+      : showMsg("resetErr", j.message);
+  }
+
+  // ── Generate single/dual ──
+  async function generateToken() {
+    hideMsgs("genErr","genOk");
+    document.getElementById("genResult").style.display = "none";
+
+    if (!selectedType) return showMsg("genErr", "Select Single or Dual");
+    const name = document.getElementById("gen_name").value.trim();
+    if (!name) return showMsg("genErr", "Participant name is required");
+
+    document.getElementById("genBtn").disabled = true;
+    document.getElementById("genBtn").textContent = "Generating…";
+
+    const body = {
+      type: selectedType,
+      participantName: name,
+      topic: document.getElementById("gen_topic").value.trim() || undefined,
+    };
+    const r = await fetch(`${BASE}/api/token/generate`, {
+      method: "POST", headers: authH(), body: JSON.stringify(body),
+    }).catch(() => null);
+
+    document.getElementById("genBtn").disabled = false;
+    document.getElementById("genBtn").textContent = "Generate Token →";
+
+    if (!r) return showMsg("genErr", "Cannot reach server");
+    const j = await r.json();
+    if (!r.ok) return showMsg("genErr", j.message || "Failed");
+
+    lastTokenNo = j.data.tokenNo;
+    document.getElementById("genTokenNo").textContent = j.data.tokenNo;
+    document.getElementById("genSlNo").textContent    = `SL #${j.data.slNo} · ${j.data.type.toUpperCase()}`;
+    document.getElementById("genResult").style.display = "block";
+    showMsg("genOk", "Token created successfully!");
+    loadTokens();
+  }
+
+  function printToken() {
+    if (lastTokenNo) window.open(`${BASE}/token/print/${lastTokenNo}`, "_blank");
+  }
+
+  // ── Bulk generate ──
+  async function generateBulk() {
+    hideMsgs("bulkErr","bulkOk");
+    document.getElementById("bulkResult").style.display = "none";
+
+    const count = parseInt(document.getElementById("bulk_count").value);
+    if (!count || count < 1 || count > 500) return showMsg("bulkErr", "Enter a count between 1 and 500");
+
+    const r = await fetch(`${BASE}/api/token/bulk`, {
+      method: "POST", headers: authH(), body: JSON.stringify({ count }),
+    }).catch(() => null);
+
+    if (!r) return showMsg("bulkErr", "Cannot reach server");
+    const j = await r.json();
+    if (!r.ok) return showMsg("bulkErr", j.message || "Failed");
+
+    lastBatchId = j.data.batchId;
+    document.getElementById("bulkCount").textContent   = `${j.data.count} tokens generated`;
+    document.getElementById("bulkBatchId").textContent = `Batch: ${j.data.batchId}`;
+    document.getElementById("bulkResult").style.display = "block";
+    showMsg("bulkOk", `${j.data.count} bulk tokens created!`);
+    loadTokens();
+  }
+
+  function printBulk() {
+    if (lastBatchId) window.open(`${BASE}/token/print/bulk/${lastBatchId}`, "_blank");
+  }
+
+  // ── Token list ──
+  async function loadTokens(page = 1) {
+    currentPage = page;
+    document.getElementById("tokenBody").innerHTML =
+      '<tr><td colspan="9" style="text-align:center;color:#aaa;padding:16px">Loading…</td></tr>';
+
+    const r = await fetch(`${BASE}/api/token/list?page=${page}`, { headers: authH() }).catch(() => null);
+    if (!r || !r.ok) {
+      document.getElementById("tokenBody").innerHTML =
+        '<tr><td colspan="9" style="text-align:center;color:#c62828">Failed to load tokens</td></tr>';
+      return;
+    }
+    const j = await r.json();
+    const tokens = j.data.tokens || [];
+    if (!tokens.length) {
+      document.getElementById("tokenBody").innerHTML =
+        '<tr><td colspan="9" style="text-align:center;color:#aaa;padding:16px">No tokens yet</td></tr>';
+      document.getElementById("pagination").textContent = "";
+      return;
+    }
+
+    document.getElementById("tokenBody").innerHTML = tokens.map(t => `
+      <tr>
+        <td><strong>#${t.slNo}</strong></td>
+        <td style="font-weight:700;color:#4361ee;font-family:monospace">${t.tokenNo}</td>
+        <td><span class="badge badge-${t.type}">${t.type}</span></td>
+        <td>${t.participantName || '<em style="color:#ccc">—</em>'}</td>
+        <td style="color:#666">${t.topic || '<em style="color:#ccc">—</em>'}</td>
+        <td>${t.generatedBy?.name || "—"}</td>
+        <td style="font-size:11px;color:#888">${fmtDate(t.generatedAt)}</td>
+        <td><span class="badge badge-${t.status}">${t.status}</span></td>
+        <td>
+          <div class="actions">
+            <button class="btn btn-gray" onclick="window.open('${BASE}${t.printUrl}','_blank')">🖨 Print</button>
+            <button class="btn btn-gray" onclick="window.open('${BASE}${t.viewUrl}','_blank')">🔍 View</button>
+            ${user.role === "admin" && t.status === "active"
+              ? `<button class="btn btn-red" style="font-size:11px;padding:4px 9px" onclick="voidToken('${t.tokenNo}')">Void</button>`
+              : ""}
+          </div>
+        </td>
+      </tr>`).join("");
+
+    const { page: p, pages } = j.data;
+    document.getElementById("pagination").innerHTML = pages > 1
+      ? `Page ${p} of ${pages} &nbsp;
+         ${p > 1 ? `<button class="btn btn-gray" onclick="loadTokens(${p-1})">← Prev</button>` : ""}
+         ${p < pages ? `<button class="btn btn-gray" onclick="loadTokens(${p+1})">Next →</button>` : ""}`
+      : `${j.data.total} token(s)`;
+  }
+
+  async function voidToken(tokenNo) {
+    if (!confirm(`Void token ${tokenNo}? It will be marked as invalid.`)) return;
+    const r = await fetch(`${BASE}/api/token/${tokenNo}/void`, {
+      method: "POST", headers: authH(),
+    }).catch(() => null);
+    if (!r) return alert("Cannot reach server");
+    const j = await r.json();
+    alert(j.message);
+    loadTokens(currentPage);
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })
+      + " " + d.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit" });
+  }
+
+  // init
+  loadTokens();
+</script>
+</body>
+</html>

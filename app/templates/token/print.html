@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Token Print — PujoPay</title>
+<style>
+  /* ── Screen preview ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f0f4ff; padding: 24px; }
+  .screen-bar { background: #fff; border-radius: 12px; padding: 16px 20px;
+                max-width: 420px; margin: 0 auto 24px; display: flex;
+                justify-content: space-between; align-items: center;
+                box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+  .screen-bar h2 { font-size: 15px; color: #4361ee; }
+  .btn-print { background: #4361ee; color: #fff; border: none; padding: 10px 22px;
+               border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .btn-print:hover { opacity: .88; }
+  .tokens-wrap { max-width: 420px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+  /* ── Token card (screen) ── */
+  .token-page {
+    background: #fff;
+    border-radius: 12px;
+    border: 2px dashed #c0caff;
+    padding: 10px;
+    width: 192px; /* 2in at 96dpi */
+    min-height: 192px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    text-align: center;
+    position: relative;
+  }
+  .copy-label { font-size: 7px; font-weight: 800; text-transform: uppercase;
+                letter-spacing: .5px; padding: 2px 6px; border-radius: 4px; }
+  .copy-participant { background: #e8f5e9; color: #2e7d32; }
+  .copy-official    { background: #fce4ec; color: #880e4f; }
+  .t-org  { font-size: 7px; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: .4px; }
+  .t-no   { font-size: 18px; font-weight: 900; color: #4361ee; letter-spacing: .5px; line-height: 1.1; }
+  .t-name { font-size: 8px; font-weight: 700; color: #1a1a2e; }
+  .t-topic{ font-size: 7px; color: #555; }
+  .t-meta { font-size: 6px; color: #aaa; line-height: 1.6; }
+  .t-qr   { width: 58px; height: 58px; }
+  .t-qr img { width: 100%; height: 100%; }
+
+  .cut-sep { text-align: center; font-size: 11px; color: #bbb;
+             letter-spacing: 3px; margin: 4px 0; }
+
+  /* ── Print styles ── */
+  @media print {
+    @page { size: 2in 2in; margin: 1.5mm; }
+    body { background: #fff; padding: 0; }
+    .screen-bar { display: none; }
+    .tokens-wrap { max-width: 100%; gap: 0; }
+
+    .token-page {
+      width: 100%;
+      min-height: calc(2in - 3mm);
+      border: none;
+      border-radius: 0;
+      padding: 3pt 4pt;
+      page-break-before: always;
+      margin: 0;
+    }
+    .token-page:first-child { page-break-before: avoid; }
+    .cut-sep { display: none; }
+
+    .t-no   { font-size: 20pt; }
+    .t-org  { font-size: 6pt; }
+    .t-name { font-size: 8pt; }
+    .t-topic{ font-size: 7pt; }
+    .t-meta { font-size: 6pt; }
+    .copy-label { font-size: 6pt; }
+    .t-qr   { width: 58pt; height: 58pt; }
+  }
+</style>
+</head>
+<body>
+
+<div class="screen-bar no-print">
+  <h2>🪔 Token Print Preview</h2>
+  <button class="btn-print" onclick="window.print()">🖨 Print / Save PDF</button>
+</div>
+
+<div class="tokens-wrap">
+
+{% for token in tokens %}
+  {% set qr = qr_map[token.token_no] %}
+
+  {# ── DUAL: render twice (participant + official) ── #}
+  {% if token.type.value == 'dual' %}
+
+    <div class="token-page">
+      <span class="copy-label copy-participant">Participant Copy</span>
+      <div class="t-org">{{ token.org_name }}</div>
+      <div class="t-no">{{ token.token_no }}</div>
+      {% if token.participant_name %}
+      <div class="t-name">{{ token.participant_name }}</div>
+      {% endif %}
+      {% if token.topic %}
+      <div class="t-topic">{{ token.topic }}</div>
+      {% endif %}
+      <div class="t-meta">
+        SL #{{ token.token_serial }} &nbsp;·&nbsp;
+        {{ token.generated_at.strftime("%d %b %Y %I:%M %p") if token.generated_at else "" }}<br>
+        By: {{ token.generated_by.name if token.generated_by else "—" }}
+      </div>
+      <div class="t-qr"><img src="data:image/png;base64,{{ qr }}" alt="QR"></div>
+    </div>
+
+    {# cut separator (screen only) #}
+    <div class="cut-sep">- - - - - - - - - - - - - - - -</div>
+
+    <div class="token-page">
+      <span class="copy-label copy-official">Official Copy</span>
+      <div class="t-org">{{ token.org_name }}</div>
+      <div class="t-no">{{ token.token_no }}</div>
+      {% if token.participant_name %}
+      <div class="t-name">{{ token.participant_name }}</div>
+      {% endif %}
+      {% if token.topic %}
+      <div class="t-topic">{{ token.topic }}</div>
+      {% endif %}
+      <div class="t-meta">
+        SL #{{ token.token_serial }} &nbsp;·&nbsp;
+        {{ token.generated_at.strftime("%d %b %Y %I:%M %p") if token.generated_at else "" }}<br>
+        By: {{ token.generated_by.name if token.generated_by else "—" }}
+      </div>
+      <div class="t-qr"><img src="data:image/png;base64,{{ qr }}" alt="QR"></div>
+    </div>
+
+  {# ── SINGLE or BULK: one sticker ── #}
+  {% else %}
+
+    <div class="token-page">
+      {% if is_bulk %}
+        <span class="copy-label" style="background:#fff3e0;color:#bf360c">Bulk Token</span>
+      {% endif %}
+      <div class="t-org">{{ token.org_name }}</div>
+      <div class="t-no">{{ token.token_no }}</div>
+      {% if token.participant_name %}
+      <div class="t-name">{{ token.participant_name }}</div>
+      {% endif %}
+      {% if token.topic %}
+      <div class="t-topic">{{ token.topic }}</div>
+      {% endif %}
+      <div class="t-meta">
+        SL #{{ token.token_serial }} &nbsp;·&nbsp;
+        {{ token.generated_at.strftime("%d %b %Y %I:%M %p") if token.generated_at else "" }}<br>
+        By: {{ token.generated_by.name if token.generated_by else "—" }}
+      </div>
+      <div class="t-qr"><img src="data:image/png;base64,{{ qr }}" alt="QR"></div>
+    </div>
+
+  {% endif %}
+
+  {# separator between tokens in bulk (screen only) #}
+  {% if not loop.last and is_bulk %}
+    <div class="cut-sep">· · · · · · · · · · · · · · ·</div>
+  {% endif %}
+
+{% endfor %}
+
+</div>
+
+<script>
+  // auto-trigger print dialog after page loads (can be disabled by closing dialog)
+  window.addEventListener("load", () => setTimeout(() => window.print(), 400));
+</script>
+</body>
+</html>

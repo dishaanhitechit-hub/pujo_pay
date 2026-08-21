@@ -10,16 +10,21 @@ PERMISSION_KEYS = [
     "dashboard.view",
     "users.manage",
     "permissions.manage",
+    "token.generate",
+    "token.bulk",
+    "token.view",
 ]
 
 # Default grants per role
 _DEFAULTS: dict[str, list[str]] = {
     "admin":     PERMISSION_KEYS,  # all
     "executive": ["payment.initiate", "payment.confirm", "payment.view_receipt",
-                  "collector.view_own", "dashboard.view"],
+                  "collector.view_own", "dashboard.view",
+                  "token.generate", "token.view"],
     "committee": ["payment.initiate", "payment.confirm", "payment.view_receipt",
-                  "collector.view_own"],
-    "general":   ["payment.initiate", "payment.confirm", "payment.view_receipt"],
+                  "collector.view_own", "token.generate"],
+    "general":   ["payment.initiate", "payment.confirm", "payment.view_receipt",
+                  "token.generate"],
 }
 
 
@@ -37,13 +42,19 @@ class RolePermission(db.Model):
 
     @staticmethod
     def seed_defaults() -> None:
-        """Insert default permissions if the table is empty."""
-        if RolePermission.query.first():
-            return
-        rows = [
-            RolePermission(role=RoleEnum(role), permission_key=key, granted=(key in keys))
-            for role, keys in _DEFAULTS.items()
-            for key in PERMISSION_KEYS
-        ]
-        db.session.add_all(rows)
-        db.session.commit()
+        """Insert missing permission rows (additive — safe to re-run on new keys)."""
+        changed = False
+        for role_str, keys in _DEFAULTS.items():
+            for perm_key in PERMISSION_KEYS:
+                exists = RolePermission.query.filter_by(
+                    role=RoleEnum(role_str), permission_key=perm_key
+                ).first()
+                if exists is None:
+                    db.session.add(RolePermission(
+                        role=RoleEnum(role_str),
+                        permission_key=perm_key,
+                        granted=(perm_key in keys),
+                    ))
+                    changed = True
+        if changed:
+            db.session.commit()

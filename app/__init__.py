@@ -27,6 +27,7 @@ def create_app():
 
     # ── Import models so Flask-Migrate can detect all tables ─
     from .models import User, Donor, Payment, RolePermission, AppConfig  # noqa: F401
+    from .models.token import Token  # noqa: F401
 
     # ── DB seed (first-run admin + default permissions) ─────
     # Skipped silently if tables don't exist yet (before first migration)

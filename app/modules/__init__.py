@@ -25,3 +25,6 @@ def register_all(app: Flask) -> None:
 
     from .receipt.routes import bp as receipt_bp
     app.register_blueprint(receipt_bp, url_prefix="")
+
+    from .token.routes import bp as token_bp
+    app.register_blueprint(token_bp, url_prefix="")
