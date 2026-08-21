@@ -1,9 +1,12 @@
 from ...models.app_config import AppConfig
 
 ALLOWED_KEYS = {
-    "upi_id": "UPI ID (e.g. committee@upi)",
-    "org_name": "Organisation name shown on QR and receipts",
+    "upiId":   "UPI ID (e.g. committee@upi)",
+    "orgName": "Organisation name shown on QR and receipts",
 }
+
+# maps camelCase payload key → internal DB key
+_KEY_MAP = {"upiId": "upi_id", "orgName": "org_name"}
 
 
 def get_all() -> dict:
@@ -18,6 +21,7 @@ def set_keys(payload: dict) -> tuple[dict, dict]:
         if key not in ALLOWED_KEYS:
             errors[key] = f"unknown key — allowed: {list(ALLOWED_KEYS)}"
             continue
-        AppConfig.set(key, str(value).strip())
+        db_key = _KEY_MAP[key]
+        AppConfig.set(db_key, str(value).strip())
         updated[key] = str(value).strip()
     return updated, errors

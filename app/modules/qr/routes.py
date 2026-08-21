@@ -19,6 +19,12 @@ bp = Blueprint("qr", __name__)
 def qr_page(payment_id):
     payment = Payment.query.get_or_404(payment_id)
 
+    if payment.status.value == "confirmed":
+        return redirect(url_for("qr.receipt_page", payment_id=payment_id))
+    if payment.status.value in ("cancelled", "expired"):
+        return render_template("pay/error.html",
+                               message=f"This payment has already been {payment.status.value}.")
+
     upi_id = AppConfig.get("upi_id")
     if not upi_id:
         return render_template("pay/error.html",
@@ -70,6 +76,13 @@ def qr_cancel(payment_id):
 @bp.route("/cash/<int:payment_id>", methods=["GET"])
 def cash_page(payment_id):
     payment = Payment.query.get_or_404(payment_id)
+
+    if payment.status.value == "confirmed":
+        return redirect(url_for("qr.receipt_page", payment_id=payment_id))
+    if payment.status.value in ("cancelled", "expired"):
+        return render_template("pay/error.html",
+                               message=f"This payment has already been {payment.status.value}.")
+
     return render_template("pay/cash.html", payment=payment, collector=payment.collector)
 
 

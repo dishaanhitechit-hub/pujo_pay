@@ -5,12 +5,12 @@ from ...models.user import User, RoleEnum
 
 
 class CreateUserSchema(Schema):
-    name = fields.Str(required=True, validate=validate.Length(min=1, max=120))
-    email = fields.Email(required=True)
-    password = fields.Str(required=True, validate=validate.Length(min=6))
-    phone = fields.Str(load_default=None, validate=validate.Length(max=20))
-    upi_id = fields.Str(load_default=None, validate=validate.Length(max=100))
-    whatsapp_no = fields.Str(load_default=None, validate=validate.Length(max=20))
+    name        = fields.Str(required=True, validate=validate.Length(min=1, max=120))
+    email       = fields.Email(required=True)
+    password    = fields.Str(required=True, validate=validate.Length(min=6))
+    phone       = fields.Str(load_default=None, validate=validate.Length(max=20))
+    upi_id      = fields.Str(load_default=None, data_key="upiId", validate=validate.Length(max=100))
+    whatsapp_no = fields.Str(load_default=None, data_key="whatsappNo", validate=validate.Length(max=20))
     role = fields.Str(
         load_default="general",
         validate=validate.OneOf(["admin", "executive", "committee", "general"]),
@@ -18,15 +18,13 @@ class CreateUserSchema(Schema):
 
 
 class UpdateUserSchema(Schema):
-    name = fields.Str(validate=validate.Length(min=1, max=120))
-    phone = fields.Str(validate=validate.Length(max=20), allow_none=True)
-    upi_id = fields.Str(validate=validate.Length(max=100), allow_none=True)
-    whatsapp_no = fields.Str(validate=validate.Length(max=20), allow_none=True)
-    role = fields.Str(
-        validate=validate.OneOf(["admin", "executive", "committee", "general"])
-    )
-    password = fields.Str(validate=validate.Length(min=6))
-    is_active = fields.Bool()
+    name        = fields.Str(validate=validate.Length(min=1, max=120))
+    phone       = fields.Str(validate=validate.Length(max=20), allow_none=True)
+    upi_id      = fields.Str(data_key="upiId", validate=validate.Length(max=100), allow_none=True)
+    whatsapp_no = fields.Str(data_key="whatsappNo", validate=validate.Length(max=20), allow_none=True)
+    role        = fields.Str(validate=validate.OneOf(["admin", "executive", "committee", "general"]))
+    password    = fields.Str(validate=validate.Length(min=6))
+    is_active   = fields.Bool(data_key="isActive")
 
 
 create_schema = CreateUserSchema()

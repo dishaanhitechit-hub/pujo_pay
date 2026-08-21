@@ -7,10 +7,10 @@ from ...models.payment import Payment, MethodEnum, StatusEnum
 
 
 class InitiatePaymentSchema(Schema):
-    donor_name = fields.Str(required=True, validate=validate.Length(min=1, max=120))
-    donor_phone = fields.Str(load_default=None, validate=validate.Length(max=20))
-    donor_address = fields.Str(load_default=None)
-    donor_notes = fields.Str(load_default=None)
+    donor_name    = fields.Str(required=True, data_key="donorName", validate=validate.Length(min=1, max=120))
+    donor_phone   = fields.Str(load_default=None, data_key="donorPhone", validate=validate.Length(max=20))
+    donor_address = fields.Str(load_default=None, data_key="donorAddress")
+    donor_notes   = fields.Str(load_default=None, data_key="donorNotes")
     amount = fields.Decimal(required=True, places=2, as_string=False)
     method = fields.Str(
         required=True,

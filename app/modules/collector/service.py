@@ -22,6 +22,9 @@ def get_summary(collector_id: int) -> dict:
     ).scalar()
 
     count = base.count()
+    pending_count = Payment.query.filter_by(
+        collector_id=collector_id, status=StatusEnum.pending
+    ).count()
 
     return {
         "cashTotal": str(Decimal(str(cash_total)).quantize(Decimal("0.01"))),
@@ -30,6 +33,7 @@ def get_summary(collector_id: int) -> dict:
             (Decimal(str(cash_total)) + Decimal(str(upi_total))).quantize(Decimal("0.01"))
         ),
         "confirmedCount": count,
+        "pendingCount": pending_count,
     }
 
 
