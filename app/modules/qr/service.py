@@ -1,13 +1,7 @@
 import io
-import os
-import re
 import base64
-import threading
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode
-
-
-_PDF_SEMAPHORE = threading.Semaphore(4)
 
 import qrcode
 from qrcode.image.pil import PilImage
@@ -68,8 +62,6 @@ def confirm_upi_payment(payment: Payment, utr_number: str | None) -> tuple[bool,
     payment.confirmed_at = now
     payment.assign_receipt_no()
     db.session.commit()
-
-    _save_pdf_async(payment)
     return True, "confirmed"
 
 
@@ -90,55 +82,4 @@ def confirm_cash_payment(payment: Payment) -> tuple[bool, str]:
     payment.confirmed_at = datetime.now(timezone.utc)
     payment.assign_receipt_no()
     db.session.commit()
-
-    _save_pdf_async(payment)
     return True, "confirmed"
-
-
-# ── PDF receipt ────────────────────────────────────────────────────────────
-
-def _save_pdf_async(payment: Payment) -> None:
-    """Fire-and-forget PDF generation in a background thread."""
-    from flask import current_app
-    app = current_app._get_current_object()
-    payment_id = payment.id
-
-    def _run():
-        with _PDF_SEMAPHORE:
-            with app.app_context():
-                # fresh session — no stale state from the request context
-                from ...extensions import db as _db
-                p = _db.session.get(Payment, payment_id)
-                if p:
-                    _save_pdf(p)
-                _db.session.remove()
-
-    threading.Thread(target=_run, daemon=True).start()
-
-
-def _save_pdf(payment: Payment) -> None:
-    """Render receipt HTML → PDF → save to disk. Silently skips on failure."""
-    try:
-        from flask import current_app, render_template
-        from weasyprint import HTML
-
-        pdf_base = current_app.config["PDF_STORAGE_PATH"]
-        collector_dir = _safe_dirname(payment.collector.name)
-        dir_path = os.path.join(pdf_base, collector_dir, payment.method.value)
-        os.makedirs(dir_path, exist_ok=True)
-
-        timestamp = payment.confirmed_at.strftime("%Y%m%d_%H%M%S")
-        filename = f"{payment.receipt_no}_{timestamp}.pdf"
-        file_path = os.path.join(dir_path, filename)
-
-        html_string = render_template("pay/receipt.html", payment=payment)
-        HTML(string=html_string).write_pdf(file_path)
-
-        payment.receipt_pdf_path = file_path
-        db.session.commit()
-    except Exception:
-        pass
-
-
-def _safe_dirname(name: str) -> str:
-    return re.sub(r"[^\w\s-]", "", name).strip().replace(" ", "_")

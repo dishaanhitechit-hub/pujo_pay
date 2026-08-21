@@ -32,6 +32,25 @@
   .footer { text-align: center; margin-top: 28px; }
   .footer p { font-size: 12px; color: #bbb; }
   .footer strong { color: #4361ee; }
+
+  /* ── Action buttons ── */
+  .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
+  .btn { width: 100%; padding: 13px; border: none; border-radius: 10px; font-size: 15px;
+         font-weight: 700; cursor: pointer; transition: opacity .2s; }
+  .btn-green  { background: #2d9d5a; color: #fff; }
+  .btn-outline { background: #fff; color: #4361ee; border: 2px solid #4361ee; }
+  .btn:hover { opacity: .88; }
+  .redirect-bar { background: #f0f4ff; border-radius: 8px; padding: 10px 14px;
+                  text-align: center; font-size: 13px; color: #666; margin-top: 16px; }
+  .redirect-bar span { font-weight: 700; color: #4361ee; }
+
+  /* ── Print / PDF styles ── */
+  @media print {
+    body { background: #fff; padding: 0; display: block; }
+    .card { box-shadow: none; border-radius: 0; max-width: 100%; padding: 24px; }
+    .actions, .redirect-bar, .no-print { display: none !important; }
+    .footer { margin-top: 40px; }
+  }
 </style>
 </head>
 <body>
@@ -66,6 +85,12 @@
     <span class="val">{{ payment.donor.address }}</span>
   </div>
   {% endif %}
+  {% if payment.donor.notes %}
+  <div class="row">
+    <span class="lbl">Notes</span>
+    <span class="val">{{ payment.donor.notes }}</span>
+  </div>
+  {% endif %}
   <div class="row">
     <span class="lbl">Collected by</span>
     <span class="val">{{ payment.collector.name }}</span>
@@ -85,6 +110,34 @@
     <p>Thank you for your contribution 🙏</p>
     <p style="margin-top:6px">Powered by <strong>PujoPay</strong></p>
   </div>
+
+  <!-- ── Actions ── -->
+  <div class="actions no-print">
+    <button class="btn btn-outline" onclick="window.print()">⬇ Download as PDF</button>
+    <button class="btn btn-green" id="newBtn" onclick="goCollect()">➕ Start New Collection</button>
+  </div>
+  <div class="redirect-bar no-print">
+    Redirecting to collect page in <span id="countdown">30</span>s…
+  </div>
 </div>
+
+<script>
+  const COLLECT = "http://132.154.156.82:3001/collect";
+
+  function goCollect() { window.location.replace(COLLECT); }
+
+  // auto-redirect countdown
+  let sec = 30;
+  const cd = document.getElementById("countdown");
+  const timer = setInterval(() => {
+    sec--;
+    if (cd) cd.textContent = sec;
+    if (sec <= 0) { clearInterval(timer); goCollect(); }
+  }, 1000);
+
+  // prevent browser back reaching this page after collect redirect
+  history.pushState(null, '', window.location.href);
+  window.addEventListener('popstate', () => window.location.replace(COLLECT));
+</script>
 </body>
 </html>
