@@ -106,12 +106,16 @@ def cash_cancel(payment_id):
 
 
 # ── HTML receipt page ──────────────────────────────────────────────────────
-# ?from=dashboard  → shows Back to Dashboard button, no auto-redirect
-# (no param)       → collector mode: auto-redirects to /collect after 30s
+# ?from=dashboard       → admin/manager: Back to Dashboard button, no auto-redirect
+# ?from=my-collections  → collector: Back to My Collections button, no auto-redirect
+# (no param)            → post-payment collector flow: auto-redirects to /collect after 30s
 
 @bp.route("/receipt/<int:payment_id>", methods=["GET"])
 def receipt_page(payment_id):
     payment = Payment.query.get_or_404(payment_id)
-    if request.args.get("from") == "dashboard":
+    source = request.args.get("from")
+    if source == "dashboard":
         return render_template("pay/receipt_dashboard.html", payment=payment)
+    if source == "my-collections":
+        return render_template("pay/receipt_my_collections.html", payment=payment)
     return render_template("pay/receipt.html", payment=payment)
