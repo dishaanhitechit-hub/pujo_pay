@@ -157,4 +157,6 @@ def receipt_page(payment_id):
         return render_template("pay/receipt_dashboard.html", payment=payment)
     if source == "my-collections":
         return render_template("pay/receipt_my_collections.html", payment=payment)
+    if payment.pledge_id:
+        return render_template("pay/receipt_pledge.html", payment=payment)
     return render_template("pay/receipt.html", payment=payment)
