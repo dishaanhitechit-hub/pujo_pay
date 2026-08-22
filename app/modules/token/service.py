@@ -181,7 +181,7 @@ def generate_bulk(count: int, generated_by_id: int) -> tuple[list, str]:
 # ── Queries ────────────────────────────────────────────────────────────────
 
 def get_token(token_no: str) -> Token | None:
-    return Token.query.filter_by(token_no=token_no).first()
+    return Token.query.filter(Token.token_no.ilike(token_no)).first()
 
 
 def get_token_list(page: int = 1, per_page: int = 50, batch_id: str | None = None):

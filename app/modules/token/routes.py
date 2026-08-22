@@ -96,7 +96,7 @@ def token_list():
 @bp.route("/api/token/<token_no>", methods=["GET"])
 @require_permission("token.generate")
 def token_detail(token_no):
-    token = get_token(token_no.upper())
+    token = get_token(token_no)
     if not token:
         return res("token not found", code=404)
     return res(data=token.to_dict())
@@ -105,7 +105,7 @@ def token_detail(token_no):
 @bp.route("/api/token/<token_no>/void", methods=["POST"])
 @require_permission("users.manage")
 def token_void(token_no):
-    token = get_token(token_no.upper())
+    token = get_token(token_no)
     if not token:
         return res("token not found", code=404)
     token = void_token(token)
@@ -116,8 +116,8 @@ def token_void(token_no):
 
 @bp.route("/token/<token_no>", methods=["GET"])
 def token_view(token_no):
-    token = get_token(token_no.upper())
-    return render_template("token/view.html", token=token, token_no=token_no.upper())
+    token = get_token(token_no)
+    return render_template("token/view.html", token=token, token_no=token_no)
 
 
 # ── Print pages (no auth — URL contains the token_no / batch_id) ──────────
@@ -134,7 +134,7 @@ def token_print_bulk(batch_id):
 
 @bp.route("/token/print/<token_no>", methods=["GET"])
 def token_print(token_no):
-    token = get_token(token_no.upper())
+    token = get_token(token_no)
     if not token:
         return res("token not found", code=404)
     base_url = request.host_url.rstrip("/")
