@@ -16,16 +16,16 @@ depends_on = None
 
 
 def upgrade():
-    op.execute("CREATE TYPE tokentypeenum AS ENUM ('single', 'dual', 'bulk')")
-    op.execute("CREATE TYPE tokenstatusenum AS ENUM ('active', 'void')")
+    op.execute("CREATE TYPE IF NOT EXISTS tokentypeenum AS ENUM ('single', 'dual', 'bulk')")
+    op.execute("CREATE TYPE IF NOT EXISTS tokenstatusenum AS ENUM ('active', 'void')")
 
     op.create_table(
         'tokens',
         sa.Column('id', sa.Integer(), primary_key=True),
         sa.Column('token_no', sa.String(60), nullable=False, unique=True),
         sa.Column('token_serial', sa.Integer(), nullable=False),
-        sa.Column('type', sa.Enum('single', 'dual', 'bulk', name='tokentypeenum'), nullable=False),
-        sa.Column('status', sa.Enum('active', 'void', name='tokenstatusenum'),
+        sa.Column('type', sa.Enum('single', 'dual', 'bulk', name='tokentypeenum', create_type=False), nullable=False),
+        sa.Column('status', sa.Enum('active', 'void', name='tokenstatusenum', create_type=False),
                   nullable=False, server_default='active'),
         sa.Column('participant_name', sa.String(120)),
         sa.Column('topic', sa.String(200)),
