@@ -2,9 +2,16 @@ from flask import Blueprint, request
 
 from ...middleware.permissions import require_permission
 from ...utils.helpers import res
-from .service import get_grand_summary, get_collector_breakdown, get_all_payments
+from .service import get_grand_summary, get_collector_breakdown, get_all_payments, get_events_with_stats
 
 bp = Blueprint("dashboard", __name__)
+
+
+@bp.route("/events", methods=["GET"])
+@require_permission("dashboard.view")
+def events_stats():
+    """All events with per-event aggregated stats for reporting selectors and the All-Events dashboard view."""
+    return res(data=get_events_with_stats())
 
 
 @bp.route("/summary", methods=["GET"])

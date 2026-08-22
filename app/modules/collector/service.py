@@ -9,6 +9,21 @@ from ...models.donor import Donor
 from ...models.payment import Payment, MethodEnum, StatusEnum, COMPLETED_STATUSES
 
 
+def get_all_events() -> list[dict]:
+    """All events (minimal) for the collector's reporting event selector."""
+    from ...models.event import Event
+    events = (
+        Event.query
+        .order_by(
+            Event.year.desc().nullslast(),
+            Event.start_date.desc().nullslast(),
+            Event.created_at.desc(),
+        )
+        .all()
+    )
+    return [{"id": e.id, "name": e.name, "year": e.year, "status": e.status.value} for e in events]
+
+
 def get_summary(collector_id: int, event_id: int | None = None) -> dict:
     base = Payment.query.filter(
         Payment.collector_id == collector_id,

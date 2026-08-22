@@ -214,5 +214,82 @@ def get_all_payments(
     }
 
 
+def get_events_with_stats() -> list[dict]:
+    """All events with per-event aggregated collection/pledge stats for reporting selectors and All-Events dashboard view."""
+    from ...models.event import Event
+
+    events = (
+        Event.query
+        .order_by(
+            Event.year.desc().nullslast(),
+            Event.start_date.desc().nullslast(),
+            Event.created_at.desc(),
+        )
+        .all()
+    )
+    if not events:
+        return []
+
+    event_ids = [e.id for e in events]
+
+    # Single grouped payment query
+    pay_rows = (
+        db.session.query(
+            Payment.event_id,
+            func.coalesce(func.sum(Payment.amount), 0).label("total"),
+            func.count(Payment.id).label("cnt"),
+        )
+        .filter(
+            Payment.status.in_(COMPLETED_STATUSES),
+            Payment.event_id.in_(event_ids),
+        )
+        .group_by(Payment.event_id)
+        .all()
+    )
+
+    # Single grouped pledge query
+    pledge_rows = (
+        db.session.query(
+            Pledge.event_id,
+            func.coalesce(func.sum(Pledge.total_amount), 0).label("pledged"),
+            func.coalesce(func.sum(Pledge.paid_amount), 0).label("paid"),
+        )
+        .filter(Pledge.event_id.in_(event_ids))
+        .group_by(Pledge.event_id)
+        .all()
+    )
+
+    pay_map = {
+        row.event_id: {"total": Decimal(str(row.total)), "count": int(row.cnt)}
+        for row in pay_rows
+    }
+    pledge_map = {
+        row.event_id: {
+            "pledged": Decimal(str(row.pledged)),
+            "outstanding": Decimal(str(row.pledged)) - Decimal(str(row.paid)),
+        }
+        for row in pledge_rows
+    }
+
+    result = []
+    for e in events:
+        pm = pay_map.get(e.id, {"total": Decimal("0"), "count": 0})
+        pl = pledge_map.get(e.id, {"pledged": Decimal("0"), "outstanding": Decimal("0")})
+        result.append({
+            "event": {
+                "id": e.id,
+                "name": e.name,
+                "year": e.year,
+                "status": e.status.value,
+            },
+            "grandTotal": _fmt(pm["total"]),
+            "paymentCount": pm["count"],
+            "totalPledged": _fmt(pl["pledged"]),
+            "pledgeOutstanding": _fmt(pl["outstanding"]),
+        })
+
+    return result
+
+
 def _fmt(value) -> str:
     return str(Decimal(str(value)).quantize(Decimal("0.01")))
