@@ -233,8 +233,8 @@ def cancel_pledge(pledge_id: int) -> tuple[Pledge | None, str | None]:
     pledge = Pledge.query.get(pledge_id)
     if not pledge:
         return None, "pledge not found"
-    if pledge.status == PledgeStatusEnum.complete:
-        return None, "cannot cancel a completed pledge"
+    if pledge.status in (PledgeStatusEnum.complete, PledgeStatusEnum.cancelled):
+        return None, "cannot cancel a completed or already cancelled pledge"
     pledge.status = PledgeStatusEnum.cancelled
     db.session.commit()
     return pledge, None

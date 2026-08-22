@@ -2,6 +2,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from ...extensions import db
 from ...models.donor import Donor
@@ -157,6 +158,7 @@ def get_donor_detail(donor_id: int) -> dict | None:
 
     payments = (
         Payment.query.filter_by(donor_id=donor_id)
+        .options(joinedload(Payment.collector), joinedload(Payment.event))
         .order_by(Payment.created_at.desc())
         .all()
     )
@@ -173,6 +175,10 @@ def get_donor_detail(donor_id: int) -> dict | None:
                 "id": p.collector.id,
                 "name": p.collector.name,
             } if p.collector else None,
+            "event": {
+                "id": p.event.id,
+                "name": p.event.name,
+            } if p.event else None,
             "confirmedAt": p.confirmed_at.isoformat() if p.confirmed_at else None,
             "createdAt": p.created_at.isoformat() if p.created_at else None,
         }

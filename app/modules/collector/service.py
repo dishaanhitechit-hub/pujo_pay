@@ -23,6 +23,10 @@ def get_summary(collector_id: int) -> dict:
         func.coalesce(func.sum(Payment.amount), 0)
     ).scalar()
 
+    cheque_total = base.filter_by(method=MethodEnum.cheque).with_entities(
+        func.coalesce(func.sum(Payment.amount), 0)
+    ).scalar()
+
     count = base.count()
     pending_count = Payment.query.filter_by(
         collector_id=collector_id, status=StatusEnum.pending
@@ -31,8 +35,9 @@ def get_summary(collector_id: int) -> dict:
     return {
         "cashTotal": str(Decimal(str(cash_total)).quantize(Decimal("0.01"))),
         "upiTotal": str(Decimal(str(upi_total)).quantize(Decimal("0.01"))),
+        "chequeTotal": str(Decimal(str(cheque_total)).quantize(Decimal("0.01"))),
         "grandTotal": str(
-            (Decimal(str(cash_total)) + Decimal(str(upi_total))).quantize(Decimal("0.01"))
+            (Decimal(str(cash_total)) + Decimal(str(upi_total)) + Decimal(str(cheque_total))).quantize(Decimal("0.01"))
         ),
         "confirmedCount": count,
         "pendingCount": pending_count,

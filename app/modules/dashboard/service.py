@@ -82,13 +82,17 @@ def get_collector_breakdown(event_id: int | None = None) -> list:
         upi = base.filter_by(method=MethodEnum.upi).with_entities(
             func.coalesce(func.sum(Payment.amount), 0)
         ).scalar()
+        cheque = base.filter_by(method=MethodEnum.cheque).with_entities(
+            func.coalesce(func.sum(Payment.amount), 0)
+        ).scalar()
         count = base.count()
 
         result.append({
             "collector": {"id": collector.id, "name": collector.name, "role": collector.role.value},
             "cashTotal": _fmt(cash),
             "upiTotal": _fmt(upi),
-            "grandTotal": _fmt(Decimal(str(cash)) + Decimal(str(upi))),
+            "chequeTotal": _fmt(cheque),
+            "grandTotal": _fmt(Decimal(str(cash)) + Decimal(str(upi)) + Decimal(str(cheque))),
             "confirmedCount": count,
         })
 
