@@ -68,9 +68,43 @@ def _unique_slug(base: str) -> str:
 
 # ── Service ────────────────────────────────────────────────────────────────
 
-def list_events() -> list[dict]:
-    events = Event.query.order_by(Event.created_at.desc()).all()
-    return [e.to_dict() for e in events]
+def list_events(
+    search: str | None = None,
+    status: str | None = None,
+    collection_enabled: bool | None = None,
+    is_featured: bool | None = None,
+    year: int | None = None,
+    page: int = 1,
+    per_page: int = 20,
+) -> dict:
+    query = Event.query
+
+    if search:
+        like = f"%{search}%"
+        query = query.filter(Event.name.ilike(like) | Event.slug.ilike(like))
+
+    if status and status in ("draft", "published", "archived"):
+        query = query.filter(Event.status == EventStatusEnum(status))
+
+    if collection_enabled is not None:
+        query = query.filter(Event.collection_enabled == collection_enabled)
+
+    if is_featured is not None:
+        query = query.filter(Event.is_featured == is_featured)
+
+    if year is not None:
+        query = query.filter(Event.year == year)
+
+    query = query.order_by(Event.created_at.desc())
+    pagination = db.paginate(query, page=page, per_page=per_page, error_out=False)
+
+    return {
+        "events": [e.to_dict() for e in pagination.items],
+        "page": pagination.page,
+        "perPage": pagination.per_page,
+        "total": pagination.total,
+        "pages": pagination.pages,
+    }
 
 
 def get_active_events() -> list[dict]:

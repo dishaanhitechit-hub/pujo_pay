@@ -17,7 +17,35 @@ bp = Blueprint("event", __name__)
 @bp.route("/", methods=["GET"])
 @require_permission("event.manage")
 def index():
-    return res(data=list_events())
+    search = request.args.get("search", "").strip() or None
+    status = request.args.get("status", "").strip() or None
+    year = request.args.get("year", type=int)
+    page = request.args.get("page", 1, type=int)
+    per_page = min(request.args.get("perPage", 20, type=int), 100)
+
+    collection_raw = request.args.get("collectionEnabled", "").strip()
+    collection_enabled = None
+    if collection_raw == "true":
+        collection_enabled = True
+    elif collection_raw == "false":
+        collection_enabled = False
+
+    featured_raw = request.args.get("isFeatured", "").strip()
+    is_featured = None
+    if featured_raw == "true":
+        is_featured = True
+    elif featured_raw == "false":
+        is_featured = False
+
+    return res(data=list_events(
+        search=search,
+        status=status,
+        collection_enabled=collection_enabled,
+        is_featured=is_featured,
+        year=year,
+        page=page,
+        per_page=per_page,
+    ))
 
 
 @bp.route("/active", methods=["GET"])
@@ -138,3 +166,15 @@ def upload_gallery(event_id):
     if err:
         return res(err, code=400)
     return res("image added to gallery", data=result, code=201)
+
+
+@bp.route("/<int:event_id>/summary", methods=["GET"])
+@require_permission("event.manage")
+def event_summary(event_id):
+    from ...models.event import Event as EventModel
+    ev = EventModel.query.get(event_id)
+    if not ev:
+        return res("event not found", code=404)
+    from ..dashboard.service import get_grand_summary
+    data = get_grand_summary(event_id=event_id)
+    return res(data=data)
