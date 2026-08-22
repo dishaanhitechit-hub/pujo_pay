@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func
@@ -10,10 +11,7 @@ from ...models.payment import Payment, COMPLETED_STATUSES
 def _aggregate_subquery():
     """
     Subquery: donor_id → total_donated, confirmed_count, last_donated_at.
-
     Only counts payments whose status is in COMPLETED_STATUSES.
-    The coalesce inside handles donors that have payments but all amounts are NULL
-    (should not happen, but defensive).
     """
     return (
         db.session.query(
@@ -41,14 +39,25 @@ def _donor_row_to_dict(donor, total_donated, confirmed_count, last_donated_at) -
     return d
 
 
-def _donor_query(search=None, donor_type=None):
+def _donor_query(
+    search: str | None = None,
+    donor_type: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    min_amount: Decimal | None = None,
+    max_amount: Decimal | None = None,
+):
     """
-    Returns a SQLAlchemy query that yields 4-tuples:
+    Returns a SQLAlchemy query yielding 4-tuples:
         (Donor, total_donated, confirmed_count, last_donated_at)
 
-    Uses a single LEFT OUTER JOIN on the aggregation subquery — no N+1.
-    The outer coalesce handles donors that have no completed payments at all
-    (the LEFT JOIN produces NULL for those columns).
+    Single LEFT OUTER JOIN on the aggregation subquery — no N+1.
+    The outer coalesce handles donors with no completed payments (NULL from LEFT JOIN).
+
+    Date filters apply to last_donated_at (the donor's most recent completed payment).
+    Amount filters apply to total_donated (sum of all completed payments).
+    Donors with no completed payments have total_donated=0 and last_donated_at=NULL;
+    any date or min-amount filter naturally excludes them.
     """
     agg = _aggregate_subquery()
 
@@ -72,6 +81,23 @@ def _donor_query(search=None, donor_type=None):
     if donor_type:
         query = query.filter(Donor.donor_type.ilike(donor_type))
 
+    # Amount filters: compare against the subquery's total_donated column.
+    # func.coalesce wraps it so donors with no payments (NULL) evaluate to 0.
+    if min_amount is not None:
+        query = query.filter(func.coalesce(agg.c.total_donated, 0) >= min_amount)
+
+    if max_amount is not None:
+        query = query.filter(func.coalesce(agg.c.total_donated, 0) <= max_amount)
+
+    # Date filters: compare against last_donated_at in the subquery.
+    # NULL last_donated_at (no payments) is excluded by inequality comparisons — correct.
+    # dateTo upper bound uses < next day to include the full last day.
+    if date_from is not None:
+        query = query.filter(agg.c.last_donated_at >= date_from)
+
+    if date_to is not None:
+        query = query.filter(agg.c.last_donated_at < date_to + timedelta(days=1))
+
     return query
 
 
@@ -80,8 +106,19 @@ def get_donor_list(
     per_page: int = 20,
     search: str | None = None,
     donor_type: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    min_amount: Decimal | None = None,
+    max_amount: Decimal | None = None,
 ) -> dict:
-    query = _donor_query(search=search, donor_type=donor_type)
+    query = _donor_query(
+        search=search,
+        donor_type=donor_type,
+        date_from=date_from,
+        date_to=date_to,
+        min_amount=min_amount,
+        max_amount=max_amount,
+    )
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
     donors = [
