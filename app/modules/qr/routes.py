@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for
+from flask import Blueprint, render_template, request, redirect, url_for, abort
 
 from ...models.payment import Payment
 from ...models.app_config import AppConfig
@@ -106,8 +106,12 @@ def cash_cancel(payment_id):
 
 
 # ── HTML receipt page ──────────────────────────────────────────────────────
+# ?from=dashboard  → shows Back to Dashboard button, no auto-redirect
+# (no param)       → collector mode: auto-redirects to /collect after 30s
 
 @bp.route("/receipt/<int:payment_id>", methods=["GET"])
 def receipt_page(payment_id):
     payment = Payment.query.get_or_404(payment_id)
+    if request.args.get("from") == "dashboard":
+        return render_template("pay/receipt_dashboard.html", payment=payment)
     return render_template("pay/receipt.html", payment=payment)

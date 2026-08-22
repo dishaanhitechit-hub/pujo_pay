@@ -10,4 +10,4 @@ def serve_receipt(receipt_no):
     payment = get_by_receipt_no(receipt_no.upper())
     if not payment:
         abort(404)
-    return render_template("pay/receipt.html", payment=payment)
+    return render_template("pay/receipt_public.html", payment=payment)
