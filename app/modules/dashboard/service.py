@@ -11,8 +11,10 @@ from ...models.pledge import Pledge, PledgeStatusEnum
 from ...models.user import User
 
 
-def get_grand_summary() -> dict:
+def get_grand_summary(event_id: int | None = None) -> dict:
     base = Payment.query.filter(Payment.status.in_(COMPLETED_STATUSES))
+    if event_id:
+        base = base.filter(Payment.event_id == event_id)
 
     cash_total = base.filter_by(method=MethodEnum.cash).with_entities(
         func.coalesce(func.sum(Payment.amount), 0)
@@ -27,16 +29,24 @@ def get_grand_summary() -> dict:
     ).scalar()
 
     total_confirmed = base.count()
-    total_pending = Payment.query.filter_by(status=StatusEnum.pending).count()
-    total_donors = db.session.query(func.count(func.distinct(Payment.donor_id))).scalar()
 
-    total_pledged = db.session.query(
-        func.coalesce(func.sum(Pledge.total_amount), 0)
-    ).scalar()
-    total_pledge_paid = db.session.query(
-        func.coalesce(func.sum(Pledge.paid_amount), 0)
-    ).scalar()
-    open_pledge_count = Pledge.query.filter_by(status=PledgeStatusEnum.open).count()
+    pending_q = Payment.query.filter_by(status=StatusEnum.pending)
+    if event_id:
+        pending_q = pending_q.filter(Payment.event_id == event_id)
+    total_pending = pending_q.count()
+
+    donors_q = db.session.query(func.count(func.distinct(Payment.donor_id)))
+    if event_id:
+        donors_q = donors_q.filter(Payment.event_id == event_id)
+    total_donors = donors_q.scalar()
+
+    pledge_q = Pledge.query
+    if event_id:
+        pledge_q = pledge_q.filter(Pledge.event_id == event_id)
+
+    total_pledged = pledge_q.with_entities(func.coalesce(func.sum(Pledge.total_amount), 0)).scalar()
+    total_pledge_paid = pledge_q.with_entities(func.coalesce(func.sum(Pledge.paid_amount), 0)).scalar()
+    open_pledge_count = pledge_q.filter(Pledge.status == PledgeStatusEnum.open).count()
 
     grand = Decimal(str(cash_total)) + Decimal(str(upi_total)) + Decimal(str(cheque_total))
 
@@ -55,7 +65,7 @@ def get_grand_summary() -> dict:
     }
 
 
-def get_collector_breakdown() -> list:
+def get_collector_breakdown(event_id: int | None = None) -> list:
     collectors = User.query.filter_by(is_active=True).order_by(User.name).all()
     result = []
 
@@ -64,6 +74,8 @@ def get_collector_breakdown() -> list:
             Payment.collector_id == collector.id,
             Payment.status.in_(COMPLETED_STATUSES),
         )
+        if event_id:
+            base = base.filter(Payment.event_id == event_id)
         cash = base.filter_by(method=MethodEnum.cash).with_entities(
             func.coalesce(func.sum(Payment.amount), 0)
         ).scalar()
@@ -89,6 +101,7 @@ def get_all_payments(
     method: str | None = None,
     status: str | None = None,
     collector_id: int | None = None,
+    event_id: int | None = None,
     date: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
@@ -118,6 +131,9 @@ def get_all_payments(
 
     if collector_id:
         query = query.filter(Payment.collector_id == collector_id)
+
+    if event_id:
+        query = query.filter(Payment.event_id == event_id)
 
     # Legacy single-day filter (backward compat)
     if date:

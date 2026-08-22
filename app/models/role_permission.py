@@ -13,6 +13,8 @@ PERMISSION_KEYS = [
     "token.generate",
     "token.bulk",
     "token.view",
+    "event.manage",
+    "content.manage",
 ]
 
 # Default grants per role
@@ -24,7 +26,7 @@ _DEFAULTS: dict[str, list[str]] = {
     "committee": ["payment.initiate", "payment.confirm", "payment.view_receipt",
                   "collector.view_own", "token.generate"],
     "general":   ["payment.initiate", "payment.confirm", "payment.view_receipt",
-                  "token.generate"],
+                  "collector.view_own", "token.generate"],
 }
 
 

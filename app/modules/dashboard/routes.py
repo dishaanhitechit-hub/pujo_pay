@@ -10,13 +10,15 @@ bp = Blueprint("dashboard", __name__)
 @bp.route("/summary", methods=["GET"])
 @require_permission("dashboard.view")
 def summary():
-    return res(data=get_grand_summary())
+    event_id = request.args.get("eventId", type=int)
+    return res(data=get_grand_summary(event_id=event_id))
 
 
 @bp.route("/collectors", methods=["GET"])
 @require_permission("dashboard.view")
 def collectors():
-    return res(data=get_collector_breakdown())
+    event_id = request.args.get("eventId", type=int)
+    return res(data=get_collector_breakdown(event_id=event_id))
 
 
 @bp.route("/payments", methods=["GET"])
@@ -27,6 +29,7 @@ def payments():
     method = request.args.get("method")
     status = request.args.get("status")
     collector_id = request.args.get("collectorId", type=int)
+    event_id = request.args.get("eventId", type=int)
     date = request.args.get("date")
     donor_type = request.args.get("donorType")
     search = request.args.get("search", "").strip() or None
@@ -41,6 +44,7 @@ def payments():
         method=method,
         status=status,
         collector_id=collector_id,
+        event_id=event_id,
         date=date,
         donor_type=donor_type,
         search=search,

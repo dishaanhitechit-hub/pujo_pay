@@ -25,6 +25,7 @@ def payments():
     per_page = min(request.args.get("perPage", 20, type=int), 100)
     method = request.args.get("method")
     status = request.args.get("status")
+    event_id = request.args.get("eventId", type=int)
     date = request.args.get("date")
     donor_type = request.args.get("donorType")
     search = request.args.get("search", "").strip() or None
@@ -39,6 +40,7 @@ def payments():
         per_page=per_page,
         method=method,
         status=status,
+        event_id=event_id,
         date=date,
         donor_type=donor_type,
         search=search,

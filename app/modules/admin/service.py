@@ -1,12 +1,27 @@
 from ...models.app_config import AppConfig
 
 ALLOWED_KEYS = {
-    "upiId":   "UPI ID (e.g. committee@upi)",
-    "orgName": "Organisation name shown on QR and receipts",
+    "upiId":            "UPI ID (e.g. committee@upi)",
+    "orgName":          "Organisation name shown on QR and receipts",
+    "contactPhone":     "Public contact phone number",
+    "contactEmail":     "Public contact email address",
+    "contactWhatsapp":  "Public WhatsApp number",
+    "socialFacebook":   "Facebook page URL",
+    "socialInstagram":  "Instagram profile URL",
+    "socialYoutube":    "YouTube channel URL",
 }
 
 # maps camelCase payload key → internal DB key
-_KEY_MAP = {"upiId": "upi_id", "orgName": "org_name"}
+_KEY_MAP = {
+    "upiId":           "upi_id",
+    "orgName":         "org_name",
+    "contactPhone":    "contact.phone",
+    "contactEmail":    "contact.email",
+    "contactWhatsapp": "contact.whatsapp",
+    "socialFacebook":  "social.facebook",
+    "socialInstagram": "social.instagram",
+    "socialYoutube":   "social.youtube",
+}
 
 
 def get_all() -> dict:

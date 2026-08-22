@@ -6,6 +6,7 @@ from sqlalchemy.orm import contains_eager, joinedload
 
 from ...extensions import db
 from ...models.donor import Donor
+from ...models.event import Event, EventStatusEnum
 from ...models.payment import Payment, MethodEnum, StatusEnum
 from ...models.pledge import Pledge, PledgeStatusEnum
 from ...models.user import User
@@ -14,6 +15,7 @@ from ...models.user import User
 # ── Schemas ────────────────────────────────────────────────────────────────
 
 class CreatePledgeSchema(Schema):
+    event_id      = fields.Int(required=True, data_key="eventId")
     donor_name    = fields.Str(required=True, data_key="donorName", validate=validate.Length(min=1, max=120))
     donor_phone   = fields.Str(load_default=None, data_key="donorPhone", validate=validate.Length(max=20))
     donor_address = fields.Str(load_default=None, data_key="donorAddress")
@@ -44,7 +46,14 @@ pay_installment_schema = PayInstallmentSchema()
 
 # ── Service ────────────────────────────────────────────────────────────────
 
-def create_pledge(data: dict, collector_id: int) -> Pledge:
+def create_pledge(data: dict, collector_id: int) -> tuple[Pledge | None, str | None]:
+    # Validate event — must exist, be published, and have collection enabled
+    event = Event.query.get(data["event_id"])
+    if not event:
+        return None, "event not found"
+    if event.status != EventStatusEnum.published or not event.collection_enabled:
+        return None, "event is not currently accepting collections"
+
     donor = Donor(
         name=data["donor_name"].strip(),
         phone=data.get("donor_phone"),
@@ -58,13 +67,14 @@ def create_pledge(data: dict, collector_id: int) -> Pledge:
     pledge = Pledge(
         donor_id=donor.id,
         collector_id=collector_id,
+        event_id=data["event_id"],
         total_amount=data["total_amount"],
         paid_amount=Decimal("0"),
         notes=data.get("notes"),
     )
     db.session.add(pledge)
     db.session.commit()
-    return pledge
+    return pledge, None
 
 
 def pay_installment(pledge_id: int, data: dict, collector_id: int) -> tuple[Payment | None, str | None]:
@@ -81,7 +91,7 @@ def pay_installment(pledge_id: int, data: dict, collector_id: int) -> tuple[Paym
     if amount > outstanding:
         return None, f"amount exceeds outstanding balance of ₹{outstanding}"
 
-    # Reuse the pledge's donor for the installment payment
+    # Reuse the pledge's donor; inherit event from the pledge (collector cannot override)
     payment = Payment(
         donor_id=pledge.donor_id,
         collector_id=collector_id,
@@ -89,6 +99,7 @@ def pay_installment(pledge_id: int, data: dict, collector_id: int) -> tuple[Paym
         method=MethodEnum(data["method"]),
         status=StatusEnum.pending,
         pledge_id=pledge.id,
+        event_id=pledge.event_id,
     )
     db.session.add(payment)
     db.session.commit()
@@ -142,6 +153,7 @@ def get_pledge_list(
     viewer_id: int | None = None,
     can_view_all: bool = False,
     collector_id: int | None = None,
+    event_id: int | None = None,
     search: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
@@ -169,6 +181,9 @@ def get_pledge_list(
     else:
         # Committee/general: scope strictly to own pledges
         query = query.filter(Pledge.collector_id == viewer_id)
+
+    if event_id:
+        query = query.filter(Pledge.event_id == event_id)
 
     if search:
         like = f"%{search}%"

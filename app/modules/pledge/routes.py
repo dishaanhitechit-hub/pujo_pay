@@ -25,7 +25,9 @@ def create():
         return res("validation failed", data=e.messages, code=422)
 
     collector_id = int(get_jwt_identity())
-    pledge = create_pledge(data, collector_id)
+    pledge, err = create_pledge(data, collector_id)
+    if err:
+        return res(err, code=400)
     return res("pledge created", data=pledge.to_dict(), code=201)
 
 
@@ -80,6 +82,7 @@ def list_pledges():
     # collectorId filter is only honoured for users who can see all pledges
     collector_id = request.args.get("collectorId", type=int) if can_view_all else None
 
+    event_id = request.args.get("eventId", type=int)
     search = request.args.get("search", "").strip() or None
     date_from = request.args.get("dateFrom", "").strip() or None
     date_to = request.args.get("dateTo", "").strip() or None
@@ -93,6 +96,7 @@ def list_pledges():
         viewer_id=viewer_id,
         can_view_all=can_view_all,
         collector_id=collector_id,
+        event_id=event_id,
         search=search,
         date_from=date_from,
         date_to=date_to,

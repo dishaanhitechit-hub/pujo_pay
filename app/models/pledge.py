@@ -20,11 +20,13 @@ class Pledge(db.Model):
     status = db.Column(
         db.Enum(PledgeStatusEnum, native_enum=False), nullable=False, default=PledgeStatusEnum.open
     )
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=True)
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
     donor = db.relationship("Donor", foreign_keys=[donor_id])
     collector = db.relationship("User", foreign_keys=[collector_id])
+    event = db.relationship("Event", foreign_keys=[event_id])
     payments = db.relationship("Payment", back_populates="pledge", lazy="dynamic")
 
     def outstanding(self) -> Decimal:
@@ -41,6 +43,7 @@ class Pledge(db.Model):
             "totalAmount": str(self.total_amount),
             "paidAmount": str(self.paid_amount),
             "outstandingAmount": str(self.outstanding()),
+            "event": {"id": self.event.id, "name": self.event.name} if self.event else None,
             "status": self.status.value,
             "notes": self.notes,
             "createdAt": self.created_at.isoformat() if self.created_at else None,

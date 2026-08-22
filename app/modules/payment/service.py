@@ -3,6 +3,7 @@ from marshmallow import Schema, fields, validate, validates, ValidationError
 
 from ...extensions import db
 from ...models.donor import Donor
+from ...models.event import Event, EventStatusEnum
 from ...models.payment import Payment, MethodEnum, StatusEnum
 from ...models.pledge import Pledge, PledgeStatusEnum
 
@@ -19,6 +20,7 @@ class InitiatePaymentSchema(Schema):
         validate=validate.OneOf(["cash", "upi", "cheque"]),
     )
     pledge_id = fields.Int(load_default=None, data_key="pledgeId")
+    event_id  = fields.Int(required=True, data_key="eventId")
 
     @validates("amount")
     def validate_amount(self, value):
@@ -34,6 +36,13 @@ def initiate_payment(data: dict, collector_id: int) -> tuple[Payment, str | None
     Returns (payment, error_message).
     error_message is None on success.
     """
+    # Validate event — must exist, be published, and have collection enabled
+    event = Event.query.get(data["event_id"])
+    if not event:
+        return None, "event not found"
+    if event.status != EventStatusEnum.published or not event.collection_enabled:
+        return None, "event is not currently accepting collections"
+
     pledge = None
     if data.get("pledge_id"):
         pledge = Pledge.query.get(data["pledge_id"])
@@ -62,6 +71,7 @@ def initiate_payment(data: dict, collector_id: int) -> tuple[Payment, str | None
         method=MethodEnum(data["method"]),
         status=StatusEnum.pending,
         pledge_id=data.get("pledge_id"),
+        event_id=data["event_id"],
     )
     db.session.add(payment)
     db.session.commit()

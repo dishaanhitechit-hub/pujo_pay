@@ -13,6 +13,8 @@ class BaseConfig:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.environ["JWT_SECRET_KEY"]
     PDF_STORAGE_PATH = os.getenv("PDF_STORAGE_PATH", "/srv/pujo/recipet/storages/pdf")
+    MEDIA_STORAGE_PATH = os.getenv("MEDIA_STORAGE_PATH", "/srv/pujo/media")
+    MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10 MB upload limit
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(
         hours=int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES_HOURS", 8))
     )

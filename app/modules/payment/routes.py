@@ -41,6 +41,7 @@ def initiate():
         "donorName": payment.donor.name,
         "status": payment.status.value,
         "pledgeId": payment.pledge_id,
+        "eventId": payment.event_id,
         "nextUrl": next_url,
     }, code=201)
 

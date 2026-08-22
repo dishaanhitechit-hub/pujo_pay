@@ -45,6 +45,7 @@ def get_payments(
     per_page: int = 20,
     method: str | None = None,
     status: str | None = None,
+    event_id: int | None = None,
     date: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
@@ -67,6 +68,9 @@ def get_payments(
 
     if method in ("cash", "upi", "cheque"):
         query = query.filter(Payment.method == MethodEnum(method))
+
+    if event_id:
+        query = query.filter(Payment.event_id == event_id)
 
     if status == "completed":
         query = query.filter(Payment.status.in_(COMPLETED_STATUSES))

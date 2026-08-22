@@ -34,3 +34,18 @@ def register_all(app: Flask) -> None:
 
     from .pledge.routes import bp as pledge_bp
     app.register_blueprint(pledge_bp, url_prefix="/api/pledge")
+
+    from .event.routes import bp as event_bp
+    app.register_blueprint(event_bp, url_prefix="/api/events")
+
+    from .announcement.routes import bp as announcement_bp
+    app.register_blueprint(announcement_bp, url_prefix="/api/announcements")
+
+    from .committee.routes import bp as committee_bp
+    app.register_blueprint(committee_bp, url_prefix="/api/committee")
+
+    from .public.routes import bp as public_bp
+    app.register_blueprint(public_bp, url_prefix="/api/public")
+
+    from .media.routes import bp as media_bp
+    app.register_blueprint(media_bp, url_prefix="")

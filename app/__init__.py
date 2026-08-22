@@ -29,6 +29,11 @@ def create_app():
     from .models import User, Donor, Payment, RolePermission, AppConfig  # noqa: F401
     from .models.token import Token  # noqa: F401
     from .models.pledge import Pledge  # noqa: F401
+    from .models.event import Event  # noqa: F401
+    from .models.event_day import EventDay  # noqa: F401
+    from .models.announcement import Announcement  # noqa: F401
+    from .models.committee_member import CommitteeMember  # noqa: F401
+    from .models.media_file import MediaFile  # noqa: F401
 
     # ── DB seed (first-run admin + default permissions) ─────
     # Skipped silently if tables don't exist yet (before first migration)
