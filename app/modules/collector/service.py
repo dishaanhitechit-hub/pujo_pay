@@ -9,11 +9,13 @@ from ...models.donor import Donor
 from ...models.payment import Payment, MethodEnum, StatusEnum, COMPLETED_STATUSES
 
 
-def get_summary(collector_id: int) -> dict:
+def get_summary(collector_id: int, event_id: int | None = None) -> dict:
     base = Payment.query.filter(
         Payment.collector_id == collector_id,
         Payment.status.in_(COMPLETED_STATUSES),
     )
+    if event_id:
+        base = base.filter(Payment.event_id == event_id)
 
     cash_total = base.filter_by(method=MethodEnum.cash).with_entities(
         func.coalesce(func.sum(Payment.amount), 0)
@@ -28,9 +30,10 @@ def get_summary(collector_id: int) -> dict:
     ).scalar()
 
     count = base.count()
-    pending_count = Payment.query.filter_by(
-        collector_id=collector_id, status=StatusEnum.pending
-    ).count()
+    pending_q = Payment.query.filter_by(collector_id=collector_id, status=StatusEnum.pending)
+    if event_id:
+        pending_q = pending_q.filter(Payment.event_id == event_id)
+    pending_count = pending_q.count()
 
     return {
         "cashTotal": str(Decimal(str(cash_total)).quantize(Decimal("0.01"))),

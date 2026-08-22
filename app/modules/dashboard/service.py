@@ -67,33 +67,50 @@ def get_grand_summary(event_id: int | None = None) -> dict:
 
 def get_collector_breakdown(event_id: int | None = None) -> list:
     collectors = User.query.filter_by(is_active=True).order_by(User.name).all()
-    result = []
+    if not collectors:
+        return []
 
-    for collector in collectors:
-        base = Payment.query.filter(
-            Payment.collector_id == collector.id,
-            Payment.status.in_(COMPLETED_STATUSES),
+    collector_ids = [c.id for c in collectors]
+    agg_filters = [
+        Payment.status.in_(COMPLETED_STATUSES),
+        Payment.collector_id.in_(collector_ids),
+    ]
+    if event_id:
+        agg_filters.append(Payment.event_id == event_id)
+
+    agg_rows = (
+        db.session.query(
+            Payment.collector_id,
+            Payment.method,
+            func.coalesce(func.sum(Payment.amount), 0).label("total"),
+            func.count(Payment.id).label("cnt"),
         )
-        if event_id:
-            base = base.filter(Payment.event_id == event_id)
-        cash = base.filter_by(method=MethodEnum.cash).with_entities(
-            func.coalesce(func.sum(Payment.amount), 0)
-        ).scalar()
-        upi = base.filter_by(method=MethodEnum.upi).with_entities(
-            func.coalesce(func.sum(Payment.amount), 0)
-        ).scalar()
-        cheque = base.filter_by(method=MethodEnum.cheque).with_entities(
-            func.coalesce(func.sum(Payment.amount), 0)
-        ).scalar()
-        count = base.count()
+        .filter(*agg_filters)
+        .group_by(Payment.collector_id, Payment.method)
+        .all()
+    )
 
+    # Build per-collector totals; default all to zero so collectors with no payments still appear
+    totals: dict[int, dict] = {
+        c.id: {"cash": Decimal("0"), "upi": Decimal("0"), "cheque": Decimal("0"), "count": 0}
+        for c in collectors
+    }
+    for row in agg_rows:
+        t = totals[row.collector_id]
+        t[row.method.value] = Decimal(str(row.total))
+        t["count"] += int(row.cnt)
+
+    result = []
+    for collector in collectors:
+        t = totals[collector.id]
+        cash, upi, cheque = t["cash"], t["upi"], t["cheque"]
         result.append({
             "collector": {"id": collector.id, "name": collector.name, "role": collector.role.value},
             "cashTotal": _fmt(cash),
             "upiTotal": _fmt(upi),
             "chequeTotal": _fmt(cheque),
-            "grandTotal": _fmt(Decimal(str(cash)) + Decimal(str(upi)) + Decimal(str(cheque))),
-            "confirmedCount": count,
+            "grandTotal": _fmt(cash + upi + cheque),
+            "confirmedCount": t["count"],
         })
 
     return result

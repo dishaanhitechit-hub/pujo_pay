@@ -12,7 +12,8 @@ bp = Blueprint("collector", __name__)
 @require_permission("collector.view_own")
 def summary():
     collector_id = int(get_jwt_identity())
-    data = get_summary(collector_id)
+    event_id = request.args.get("eventId", type=int)
+    data = get_summary(collector_id, event_id=event_id)
     return res(data=data)
 
 
