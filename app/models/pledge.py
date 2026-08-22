@@ -18,7 +18,7 @@ class Pledge(db.Model):
     total_amount = db.Column(db.Numeric(10, 2), nullable=False)
     paid_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     status = db.Column(
-        db.Enum(PledgeStatusEnum), nullable=False, default=PledgeStatusEnum.open
+        db.Enum(PledgeStatusEnum, native_enum=False), nullable=False, default=PledgeStatusEnum.open
     )
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
