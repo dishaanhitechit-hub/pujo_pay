@@ -7,6 +7,7 @@ from .service import (
     open_qr_page,
     confirm_upi_payment,
     confirm_cash_payment,
+    confirm_cheque_payment,
     cancel_payment,
 )
 
@@ -100,6 +101,44 @@ def cash_confirm(payment_id):
 
 @bp.route("/cash/<int:payment_id>/cancel", methods=["POST"])
 def cash_cancel(payment_id):
+    payment = Payment.query.get_or_404(payment_id)
+    cancel_payment(payment)
+    return render_template("pay/cancelled.html", payment=payment)
+
+
+# ── Cheque confirm page ────────────────────────────────────────────────────
+
+@bp.route("/cheque/<int:payment_id>", methods=["GET"])
+def cheque_page(payment_id):
+    payment = Payment.query.get_or_404(payment_id)
+
+    if payment.status.value == "confirmed":
+        return redirect(url_for("qr.receipt_page", payment_id=payment_id))
+    if payment.status.value in ("cancelled", "expired"):
+        return render_template("pay/error.html",
+                               message=f"This payment has already been {payment.status.value}.")
+
+    return render_template("pay/cheque.html", payment=payment, collector=payment.collector)
+
+
+@bp.route("/cheque/<int:payment_id>/confirm", methods=["POST"])
+def cheque_confirm(payment_id):
+    payment = Payment.query.get_or_404(payment_id)
+    cheque_number = (request.form.get("cheque_number") or "").strip() or None
+    bank_name = (request.form.get("bank_name") or "").strip() or None
+    cheque_date = (request.form.get("cheque_date") or "").strip() or None
+
+    ok, msg = confirm_cheque_payment(payment, cheque_number, bank_name, cheque_date)
+    if not ok:
+        return render_template("pay/cheque.html",
+                               payment=payment,
+                               collector=payment.collector,
+                               flash_error=msg)
+    return redirect(url_for("qr.receipt_page", payment_id=payment_id))
+
+
+@bp.route("/cheque/<int:payment_id>/cancel", methods=["POST"])
+def cheque_cancel(payment_id):
     payment = Payment.query.get_or_404(payment_id)
     cancel_payment(payment)
     return render_template("pay/cancelled.html", payment=payment)

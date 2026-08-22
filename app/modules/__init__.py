@@ -28,3 +28,9 @@ def register_all(app: Flask) -> None:
 
     from .token.routes import bp as token_bp
     app.register_blueprint(token_bp, url_prefix="")
+
+    from .donor.routes import bp as donor_bp
+    app.register_blueprint(donor_bp, url_prefix="/api/donor")
+
+    from .pledge.routes import bp as pledge_bp
+    app.register_blueprint(pledge_bp, url_prefix="/api/pledge")

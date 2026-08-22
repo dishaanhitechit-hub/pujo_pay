@@ -4,6 +4,7 @@ from marshmallow import Schema, fields, validate, validates, ValidationError
 from ...extensions import db
 from ...models.donor import Donor
 from ...models.payment import Payment, MethodEnum, StatusEnum
+from ...models.pledge import Pledge, PledgeStatusEnum
 
 
 class InitiatePaymentSchema(Schema):
@@ -15,8 +16,9 @@ class InitiatePaymentSchema(Schema):
     amount = fields.Decimal(required=True, places=2, as_string=False)
     method = fields.Str(
         required=True,
-        validate=validate.OneOf(["cash", "upi"]),
+        validate=validate.OneOf(["cash", "upi", "cheque"]),
     )
+    pledge_id = fields.Int(load_default=None, data_key="pledgeId")
 
     @validates("amount")
     def validate_amount(self, value):
@@ -27,7 +29,22 @@ class InitiatePaymentSchema(Schema):
 initiate_schema = InitiatePaymentSchema()
 
 
-def initiate_payment(data: dict, collector_id: int) -> Payment:
+def initiate_payment(data: dict, collector_id: int) -> tuple[Payment, str | None]:
+    """
+    Returns (payment, error_message).
+    error_message is None on success.
+    """
+    pledge = None
+    if data.get("pledge_id"):
+        pledge = Pledge.query.get(data["pledge_id"])
+        if not pledge:
+            return None, "pledge not found"
+        if pledge.status != PledgeStatusEnum.open:
+            return None, f"pledge is {pledge.status.value} — cannot add payments"
+        outstanding = pledge.outstanding()
+        if Decimal(str(data["amount"])) > outstanding:
+            return None, f"amount exceeds outstanding balance of ₹{outstanding}"
+
     donor = Donor(
         name=data["donor_name"].strip(),
         phone=data.get("donor_phone"),
@@ -36,7 +53,7 @@ def initiate_payment(data: dict, collector_id: int) -> Payment:
         donor_type=data.get("donor_type"),
     )
     db.session.add(donor)
-    db.session.flush()  # get donor.id before committing
+    db.session.flush()
 
     payment = Payment(
         donor_id=donor.id,
@@ -44,10 +61,11 @@ def initiate_payment(data: dict, collector_id: int) -> Payment:
         amount=data["amount"],
         method=MethodEnum(data["method"]),
         status=StatusEnum.pending,
+        pledge_id=data.get("pledge_id"),
     )
     db.session.add(payment)
     db.session.commit()
-    return payment
+    return payment, None
 
 
 def get_payment(payment_id: int) -> Payment | None:

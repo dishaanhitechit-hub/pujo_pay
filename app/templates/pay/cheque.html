@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confirm Cheque Payment — PujoPay</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f4f6fb; min-height: 100vh;
+         display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.1);
+          padding: 32px 28px; max-width: 420px; width: 100%; text-align: center; }
+  .badge { display: inline-block; background: #fff3e0; color: #bf360c;
+           font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 99px; margin-bottom: 16px; }
+  h1 { font-size: 22px; color: #1a1a2e; margin-bottom: 4px; }
+  .sub { color: #666; font-size: 14px; margin-bottom: 24px; }
+  .amount { font-size: 48px; font-weight: 800; color: #bf360c; margin-bottom: 8px; }
+  .amount-label { font-size: 13px; color: #999; margin-bottom: 28px; }
+  .info-row { display: flex; justify-content: space-between; align-items: center;
+              padding: 12px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+  .info-row .label { color: #888; }
+  .info-row .value { font-weight: 600; color: #1a1a2e; }
+  .flash-error { background: #ffebee; color: #c62828; border-radius: 8px;
+                 padding: 10px 14px; margin-bottom: 20px; font-size: 13px; font-weight: 600; }
+  .field-group { text-align: left; margin-bottom: 14px; }
+  .field-group label { display: block; font-size: 12px; font-weight: 600; color: #666; margin-bottom: 5px; }
+  .field-group input { width: 100%; padding: 10px 12px; border: 1.5px solid #e0e0e0;
+                       border-radius: 8px; font-size: 14px; outline: none; transition: border .2s; }
+  .field-group input:focus { border-color: #bf360c; }
+  .divider { border: none; border-top: 1.5px solid #f0f0f0; margin: 20px 0; }
+  .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px;
+         font-weight: 700; cursor: pointer; background: #bf360c; color: #fff; transition: opacity .2s; }
+  .btn:hover { opacity: .88; }
+  .btn-cancel { background: #fff; color: #c62828; border: 2px solid #e57373;
+                margin-top: 12px; font-size: 14px; padding: 10px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="badge">Cheque Payment</div>
+  <h1>{{ payment.donor.name }}</h1>
+  <p class="sub">Collector: <strong>{{ collector.name }}</strong></p>
+
+  <div class="amount">₹{{ "%.2f"|format(payment.amount|float) }}</div>
+  <p class="amount-label">Amount to collect by cheque</p>
+
+  {% if flash_error %}
+  <div class="flash-error">⚠ {{ flash_error }}</div>
+  {% endif %}
+
+  <div class="info-row">
+    <span class="label">Donor</span>
+    <span class="value">{{ payment.donor.name }}</span>
+  </div>
+  {% if payment.donor.phone %}
+  <div class="info-row">
+    <span class="label">Phone</span>
+    <span class="value">{{ payment.donor.phone }}</span>
+  </div>
+  {% endif %}
+  <div class="info-row" style="margin-bottom: 20px;">
+    <span class="label">Payment Method</span>
+    <span class="value">Cheque</span>
+  </div>
+
+  <hr class="divider">
+
+  <form method="POST" action="/pay/cheque/{{ payment.id }}/confirm">
+    <div class="field-group">
+      <label>Cheque Number</label>
+      <input type="text" name="cheque_number" placeholder="e.g. 123456" maxlength="50">
+    </div>
+    <div class="field-group">
+      <label>Bank Name</label>
+      <input type="text" name="bank_name" placeholder="e.g. State Bank of India" maxlength="100">
+    </div>
+    <div class="field-group">
+      <label>Cheque Date</label>
+      <input type="date" name="cheque_date">
+    </div>
+    <button type="submit" class="btn">✓ Confirm Cheque Received</button>
+  </form>
+
+  <form method="POST" action="/pay/cheque/{{ payment.id }}/cancel"
+        onsubmit="return confirm('Cancel this payment? This cannot be undone.')">
+    <button type="submit" class="btn btn-cancel">✕ Cancel Payment</button>
+  </form>
+</div>
+
+<script>
+  history.pushState(null, '', window.location.href);
+  window.addEventListener('popstate', function() {
+    window.location.replace('http://132.154.156.82:3001/collect');
+  });
+</script>
+</body>
+</html>

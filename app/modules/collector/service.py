@@ -48,7 +48,7 @@ def get_payments(
 ) -> dict:
     query = Payment.query.filter_by(collector_id=collector_id)
 
-    if method in ("cash", "upi"):
+    if method in ("cash", "upi", "cheque"):
         query = query.filter_by(method=MethodEnum(method))
 
     if date:

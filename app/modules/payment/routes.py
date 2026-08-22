@@ -22,20 +22,25 @@ def initiate():
         return res("admin accounts cannot collect payments", code=403)
 
     collector_id = int(get_jwt_identity())
-    payment = initiate_payment(data, collector_id)
+    payment, err = initiate_payment(data, collector_id)
+    if err:
+        return res(err, code=400)
 
-    next_url = (
-        f"/pay/qr/{payment.id}"
-        if payment.method.value == "upi"
-        else f"/pay/cash/{payment.id}"
-    )
+    method = payment.method.value
+    if method == "upi":
+        next_url = f"/pay/qr/{payment.id}"
+    elif method == "cheque":
+        next_url = f"/pay/cheque/{payment.id}"
+    else:
+        next_url = f"/pay/cash/{payment.id}"
 
     return res("payment initiated", data={
         "paymentId": payment.id,
-        "method": payment.method.value,
+        "method": method,
         "amount": str(payment.amount),
         "donorName": payment.donor.name,
         "status": payment.status.value,
+        "pledgeId": payment.pledge_id,
         "nextUrl": next_url,
     }, code=201)
 
