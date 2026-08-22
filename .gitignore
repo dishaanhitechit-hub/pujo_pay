@@ -32,6 +32,9 @@ build/
 .DS_Store
 Thumbs.db
 
+# Test UI (local only)
+test_ui/
+
 # Uploads / generated files
 uploads/
 receipts/
