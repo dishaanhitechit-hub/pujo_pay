@@ -18,6 +18,8 @@ jobs:
           script: |
             export FLASK_APP=run.py
             cd /srv/pujo-backend
+            find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null; true
+            find . -name "*.pyc" -delete 2>/dev/null; true
             git pull origin main
             source venv/bin/activate
             pip install -r requirements.txt
