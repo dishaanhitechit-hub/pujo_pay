@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PujoPay — Admin Panel</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f0f4ff; min-height: 100vh; padding: 24px 16px; }
+  nav { display: flex; justify-content: space-between; align-items: center;
+        background: #fff; border-radius: 12px; padding: 14px 20px; margin-bottom: 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+  nav h2 { font-size: 16px; color: #4361ee; }
+  .nav-right { display: flex; gap: 10px; align-items: center; }
+  .nav-right span { font-size: 13px; color: #888; }
+  .btn-nav { padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+  .btn-dash { background: #e8f0fe; color: #4361ee; }
+  .btn-out  { background: #ffebee; color: #c62828; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1000px; margin: 0 auto; }
+  @media(max-width:700px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 16px rgba(0,0,0,.07); padding: 24px; }
+  .card h2 { font-size: 16px; color: #1a1a2e; margin-bottom: 16px; padding-bottom: 10px;
+             border-bottom: 1.5px solid #f0f0f0; }
+  label { display: block; font-size: 12px; font-weight: 600; color: #666; margin-bottom: 5px; }
+  input, select { width: 100%; padding: 9px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px;
+                  font-size: 13px; outline: none; margin-bottom: 12px; transition: border .2s; }
+  input:focus, select:focus { border-color: #4361ee; }
+  .btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 13px; font-weight: 700;
+         cursor: pointer; transition: opacity .2s; }
+  .btn:hover { opacity: .85; }
+  .btn-primary { background: #4361ee; color: #fff; width: 100%; padding: 11px; }
+  .btn-green   { background: #2d9d5a; color: #fff; }
+  .btn-red     { background: #e03131; color: #fff; }
+  .btn-gray    { background: #eee; color: #333; }
+  .msg { padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
+         margin-top: 10px; display: none; }
+  .err { background: #ffebee; color: #c62828; }
+  .ok  { background: #e8f5e9; color: #2e7d32; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 10px; background: #f8f9ff; color: #666;
+       font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+  td { padding: 9px 10px; border-bottom: 1px solid #f5f5f5; color: #333; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+  .badge-admin    { background: #fce4ec; color: #880e4f; }
+  .badge-executive{ background: #e8eaf6; color: #283593; }
+  .badge-committee{ background: #e8f5e9; color: #1b5e20; }
+  .badge-general  { background: #fff3e0; color: #e65100; }
+  .badge-active   { background: #e8f5e9; color: #2e7d32; }
+  .badge-inactive { background: #ffebee; color: #c62828; }
+  .actions { display: flex; gap: 6px; }
+  .full { grid-column: 1 / -1; }
+  .config-row { display: flex; gap: 10px; align-items: flex-start; }
+  .config-row input { margin-bottom: 0; }
+</style>
+</head>
+<body>
+
+<nav>
+  <h2>🪔 PujoPay — Admin</h2>
+  <div class="nav-right">
+    <span id="navUser"></span>
+    <button class="btn-nav btn-dash" onclick="goto('dashboard.html')">Dashboard</button>
+    <button class="btn-nav btn-dash" onclick="goto('collect.html')">Collect</button>
+    <button class="btn-nav btn-dash" onclick="goto('token.html')">Token</button>
+    <button class="btn-nav btn-out" onclick="logout()">Logout</button>
+  </div>
+</nav>
+
+<div class="grid">
+
+  <!-- ── UPI Config ── -->
+  <div class="card">
+    <h2>⚙️ App Config (UPI Setup)</h2>
+
+    <label>UPI ID</label>
+    <div class="config-row">
+      <input type="text" id="upi_id" placeholder="e.g. committee@upi">
+    </div>
+    <br>
+
+    <label>Organisation Name</label>
+    <div class="config-row">
+      <input type="text" id="org_name" placeholder="e.g. Durga Puja 2024">
+    </div>
+    <br>
+
+    <button class="btn btn-primary" onclick="saveConfig()">Save Config</button>
+    <div class="msg err" id="configErr"></div>
+    <div class="msg ok"  id="configOk"></div>
+  </div>
+
+  <!-- ── Create User ── -->
+  <div class="card">
+    <h2>➕ Create User</h2>
+
+    <label>Full Name *</label>
+    <input type="text" id="cu_name" placeholder="e.g. Ramesh Das">
+
+    <label>Email *</label>
+    <input type="email" id="cu_email" placeholder="ramesh@pujopay.local">
+
+    <label>Password *</label>
+    <input type="password" id="cu_pass" placeholder="min 6 chars">
+
+    <label>Phone</label>
+    <input type="tel" id="cu_phone" placeholder="9800000001">
+
+    <label>WhatsApp No</label>
+    <input type="tel" id="cu_wa" placeholder="9800000001">
+
+    <label>Role *</label>
+    <select id="cu_role">
+      <option value="general">General</option>
+      <option value="committee" selected>Committee</option>
+      <option value="executive">Executive</option>
+      <option value="admin">Admin</option>
+    </select>
+
+    <button class="btn btn-primary" onclick="createUser()">Create User</button>
+    <div class="msg err" id="cuErr"></div>
+    <div class="msg ok"  id="cuOk"></div>
+  </div>
+
+  <!-- ── Users Table ── -->
+  <div class="card full">
+    <h2>👥 All Users <button class="btn btn-gray" style="float:right;font-size:12px;padding:5px 12px" onclick="loadUsers()">↻ Refresh</button></h2>
+    <div style="overflow-x:auto">
+      <table id="usersTable">
+        <thead>
+          <tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Phone</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="usersBody">
+          <tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="msg err" id="usersErr"></div>
+  </div>
+
+</div>
+
+<script>
+  const BASE = "http://132.154.156.82:5999";
+  const token = localStorage.getItem("token");
+  if (!token) window.location.href = "login.html";
+
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  document.getElementById("navUser").textContent = user.name || "";
+
+  function authH() { return { "Content-Type": "application/json", "Authorization": "Bearer " + token }; }
+
+  // ── Load config on page load ──
+  async function loadConfig() {
+    const res = await fetch(`${BASE}/api/admin/config`, { headers: authH() }).catch(() => null);
+    if (!res || !res.ok) return;
+    const json = await res.json();
+    const cfg = json.data.config || {};
+    if (cfg.upi_id)   document.getElementById("upi_id").value   = cfg.upi_id;
+    if (cfg.org_name) document.getElementById("org_name").value = cfg.org_name;
+  }
+
+  async function saveConfig() {
+    hide("configErr"); hide("configOk");
+    const body = {
+      upiId:   document.getElementById("upi_id").value.trim(),
+      orgName: document.getElementById("org_name").value.trim(),
+    };
+    const res = await fetch(`${BASE}/api/admin/config`, {
+      method: "POST", headers: authH(), body: JSON.stringify(body),
+    }).catch(() => null);
+    if (!res) return showMsg("configErr", "Cannot reach server");
+    const json = await res.json();
+    res.ok ? showMsg("configOk", "Config saved!") : showMsg("configErr", json.message);
+  }
+
+  async function createUser() {
+    hide("cuErr"); hide("cuOk");
+    const body = {
+      name:        document.getElementById("cu_name").value.trim(),
+      email:       document.getElementById("cu_email").value.trim(),
+      password:    document.getElementById("cu_pass").value,
+      phone:       document.getElementById("cu_phone").value.trim() || null,
+      whatsappNo:  document.getElementById("cu_wa").value.trim() || null,
+      role:        document.getElementById("cu_role").value,
+    };
+    if (!body.name || !body.email || !body.password)
+      return showMsg("cuErr", "Name, email and password are required");
+
+    const res = await fetch(`${BASE}/api/users/`, {
+      method: "POST", headers: authH(), body: JSON.stringify(body),
+    }).catch(() => null);
+    if (!res) return showMsg("cuErr", "Cannot reach server");
+    const json = await res.json();
+    if (!res.ok) return showMsg("cuErr", json.message);
+    showMsg("cuOk", `User "${json.data.name}" created!`);
+    ["cu_name","cu_email","cu_pass","cu_phone","cu_wa"].forEach(id => document.getElementById(id).value = "");
+    loadUsers();
+  }
+
+  async function loadUsers() {
+    document.getElementById("usersBody").innerHTML =
+      '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:16px">Loading...</td></tr>';
+    const res = await fetch(`${BASE}/api/users/`, { headers: authH() }).catch(() => null);
+    if (!res || !res.ok) {
+      return document.getElementById("usersBody").innerHTML =
+        '<tr><td colspan="7" style="text-align:center;color:#c62828">Failed to load users</td></tr>';
+    }
+    const json = await res.json();
+    const users = json.data;
+    if (!users.length) {
+      document.getElementById("usersBody").innerHTML =
+        '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:16px">No users found</td></tr>';
+      return;
+    }
+    document.getElementById("usersBody").innerHTML = users.map(u => `
+      <tr>
+        <td>${u.id}</td>
+        <td><strong>${u.name}</strong></td>
+        <td style="color:#666">${u.email}</td>
+        <td><span class="badge badge-${u.role}">${u.role}</span></td>
+        <td>${u.phone || '—'}</td>
+        <td><span class="badge ${u.isActive ? 'badge-active' : 'badge-inactive'}">${u.isActive ? 'Active' : 'Inactive'}</span></td>
+        <td>
+          <div class="actions">
+            ${u.isActive ? `<button class="btn btn-red" style="font-size:11px;padding:4px 10px" onclick="deactivate(${u.id},'${u.name}')">Deactivate</button>` : ''}
+          </div>
+        </td>
+      </tr>`).join("");
+  }
+
+  async function deactivate(id, name) {
+    if (!confirm(`Deactivate "${name}"?`)) return;
+    const res = await fetch(`${BASE}/api/users/${id}`, {
+      method: "DELETE", headers: authH(),
+    }).catch(() => null);
+    if (!res) return alert("Cannot reach server");
+    const json = await res.json();
+    alert(json.message);
+    loadUsers();
+  }
+
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+  function goto(p)   { window.location.href = p; }
+  function showMsg(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.style.display = "block"; }
+  function hide(id) { document.getElementById(id).style.display = "none"; }
+
+  loadConfig();
+  loadUsers();
+</script>
+</body>
+</html>
