@@ -6,13 +6,13 @@ from sqlalchemy.orm import contains_eager
 
 from ...extensions import db
 from ...models.donor import Donor
-from ...models.payment import Payment, MethodEnum, StatusEnum
+from ...models.payment import Payment, MethodEnum, StatusEnum, COMPLETED_STATUSES
 from ...models.pledge import Pledge, PledgeStatusEnum
 from ...models.user import User
 
 
 def get_grand_summary() -> dict:
-    base = Payment.query.filter_by(status=StatusEnum.confirmed)
+    base = Payment.query.filter(Payment.status.in_(COMPLETED_STATUSES))
 
     cash_total = base.filter_by(method=MethodEnum.cash).with_entities(
         func.coalesce(func.sum(Payment.amount), 0)
@@ -60,9 +60,9 @@ def get_collector_breakdown() -> list:
     result = []
 
     for collector in collectors:
-        base = Payment.query.filter_by(
-            collector_id=collector.id,
-            status=StatusEnum.confirmed,
+        base = Payment.query.filter(
+            Payment.collector_id == collector.id,
+            Payment.status.in_(COMPLETED_STATUSES),
         )
         cash = base.filter_by(method=MethodEnum.cash).with_entities(
             func.coalesce(func.sum(Payment.amount), 0)
@@ -111,7 +111,9 @@ def get_all_payments(
     if method in ("cash", "upi", "cheque"):
         query = query.filter(Payment.method == MethodEnum(method))
 
-    if status in ("pending", "confirmed", "expired", "cancelled"):
+    if status == "completed":
+        query = query.filter(Payment.status.in_(COMPLETED_STATUSES))
+    elif status in ("pending", "expired", "cancelled"):
         query = query.filter(Payment.status == StatusEnum(status))
 
     if collector_id:

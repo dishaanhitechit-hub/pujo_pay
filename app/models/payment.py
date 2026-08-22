@@ -11,9 +11,14 @@ class MethodEnum(str, enum.Enum):
 
 class StatusEnum(str, enum.Enum):
     pending = "pending"
-    confirmed = "confirmed"
+    completed = "completed"
+    confirmed = "confirmed"   # legacy — kept so SQLAlchemy can read old DB rows
     expired = "expired"
     cancelled = "cancelled"
+
+
+# Both values represent a successfully completed payment (new writes use `completed`).
+COMPLETED_STATUSES = frozenset({StatusEnum.completed, StatusEnum.confirmed})
 
 
 def _generate_receipt_no() -> str:
@@ -67,7 +72,7 @@ class Payment(db.Model):
             "bankName": self.bank_name,
             "chequeDate": self.cheque_date.isoformat() if self.cheque_date else None,
             "pledgeId": self.pledge_id,
-            "status": self.status.value,
+            "status": "completed" if self.status.value == "confirmed" else self.status.value,
             "whatsappSent": self.whatsapp_sent,
             "confirmedAt": self.confirmed_at.isoformat() if self.confirmed_at else None,
             "cancelledAt": self.cancelled_at.isoformat() if self.cancelled_at else None,

@@ -6,13 +6,13 @@ from sqlalchemy.orm import contains_eager, joinedload
 
 from ...extensions import db
 from ...models.donor import Donor
-from ...models.payment import Payment, MethodEnum, StatusEnum
+from ...models.payment import Payment, MethodEnum, StatusEnum, COMPLETED_STATUSES
 
 
 def get_summary(collector_id: int) -> dict:
-    base = Payment.query.filter_by(
-        collector_id=collector_id,
-        status=StatusEnum.confirmed,
+    base = Payment.query.filter(
+        Payment.collector_id == collector_id,
+        Payment.status.in_(COMPLETED_STATUSES),
     )
 
     cash_total = base.filter_by(method=MethodEnum.cash).with_entities(
@@ -68,7 +68,9 @@ def get_payments(
     if method in ("cash", "upi", "cheque"):
         query = query.filter(Payment.method == MethodEnum(method))
 
-    if status in ("pending", "confirmed", "expired", "cancelled"):
+    if status == "completed":
+        query = query.filter(Payment.status.in_(COMPLETED_STATUSES))
+    elif status in ("pending", "expired", "cancelled"):
         query = query.filter(Payment.status == StatusEnum(status))
 
     # Legacy single-day filter (backward compat)

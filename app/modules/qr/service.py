@@ -8,7 +8,7 @@ import qrcode
 from qrcode.image.pil import PilImage
 
 from ...extensions import db
-from ...models.payment import Payment, StatusEnum
+from ...models.payment import Payment, StatusEnum, COMPLETED_STATUSES
 from ...models.pledge import Pledge, PledgeStatusEnum
 
 QR_WINDOW_MINUTES = 10
@@ -58,7 +58,7 @@ def _sync_pledge(payment: Payment) -> None:
         db.func.coalesce(db.func.sum(Payment.amount), 0)
     ).filter(
         Payment.pledge_id == pledge.id,
-        Payment.status == StatusEnum.confirmed,
+        Payment.status.in_(COMPLETED_STATUSES),
     ).scalar()
 
     pledge.paid_amount = Decimal(str(confirmed_total))
@@ -80,24 +80,24 @@ def confirm_upi_payment(payment: Payment, utr_number: str | None) -> tuple[bool,
         return False, "session expired"
 
     payment.utr_number = utr_number or None
-    payment.status = StatusEnum.confirmed
+    payment.status = StatusEnum.completed
     payment.confirmed_at = now
     payment.assign_receipt_no()
     _sync_pledge(payment)
     db.session.commit()
-    return True, "confirmed"
+    return True, "completed"
 
 
 def confirm_cash_payment(payment: Payment) -> tuple[bool, str]:
     if payment.status != StatusEnum.pending:
         return False, "payment already processed"
 
-    payment.status = StatusEnum.confirmed
+    payment.status = StatusEnum.completed
     payment.confirmed_at = datetime.now(timezone.utc)
     payment.assign_receipt_no()
     _sync_pledge(payment)
     db.session.commit()
-    return True, "confirmed"
+    return True, "completed"
 
 
 def confirm_cheque_payment(
@@ -120,16 +120,16 @@ def confirm_cheque_payment(
     payment.cheque_number = cheque_number or None
     payment.bank_name = bank_name or None
     payment.cheque_date = parsed_date
-    payment.status = StatusEnum.confirmed
+    payment.status = StatusEnum.completed
     payment.confirmed_at = datetime.now(timezone.utc)
     payment.assign_receipt_no()
     _sync_pledge(payment)
     db.session.commit()
-    return True, "confirmed"
+    return True, "completed"
 
 
 def cancel_payment(payment: Payment) -> tuple[bool, str]:
-    if payment.status in (StatusEnum.confirmed, StatusEnum.expired, StatusEnum.cancelled):
+    if payment.status in (*COMPLETED_STATUSES, StatusEnum.expired, StatusEnum.cancelled):
         return False, f"cannot cancel — payment is already {payment.status.value}"
     payment.status = StatusEnum.cancelled
     payment.cancelled_at = datetime.now(timezone.utc)

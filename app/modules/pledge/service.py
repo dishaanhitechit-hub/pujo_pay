@@ -119,7 +119,7 @@ def get_pledge(
             "receiptNo": p.receipt_no,
             "amount": str(p.amount),
             "method": p.method.value,
-            "status": p.status.value,
+            "status": "completed" if p.status.value == "confirmed" else p.status.value,
             "utrNumber": p.utr_number,
             "chequeNumber": p.cheque_number,
             "bankName": p.bank_name,

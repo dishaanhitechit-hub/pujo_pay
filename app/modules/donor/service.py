@@ -4,7 +4,7 @@ from sqlalchemy import func
 
 from ...extensions import db
 from ...models.donor import Donor
-from ...models.payment import Payment, StatusEnum
+from ...models.payment import Payment, StatusEnum, COMPLETED_STATUSES
 
 
 def _aggregate_subquery():
@@ -16,7 +16,7 @@ def _aggregate_subquery():
             func.count(Payment.id).label("confirmed_count"),
             func.max(Payment.confirmed_at).label("last_donated_at"),
         )
-        .filter(Payment.status == StatusEnum.confirmed)
+        .filter(Payment.status.in_(COMPLETED_STATUSES))
         .group_by(Payment.donor_id)
         .subquery()
     )
@@ -97,7 +97,7 @@ def get_donor_detail(donor_id: int) -> dict | None:
             "receiptNo": p.receipt_no,
             "amount": str(p.amount),
             "method": p.method.value,
-            "status": p.status.value,
+            "status": "completed" if p.status.value == "confirmed" else p.status.value,
             "utrNumber": p.utr_number,
             "collector": {
                 "id": p.collector.id,

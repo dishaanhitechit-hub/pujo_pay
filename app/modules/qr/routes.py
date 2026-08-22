@@ -20,7 +20,7 @@ bp = Blueprint("qr", __name__)
 def qr_page(payment_id):
     payment = Payment.query.get_or_404(payment_id)
 
-    if payment.status.value == "confirmed":
+    if payment.status.value in ("completed", "confirmed"):
         return redirect(url_for("qr.receipt_page", payment_id=payment_id))
     if payment.status.value in ("cancelled", "expired"):
         return render_template("pay/error.html",
@@ -78,7 +78,7 @@ def qr_cancel(payment_id):
 def cash_page(payment_id):
     payment = Payment.query.get_or_404(payment_id)
 
-    if payment.status.value == "confirmed":
+    if payment.status.value in ("completed", "confirmed"):
         return redirect(url_for("qr.receipt_page", payment_id=payment_id))
     if payment.status.value in ("cancelled", "expired"):
         return render_template("pay/error.html",
@@ -112,7 +112,7 @@ def cash_cancel(payment_id):
 def cheque_page(payment_id):
     payment = Payment.query.get_or_404(payment_id)
 
-    if payment.status.value == "confirmed":
+    if payment.status.value in ("completed", "confirmed"):
         return redirect(url_for("qr.receipt_page", payment_id=payment_id))
     if payment.status.value in ("cancelled", "expired"):
         return render_template("pay/error.html",
