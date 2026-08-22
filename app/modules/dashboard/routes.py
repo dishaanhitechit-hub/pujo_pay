@@ -28,6 +28,7 @@ def payments():
     status = request.args.get("status")
     collector_id = request.args.get("collectorId", type=int)
     date = request.args.get("date")
+    donor_type = request.args.get("donorType")
 
     data = get_all_payments(
         page=page,
@@ -36,5 +37,6 @@ def payments():
         status=status,
         collector_id=collector_id,
         date=date,
+        donor_type=donor_type,
     )
     return res(data=data)

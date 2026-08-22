@@ -9,6 +9,7 @@ class Donor(db.Model):
     phone = db.Column(db.String(20))
     address = db.Column(db.Text)
     notes = db.Column(db.Text)
+    donor_type = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
     payments = db.relationship("Payment", back_populates="donor", lazy="dynamic")
@@ -20,5 +21,6 @@ class Donor(db.Model):
             "phone": self.phone,
             "address": self.address,
             "notes": self.notes,
+            "donorType": self.donor_type,
             "createdAt": self.created_at.isoformat() if self.created_at else None,
         }

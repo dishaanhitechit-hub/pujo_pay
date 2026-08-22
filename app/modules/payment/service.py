@@ -11,6 +11,7 @@ class InitiatePaymentSchema(Schema):
     donor_phone   = fields.Str(load_default=None, data_key="donorPhone", validate=validate.Length(max=20))
     donor_address = fields.Str(load_default=None, data_key="donorAddress")
     donor_notes   = fields.Str(load_default=None, data_key="donorNotes")
+    donor_type    = fields.Str(load_default=None, data_key="donorType")
     amount = fields.Decimal(required=True, places=2, as_string=False)
     method = fields.Str(
         required=True,
@@ -32,6 +33,7 @@ def initiate_payment(data: dict, collector_id: int) -> Payment:
         phone=data.get("donor_phone"),
         address=data.get("donor_address"),
         notes=data.get("donor_notes"),
+        donor_type=data.get("donor_type"),
     )
     db.session.add(donor)
     db.session.flush()  # get donor.id before committing

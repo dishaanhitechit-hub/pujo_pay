@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy import func
 
 from ...extensions import db
+from ...models.donor import Donor
 from ...models.payment import Payment, MethodEnum, StatusEnum
 from ...models.user import User
 
@@ -68,6 +69,7 @@ def get_all_payments(
     status: str | None = None,
     collector_id: int | None = None,
     date: str | None = None,
+    donor_type: str | None = None,
 ) -> dict:
     query = Payment.query
 
@@ -86,6 +88,9 @@ def get_all_payments(
             query = query.filter(func.date(Payment.created_at) == day)
         except ValueError:
             pass
+
+    if donor_type:
+        query = query.join(Donor, Payment.donor_id == Donor.id).filter(Donor.donor_type == donor_type)
 
     query = query.order_by(Payment.created_at.desc())
     pagination = db.paginate(query, page=page, per_page=per_page, error_out=False)

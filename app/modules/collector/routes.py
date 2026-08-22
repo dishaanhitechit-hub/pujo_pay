@@ -25,6 +25,7 @@ def payments():
     per_page = min(request.args.get("perPage", 20, type=int), 100)
     method = request.args.get("method")
     date = request.args.get("date")
+    donor_type = request.args.get("donorType")
 
     data = get_payments(
         collector_id=collector_id,
@@ -32,5 +33,6 @@ def payments():
         per_page=per_page,
         method=method,
         date=date,
+        donor_type=donor_type,
     )
     return res(data=data)
