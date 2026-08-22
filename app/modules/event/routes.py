@@ -100,7 +100,7 @@ def update(event_id):
 @bp.route("/<int:event_id>/days", methods=["POST"])
 @require_permission("event.manage")
 def set_days(event_id):
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(silent=True)
     if not isinstance(body, list):
         return res("request body must be a JSON array of days", code=400)
     try:
