@@ -80,6 +80,12 @@ def list_pledges():
     # collectorId filter is only honoured for users who can see all pledges
     collector_id = request.args.get("collectorId", type=int) if can_view_all else None
 
+    search = request.args.get("search", "").strip() or None
+    date_from = request.args.get("dateFrom", "").strip() or None
+    date_to = request.args.get("dateTo", "").strip() or None
+    min_amount = request.args.get("minAmount", "").strip() or None
+    max_amount = request.args.get("maxAmount", "").strip() or None
+
     return res(data=get_pledge_list(
         page=page,
         per_page=per_page,
@@ -87,6 +93,11 @@ def list_pledges():
         viewer_id=viewer_id,
         can_view_all=can_view_all,
         collector_id=collector_id,
+        search=search,
+        date_from=date_from,
+        date_to=date_to,
+        min_amount=min_amount,
+        max_amount=max_amount,
     ))
 
 

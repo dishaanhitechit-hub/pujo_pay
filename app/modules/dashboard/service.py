@@ -1,7 +1,8 @@
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import func
+from sqlalchemy.orm import contains_eager
 
 from ...extensions import db
 from ...models.donor import Donor
@@ -89,19 +90,34 @@ def get_all_payments(
     status: str | None = None,
     collector_id: int | None = None,
     date: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     donor_type: str | None = None,
+    min_amount: str | None = None,
+    max_amount: str | None = None,
+    search: str | None = None,
 ) -> dict:
-    query = Payment.query
+    # Always JOIN Donor and User to eliminate N+1 and enable search on related fields.
+    query = (
+        Payment.query
+        .join(Donor, Payment.donor_id == Donor.id)
+        .join(User, Payment.collector_id == User.id)
+        .options(
+            contains_eager(Payment.donor),
+            contains_eager(Payment.collector),
+        )
+    )
 
     if method in ("cash", "upi", "cheque"):
-        query = query.filter_by(method=MethodEnum(method))
+        query = query.filter(Payment.method == MethodEnum(method))
 
-    if status in ("pending", "confirmed", "expired"):
-        query = query.filter_by(status=StatusEnum(status))
+    if status in ("pending", "confirmed", "expired", "cancelled"):
+        query = query.filter(Payment.status == StatusEnum(status))
 
     if collector_id:
-        query = query.filter_by(collector_id=collector_id)
+        query = query.filter(Payment.collector_id == collector_id)
 
+    # Legacy single-day filter (backward compat)
     if date:
         try:
             day = datetime.strptime(date, "%Y-%m-%d").date()
@@ -109,8 +125,43 @@ def get_all_payments(
         except ValueError:
             pass
 
+    if date_from:
+        try:
+            df = datetime.strptime(date_from, "%Y-%m-%d").date()
+            query = query.filter(Payment.created_at >= df)
+        except ValueError:
+            pass
+
+    if date_to:
+        try:
+            dt = datetime.strptime(date_to, "%Y-%m-%d").date()
+            query = query.filter(Payment.created_at < dt + timedelta(days=1))
+        except ValueError:
+            pass
+
     if donor_type:
-        query = query.join(Donor, Payment.donor_id == Donor.id).filter(Donor.donor_type == donor_type)
+        query = query.filter(Donor.donor_type.ilike(donor_type))
+
+    if min_amount:
+        try:
+            query = query.filter(Payment.amount >= Decimal(str(min_amount)))
+        except Exception:
+            pass
+
+    if max_amount:
+        try:
+            query = query.filter(Payment.amount <= Decimal(str(max_amount)))
+        except Exception:
+            pass
+
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            Payment.receipt_no.ilike(like)
+            | Donor.name.ilike(like)
+            | Donor.phone.ilike(like)
+            | User.name.ilike(like)
+        )
 
     query = query.order_by(Payment.created_at.desc())
     pagination = db.paginate(query, page=page, per_page=per_page, error_out=False)

@@ -82,15 +82,13 @@ def bulk():
 @bp.route("/api/token/list", methods=["GET"])
 @require_permission("token.generate")
 def token_list():
-    page = int(request.args.get("page", 1))
-    batch_id = request.args.get("batchId")
-    pagination = get_token_list(page=page, per_page=50, batch_id=batch_id or None)
-    return res(data={
-        "tokens": [t.to_dict() for t in pagination.items],
-        "total": pagination.total,
-        "page": page,
-        "pages": pagination.pages,
-    })
+    page = request.args.get("page", 1, type=int)
+    per_page = min(request.args.get("perPage", 50, type=int), 200)
+    batch_id = request.args.get("batchId") or None
+    search = request.args.get("search", "").strip() or None
+    status = request.args.get("status", "").strip() or None
+    data = get_token_list(page=page, per_page=per_page, batch_id=batch_id, search=search, status=status)
+    return res(data=data)
 
 
 @bp.route("/api/token/<token_no>", methods=["GET"])

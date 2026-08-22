@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from marshmallow import Schema, fields, validate, ValidationError  # noqa: F401
 from sqlalchemy import text
+from sqlalchemy.orm import joinedload
 
 import qrcode
 from qrcode.image.pil import PilImage
@@ -184,11 +185,41 @@ def get_token(token_no: str) -> Token | None:
     return Token.query.filter(Token.token_no.ilike(token_no)).first()
 
 
-def get_token_list(page: int = 1, per_page: int = 50, batch_id: str | None = None):
-    q = Token.query.order_by(Token.token_serial.desc())
+def get_token_list(
+    page: int = 1,
+    per_page: int = 50,
+    batch_id: str | None = None,
+    search: str | None = None,
+    status: str | None = None,
+) -> dict:
+    q = (
+        Token.query
+        .options(joinedload(Token.generated_by))
+        .order_by(Token.token_serial.desc())
+    )
     if batch_id:
-        q = q.filter_by(batch_id=batch_id)
-    return q.paginate(page=page, per_page=per_page, error_out=False)
+        q = q.filter(Token.batch_id == batch_id)
+
+    if status:
+        try:
+            q = q.filter(Token.status == TokenStatusEnum(status))
+        except ValueError:
+            pass
+
+    if search:
+        like = f"%{search}%"
+        q = q.filter(
+            Token.token_no.ilike(like) | Token.participant_name.ilike(like)
+        )
+
+    pagination = q.paginate(page=page, per_page=per_page, error_out=False)
+    return {
+        "tokens": [t.to_dict() for t in pagination.items],
+        "page": pagination.page,
+        "perPage": pagination.per_page,
+        "total": pagination.total,
+        "pages": pagination.pages,
+    }
 
 
 def get_batch(batch_id: str) -> list:

@@ -1,11 +1,14 @@
 from decimal import Decimal
+from datetime import datetime, timedelta
 
 from marshmallow import Schema, fields, validate, validates, ValidationError  # noqa: F401
+from sqlalchemy.orm import contains_eager, joinedload
 
 from ...extensions import db
 from ...models.donor import Donor
 from ...models.payment import Payment, MethodEnum, StatusEnum
 from ...models.pledge import Pledge, PledgeStatusEnum
+from ...models.user import User
 
 
 # ── Schemas ────────────────────────────────────────────────────────────────
@@ -139,21 +142,69 @@ def get_pledge_list(
     viewer_id: int | None = None,
     can_view_all: bool = False,
     collector_id: int | None = None,
+    search: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    min_amount: str | None = None,
+    max_amount: str | None = None,
 ) -> dict:
-    query = Pledge.query.order_by(Pledge.created_at.desc())
+    # Always JOIN Donor (for search) and User/collector (for display) to eliminate N+1.
+    query = (
+        Pledge.query
+        .join(Donor, Pledge.donor_id == Donor.id)
+        .join(User, Pledge.collector_id == User.id)
+        .options(
+            contains_eager(Pledge.donor),
+            contains_eager(Pledge.collector),
+        )
+    )
 
     if status in ("open", "complete", "cancelled"):
-        query = query.filter_by(status=PledgeStatusEnum(status))
+        query = query.filter(Pledge.status == PledgeStatusEnum(status))
 
     if can_view_all:
         # Admin/executive: optional filter by any collector
         if collector_id:
-            query = query.filter_by(collector_id=collector_id)
+            query = query.filter(Pledge.collector_id == collector_id)
     else:
         # Committee/general: scope strictly to own pledges
-        query = query.filter_by(collector_id=viewer_id)
+        query = query.filter(Pledge.collector_id == viewer_id)
 
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            Donor.name.ilike(like) | Donor.phone.ilike(like)
+        )
+
+    if date_from:
+        try:
+            df = datetime.strptime(date_from, "%Y-%m-%d").date()
+            query = query.filter(Pledge.created_at >= df)
+        except ValueError:
+            pass
+
+    if date_to:
+        try:
+            dt = datetime.strptime(date_to, "%Y-%m-%d").date()
+            query = query.filter(Pledge.created_at < dt + timedelta(days=1))
+        except ValueError:
+            pass
+
+    if min_amount:
+        try:
+            query = query.filter(Pledge.total_amount >= Decimal(str(min_amount)))
+        except Exception:
+            pass
+
+    if max_amount:
+        try:
+            query = query.filter(Pledge.total_amount <= Decimal(str(max_amount)))
+        except Exception:
+            pass
+
+    query = query.order_by(Pledge.created_at.desc())
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
     return {
         "pledges": [p.to_dict() for p in pagination.items],
         "page": pagination.page,

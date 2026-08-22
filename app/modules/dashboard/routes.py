@@ -29,6 +29,11 @@ def payments():
     collector_id = request.args.get("collectorId", type=int)
     date = request.args.get("date")
     donor_type = request.args.get("donorType")
+    search = request.args.get("search", "").strip() or None
+    date_from = request.args.get("dateFrom", "").strip() or None
+    date_to = request.args.get("dateTo", "").strip() or None
+    min_amount = request.args.get("minAmount", "").strip() or None
+    max_amount = request.args.get("maxAmount", "").strip() or None
 
     data = get_all_payments(
         page=page,
@@ -38,5 +43,10 @@ def payments():
         collector_id=collector_id,
         date=date,
         donor_type=donor_type,
+        search=search,
+        date_from=date_from,
+        date_to=date_to,
+        min_amount=min_amount,
+        max_amount=max_amount,
     )
     return res(data=data)
