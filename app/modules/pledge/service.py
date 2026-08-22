@@ -68,6 +68,8 @@ def pay_installment(pledge_id: int, data: dict, collector_id: int) -> tuple[Paym
     pledge = Pledge.query.get(pledge_id)
     if not pledge:
         return None, "pledge not found"
+    if pledge.collector_id != collector_id:
+        return None, "forbidden"
     if pledge.status != PledgeStatusEnum.open:
         return None, f"pledge is {pledge.status.value} — cannot add payments"
 
@@ -90,10 +92,16 @@ def pay_installment(pledge_id: int, data: dict, collector_id: int) -> tuple[Paym
     return payment, None
 
 
-def get_pledge(pledge_id: int) -> dict | None:
+def get_pledge(
+    pledge_id: int,
+    viewer_id: int,
+    can_view_all: bool,
+) -> tuple[dict | None, str | None]:
     pledge = Pledge.query.get(pledge_id)
     if not pledge:
-        return None
+        return None, "not_found"
+    if not can_view_all and pledge.collector_id != viewer_id:
+        return None, "forbidden"
 
     payments = (
         Payment.query.filter_by(pledge_id=pledge_id)
@@ -121,13 +129,15 @@ def get_pledge(pledge_id: int) -> dict | None:
             "createdAt": p.created_at.isoformat() if p.created_at else None,
         })
 
-    return {"pledge": pledge.to_dict(), "payments": payment_list}
+    return {"pledge": pledge.to_dict(), "payments": payment_list}, None
 
 
 def get_pledge_list(
     page: int = 1,
     per_page: int = 20,
     status: str | None = None,
+    viewer_id: int | None = None,
+    can_view_all: bool = False,
     collector_id: int | None = None,
 ) -> dict:
     query = Pledge.query.order_by(Pledge.created_at.desc())
@@ -135,8 +145,13 @@ def get_pledge_list(
     if status in ("open", "complete", "cancelled"):
         query = query.filter_by(status=PledgeStatusEnum(status))
 
-    if collector_id:
-        query = query.filter_by(collector_id=collector_id)
+    if can_view_all:
+        # Admin/executive: optional filter by any collector
+        if collector_id:
+            query = query.filter_by(collector_id=collector_id)
+    else:
+        # Committee/general: scope strictly to own pledges
+        query = query.filter_by(collector_id=viewer_id)
 
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     return {

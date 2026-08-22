@@ -4,6 +4,14 @@ from ..models.role_permission import RolePermission
 from ..utils.helpers import res
 
 
+def has_permission(role: str, permission_key: str) -> bool:
+    return RolePermission.query.filter_by(
+        role=role,
+        permission_key=permission_key,
+        granted=True,
+    ).first() is not None
+
+
 def require_permission(permission_key: str):
     def decorator(fn):
         @wraps(fn)
