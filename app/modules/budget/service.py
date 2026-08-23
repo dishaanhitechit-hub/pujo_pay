@@ -29,7 +29,8 @@ class UpdateBudgetCategorySchema(Schema):
 
 
 class ReorderSchema(Schema):
-    ids = fields.List(fields.Int(), required=True)
+    event_id = fields.Int(required=True, data_key="eventId")
+    ids      = fields.List(fields.Int(), required=True)
 
 
 create_budget_category_schema = CreateBudgetCategorySchema()
