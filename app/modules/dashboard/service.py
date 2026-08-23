@@ -1,7 +1,8 @@
+from collections import defaultdict
 from decimal import Decimal
 from datetime import datetime, timedelta
 
-from sqlalchemy import func
+from sqlalchemy import func, case as sa_case, and_
 from sqlalchemy.orm import contains_eager
 
 from ...extensions import db
@@ -384,6 +385,27 @@ def get_event_report(event_id: int) -> dict:
     ))
     open_pledge_count = pledge_q.filter(Pledge.status == PledgeStatusEnum.open).count()
 
+    # ── Pledge-based collection summary ──────────────────────────────────────
+    full_cond     = Pledge.paid_amount >= Pledge.total_amount
+    part_cond     = and_(Pledge.paid_amount > 0, Pledge.paid_amount < Pledge.total_amount)
+    pending_cond  = and_(Pledge.paid_amount == 0, Pledge.status == PledgeStatusEnum.open)
+    cancelled_cond = Pledge.status == PledgeStatusEnum.cancelled
+
+    pl_agg = (
+        db.session.query(
+            func.count(sa_case((full_cond, 1))).label("full_count"),
+            func.count(sa_case((part_cond, 1))).label("part_count"),
+            func.count(sa_case((pending_cond, 1))).label("pending_count"),
+            func.count(sa_case((cancelled_cond, 1))).label("cancelled_count"),
+            func.coalesce(func.sum(sa_case((full_cond, Pledge.paid_amount), else_=0)), 0).label("full_amount"),
+            func.coalesce(func.sum(sa_case((part_cond, Pledge.paid_amount), else_=0)), 0).label("part_amount"),
+            func.coalesce(func.sum(sa_case((pending_cond, Pledge.total_amount), else_=0)), 0).label("pending_amount"),
+            func.coalesce(func.sum(sa_case((cancelled_cond, Pledge.total_amount), else_=0)), 0).label("cancelled_amount"),
+        )
+        .filter(Pledge.event_id == event_id)
+        .one()
+    )
+
     # ── Expense aggregations ──────────────────────────────────────────────────
     try:
         from ..expense.service import get_event_expense_total, get_expense_summary
@@ -467,8 +489,54 @@ def get_event_report(event_id: int) -> dict:
     # Remove collectors with zero contributions from event-specific report
     collector_data = [c for c in collector_data if Decimal(c["grandTotal"]) > 0]
 
+    # Per-collector pledge breakdown via payment → pledge join
+    pledge_coll_rows = (
+        db.session.query(
+            Payment.collector_id,
+            Pledge.id.label("pledge_id"),
+            Pledge.paid_amount,
+            Pledge.total_amount,
+            Pledge.status,
+        )
+        .join(Pledge, Payment.pledge_id == Pledge.id)
+        .filter(
+            Payment.event_id == event_id,
+            Payment.status.in_(COMPLETED_STATUSES),
+        )
+        .distinct()
+        .all()
+    )
+    pledge_coll_map: dict = defaultdict(lambda: {"full": 0, "part": 0, "cancelled": 0, "_seen": set()})
+    for row in pledge_coll_rows:
+        cm = pledge_coll_map[row.collector_id]
+        if row.pledge_id in cm["_seen"]:
+            continue
+        cm["_seen"].add(row.pledge_id)
+        if row.status == PledgeStatusEnum.cancelled:
+            cm["cancelled"] += 1
+        elif Decimal(str(row.paid_amount)) >= Decimal(str(row.total_amount)):
+            cm["full"] += 1
+        elif Decimal(str(row.paid_amount)) > 0:
+            cm["part"] += 1
+    for c in collector_data:
+        cid = c["collector"]["id"]
+        pm = pledge_coll_map.get(cid, {"full": 0, "part": 0, "cancelled": 0})
+        c["fullCount"]     = pm["full"]
+        c["partCount"]     = pm["part"]
+        c["cancelledCount"] = pm["cancelled"]
+
     return {
         "event": event.to_dict(include_days=False) if event else None,
+        "collectionSummary": {
+            "fullCount":       int(pl_agg.full_count or 0),
+            "fullAmount":      _fmt(pl_agg.full_amount or 0),
+            "partCount":       int(pl_agg.part_count or 0),
+            "partAmount":      _fmt(pl_agg.part_amount or 0),
+            "pendingCount":    int(pl_agg.pending_count or 0),
+            "pendingAmount":   _fmt(pl_agg.pending_amount or 0),
+            "cancelledCount":  int(pl_agg.cancelled_count or 0),
+            "cancelledAmount": _fmt(pl_agg.cancelled_amount or 0),
+        },
         "summary": {
             "donorCount":       donor_count,
             "totalPledged":     _fmt(total_pledged),
