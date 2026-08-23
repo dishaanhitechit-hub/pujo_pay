@@ -3,16 +3,20 @@ from ..extensions import db
 
 def _normalize_activities(raw):
     """
-    Normalize the stored rituals JSON into a list of {time, name} dicts.
-    Handles both the legacy string-list format and the new object format.
+    Normalize the stored rituals JSON into {time, name, description} dicts.
+    Handles legacy string-list, old {time,name} objects, and new {time,name,description}.
     """
     items = raw or []
     result = []
     for item in items:
         if isinstance(item, str):
-            result.append({"time": "", "name": item})
+            result.append({"time": "", "name": item, "description": None})
         elif isinstance(item, dict) and "name" in item:
-            result.append({"time": item.get("time", ""), "name": item["name"]})
+            result.append({
+                "time":        item.get("time", ""),
+                "name":        item["name"],
+                "description": item.get("description") or None,
+            })
     return result
 
 
