@@ -24,7 +24,7 @@ PERMISSION_KEYS = [
 _DEFAULTS: dict[str, list[str]] = {
     "admin":               PERMISSION_KEYS,
     "managing_committee":  ["dashboard.view"],
-    "core_committee":      [],
+    "core_committee":      ["dashboard.view"],
     "executive":           ["dashboard.view"],
     "cashier":             ["payment.initiate", "payment.confirm", "payment.view_receipt",
                             "collector.view_own", "dashboard.view", "expense.manage"],
