@@ -16,44 +16,59 @@ def _fmt(value) -> str:
 # ── Schemas ────────────────────────────────────────────────────────────────────
 
 class CreateExpenseSchema(Schema):
-    purpose      = fields.Str(required=True, validate=validate.Length(min=1, max=200))
-    mode         = fields.Str(required=True, validate=validate.OneOf(["cash", "upi", "cheque"]))
-    amount       = fields.Decimal(required=True, places=2)
-    expense_date = fields.Date(required=True, data_key="expenseDate")
-    notes        = fields.Str(load_default=None, allow_none=True)
+    event_id           = fields.Int(required=True, data_key="eventId")
+    budget_category_id = fields.Int(load_default=None, allow_none=True, data_key="budgetCategoryId")
+    purpose            = fields.Str(required=True, validate=validate.Length(min=1, max=200))
+    mode               = fields.Str(required=True, validate=validate.OneOf(["cash", "upi", "cheque"]))
+    amount             = fields.Decimal(required=True, places=2)
+    expense_date       = fields.Date(required=True, data_key="expenseDate")
+    notes              = fields.Str(load_default=None, allow_none=True)
 
 
 class UpdateExpenseSchema(Schema):
-    purpose      = fields.Str(validate=validate.Length(min=1, max=200))
-    mode         = fields.Str(validate=validate.OneOf(["cash", "upi", "cheque"]))
-    amount       = fields.Decimal(places=2)
-    expense_date = fields.Date(data_key="expenseDate")
-    notes        = fields.Str(allow_none=True)
+    budget_category_id = fields.Int(allow_none=True, data_key="budgetCategoryId")
+    purpose            = fields.Str(validate=validate.Length(min=1, max=200))
+    mode               = fields.Str(validate=validate.OneOf(["cash", "upi", "cheque"]))
+    amount             = fields.Decimal(places=2)
+    expense_date       = fields.Date(data_key="expenseDate")
+    notes              = fields.Str(allow_none=True)
 
 
 create_expense_schema = CreateExpenseSchema()
 update_expense_schema = UpdateExpenseSchema()
 
 
-# ── Aggregation helper ─────────────────────────────────────────────────────────
+# ── Global summary ─────────────────────────────────────────────────────────────
 
-def get_expense_totals_for_event(event_id: int) -> Decimal:
-    """Return total expense amount for an event (used by dashboard overview)."""
-    total = db.session.query(
-        func.coalesce(func.sum(Expense.amount), 0)
-    ).filter(Expense.event_id == event_id).scalar()
-    return Decimal(str(total))
+def get_expense_summary(
+    event_id: int | None = None,
+    budget_category_id: int | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> dict:
+    """Aggregate summary respecting current filters (event + category + date)."""
+    base = Expense.query
 
+    if event_id:
+        base = base.filter(Expense.event_id == event_id)
+    if budget_category_id is not None:
+        if budget_category_id == 0:
+            base = base.filter(Expense.budget_category_id.is_(None))
+        else:
+            base = base.filter(Expense.budget_category_id == budget_category_id)
+    if date_from:
+        try:
+            base = base.filter(Expense.expense_date >= datetime.strptime(date_from, "%Y-%m-%d").date())
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            base = base.filter(Expense.expense_date <= datetime.strptime(date_to, "%Y-%m-%d").date())
+        except ValueError:
+            pass
 
-def get_event_expense_summary(event_id: int) -> dict:
-    """Whole-event expense summary (unaffected by list pagination/filters)."""
-    from ...models.event import Event as EventModel
-
-    event = EventModel.query.get(event_id)
-    budget = Decimal(str(event.budget)) if event and event.budget is not None else None
-
-    total = get_expense_totals_for_event(event_id)
-    count = Expense.query.filter_by(event_id=event_id).count()
+    total = Decimal(str(base.with_entities(func.coalesce(func.sum(Expense.amount), 0)).scalar()))
+    count = base.count()
 
     mode_rows = (
         db.session.query(
@@ -61,17 +76,15 @@ def get_event_expense_summary(event_id: int) -> dict:
             func.coalesce(func.sum(Expense.amount), 0).label("total"),
             func.count(Expense.id).label("cnt"),
         )
-        .filter(Expense.event_id == event_id)
+        .filter(*_base_filters(event_id, budget_category_id, date_from, date_to))
         .group_by(Expense.mode)
         .all()
     )
 
-    over_budget_amount = (total - budget) if budget is not None and total > budget else None
-
     return {
-        "totalExpenses":    _fmt(total),
-        "expenseCount":     count,
-        "modeBreakdown":    [
+        "totalExpenses": _fmt(total),
+        "expenseCount":  count,
+        "modeBreakdown": [
             {
                 "mode":  row.mode.value if hasattr(row.mode, "value") else row.mode,
                 "total": _fmt(row.total),
@@ -79,18 +92,36 @@ def get_event_expense_summary(event_id: int) -> dict:
             }
             for row in mode_rows
         ],
-        "budget":           _fmt(budget) if budget is not None else None,
-        "budgetNotes":      event.budget_notes if event else None,
-        "budgetRemaining":  _fmt(budget - total) if budget is not None else None,
-        "overBudget":       (total > budget) if budget is not None else False,
-        "overBudgetAmount": _fmt(over_budget_amount) if over_budget_amount is not None else None,
     }
 
 
-# ── CRUD operations ────────────────────────────────────────────────────────────
+def _base_filters(event_id, budget_category_id, date_from, date_to) -> list:
+    filters = []
+    if event_id:
+        filters.append(Expense.event_id == event_id)
+    if budget_category_id is not None:
+        if budget_category_id == 0:
+            filters.append(Expense.budget_category_id.is_(None))
+        else:
+            filters.append(Expense.budget_category_id == budget_category_id)
+    if date_from:
+        try:
+            filters.append(Expense.expense_date >= datetime.strptime(date_from, "%Y-%m-%d").date())
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            filters.append(Expense.expense_date <= datetime.strptime(date_to, "%Y-%m-%d").date())
+        except ValueError:
+            pass
+    return filters
+
+
+# ── List ───────────────────────────────────────────────────────────────────────
 
 def get_expenses(
-    event_id: int,
+    event_id: int | None = None,
+    budget_category_id: int | None = None,
     page: int = 1,
     per_page: int = 20,
     search: str | None = None,
@@ -100,7 +131,16 @@ def get_expenses(
     min_amount: str | None = None,
     max_amount: str | None = None,
 ) -> dict:
-    query = Expense.query.filter_by(event_id=event_id)
+    query = Expense.query
+
+    if event_id:
+        query = query.filter(Expense.event_id == event_id)
+
+    if budget_category_id is not None:
+        if budget_category_id == 0:
+            query = query.filter(Expense.budget_category_id.is_(None))
+        else:
+            query = query.filter(Expense.budget_category_id == budget_category_id)
 
     if search:
         like = f"%{search}%"
@@ -111,15 +151,13 @@ def get_expenses(
 
     if date_from:
         try:
-            df = datetime.strptime(date_from, "%Y-%m-%d").date()
-            query = query.filter(Expense.expense_date >= df)
+            query = query.filter(Expense.expense_date >= datetime.strptime(date_from, "%Y-%m-%d").date())
         except ValueError:
             pass
 
     if date_to:
         try:
-            dt = datetime.strptime(date_to, "%Y-%m-%d").date()
-            query = query.filter(Expense.expense_date <= dt)
+            query = query.filter(Expense.expense_date <= datetime.strptime(date_to, "%Y-%m-%d").date())
         except ValueError:
             pass
 
@@ -147,26 +185,31 @@ def get_expenses(
     }
 
 
-def create_expense(event_id: int, data: dict, created_by: int) -> Expense:
+# ── CRUD ───────────────────────────────────────────────────────────────────────
+
+def create_expense(data: dict, created_by: int) -> Expense:
     expense = Expense(
-        event_id=event_id,
-        purpose=data["purpose"].strip(),
-        mode=MethodEnum(data["mode"]),
-        amount=data["amount"],
-        expense_date=data["expense_date"],
-        notes=data.get("notes") or None,
-        created_by=created_by,
+        event_id           = data["event_id"],
+        budget_category_id = data.get("budget_category_id"),
+        purpose            = data["purpose"].strip(),
+        mode               = MethodEnum(data["mode"]),
+        amount             = data["amount"],
+        expense_date       = data["expense_date"],
+        notes              = data.get("notes") or None,
+        created_by         = created_by,
     )
     db.session.add(expense)
     db.session.commit()
     return expense
 
 
-def update_expense(expense_id: int, event_id: int, data: dict) -> tuple:
-    expense = Expense.query.filter_by(id=expense_id, event_id=event_id).first()
+def update_expense(expense_id: int, data: dict) -> tuple:
+    expense = Expense.query.get(expense_id)
     if not expense:
         return None, "expense not found"
 
+    if "budget_category_id" in data:
+        expense.budget_category_id = data["budget_category_id"]
     if "purpose" in data:
         expense.purpose = data["purpose"].strip()
     if "mode" in data:
@@ -182,10 +225,37 @@ def update_expense(expense_id: int, event_id: int, data: dict) -> tuple:
     return expense, None
 
 
-def delete_expense(expense_id: int, event_id: int) -> bool:
-    expense = Expense.query.filter_by(id=expense_id, event_id=event_id).first()
+def delete_expense(expense_id: int) -> bool:
+    expense = Expense.query.get(expense_id)
     if not expense:
         return False
     db.session.delete(expense)
     db.session.commit()
     return True
+
+
+# ── Per-event total (used by dashboard) ───────────────────────────────────────
+
+def get_expense_totals_for_events(event_ids: list[int]) -> dict[int, Decimal]:
+    """Single query: {event_id: total_expenses}."""
+    if not event_ids:
+        return {}
+    rows = (
+        db.session.query(
+            Expense.event_id,
+            func.coalesce(func.sum(Expense.amount), 0).label("total"),
+        )
+        .filter(Expense.event_id.in_(event_ids))
+        .group_by(Expense.event_id)
+        .all()
+    )
+    return {row.event_id: Decimal(str(row.total)) for row in rows}
+
+
+def get_event_expense_total(event_id: int) -> Decimal:
+    total = (
+        db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+        .filter(Expense.event_id == event_id)
+        .scalar()
+    )
+    return Decimal(str(total))

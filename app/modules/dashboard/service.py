@@ -214,19 +214,9 @@ def get_all_payments(
 def _get_expense_total(event_ids: list[int]) -> dict[int, Decimal]:
     """Return {event_id: total_expenses} for all given event_ids in one query."""
     try:
-        from ...models.expense import Expense
-        rows = (
-            db.session.query(
-                Expense.event_id,
-                func.coalesce(func.sum(Expense.amount), 0).label("total"),
-            )
-            .filter(Expense.event_id.in_(event_ids))
-            .group_by(Expense.event_id)
-            .all()
-        )
-        return {row.event_id: Decimal(str(row.total)) for row in rows}
+        from ..expense.service import get_expense_totals_for_events
+        return get_expense_totals_for_events(event_ids)
     except Exception:
-        # expenses table not yet created
         return {}
 
 
@@ -380,12 +370,12 @@ def get_event_report(event_id: int) -> dict:
 
     # ── Expense aggregations ──────────────────────────────────────────────────
     try:
+        from ..expense.service import get_event_expense_total, get_expense_summary
+        from ..budget.service import get_budget_report
         from ...models.expense import Expense
-        expenses_paid = Decimal(str(
-            db.session.query(func.coalesce(func.sum(Expense.amount), 0))
-            .filter(Expense.event_id == event_id)
-            .scalar()
-        ))
+
+        expenses_paid = get_event_expense_total(event_id)
+
         expense_mode_rows = (
             db.session.query(
                 Expense.mode,
@@ -404,13 +394,20 @@ def get_event_report(event_id: int) -> dict:
             }
             for row in expense_mode_rows
         ]
+        try:
+            budget_report = get_budget_report(event_id)
+        except Exception:
+            budget_report = None
     except Exception:
         expenses_paid = Decimal("0")
         expense_mode_breakdown = []
+        budget_report = None
 
     # ── Budget & balance ──────────────────────────────────────────────────────
-    budget = Decimal(str(event.budget)) if event and event.budget is not None else None
-    budget_remaining = (budget - expenses_paid) if budget is not None else None
+    # Budget is now category-based; pull totals from budget_report when available
+    budget           = Decimal(budget_report["totals"]["totalPlanned"]) if budget_report else None
+    budget_remaining = Decimal(budget_report["totals"]["remaining"])    if budget_report else None
+    over_budget      = budget_report["totals"]["overBudget"]            if budget_report else False
     balance_in_hand  = total_received - expenses_paid
 
     # ── Derived status totals ─────────────────────────────────────────────────
@@ -463,11 +460,10 @@ def get_event_report(event_id: int) -> dict:
             "pendingAmount":    _fmt(pending_total),
             "cancelledAmount":  _fmt(cancelled_total),
             "budget":           _fmt(budget) if budget is not None else None,
-            "budgetNotes":      event.budget_notes if event else None,
             "expensesPaid":     _fmt(expenses_paid),
             "balanceInHand":    _fmt(balance_in_hand),
             "budgetRemaining":  _fmt(budget_remaining) if budget_remaining is not None else None,
-            "overBudget":       (expenses_paid > budget) if budget is not None else False,
+            "overBudget":       over_budget,
             "completedCount":   completed_count,
             "pendingCount":     pending_count,
             "openPledgeCount":  open_pledge_count,
@@ -492,10 +488,8 @@ def get_event_report(event_id: int) -> dict:
         },
         "expenseSummary": {
             "totalExpenses":    _fmt(expenses_paid),
-            "budget":           _fmt(budget) if budget is not None else None,
-            "budgetRemaining":  _fmt(budget_remaining) if budget_remaining is not None else None,
-            "overBudget":       (expenses_paid > budget) if budget is not None else False,
             "modeBreakdown":    expense_mode_breakdown,
+            "budgetReport":     budget_report,
         },
     }
 

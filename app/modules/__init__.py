@@ -54,7 +54,10 @@ def register_all(app: Flask) -> None:
     app.register_blueprint(contact_bp, url_prefix="/api/contact")
 
     from .expense.routes import bp as expense_bp
-    app.register_blueprint(expense_bp, url_prefix="/api/events/<int:event_id>/expenses")
+    app.register_blueprint(expense_bp, url_prefix="/api/expenses")
+
+    from .budget.routes import bp as budget_bp
+    app.register_blueprint(budget_bp, url_prefix="/api/budgets")
 
     from ..test_feature.routes import bp as test_bp
     app.register_blueprint(test_bp, url_prefix="/test")
