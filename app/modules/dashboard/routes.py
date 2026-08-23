@@ -2,7 +2,7 @@ from flask import Blueprint, request
 
 from ...middleware.permissions import require_permission
 from ...utils.helpers import res
-from .service import get_grand_summary, get_collector_breakdown, get_all_payments, get_events_with_stats
+from .service import get_grand_summary, get_collector_breakdown, get_all_payments, get_events_with_stats, get_event_report
 
 bp = Blueprint("dashboard", __name__)
 
@@ -10,8 +10,18 @@ bp = Blueprint("dashboard", __name__)
 @bp.route("/events", methods=["GET"])
 @require_permission("dashboard.view")
 def events_stats():
-    """All events with per-event aggregated stats for reporting selectors and the All-Events dashboard view."""
+    """All events with per-event aggregated stats (includes budget/expense when available)."""
     return res(data=get_events_with_stats())
+
+
+@bp.route("/event-report/<int:event_id>", methods=["GET"])
+@require_permission("event.manage")
+def event_report(event_id: int):
+    """Comprehensive event report: summary, modes, collector breakdown, pledges, expenses."""
+    from ...models.event import Event as EventModel
+    if not EventModel.query.get(event_id):
+        return res("event not found", code=404)
+    return res(data=get_event_report(event_id))
 
 
 @bp.route("/summary", methods=["GET"])

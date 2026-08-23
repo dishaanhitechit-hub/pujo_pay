@@ -38,6 +38,11 @@ class Event(db.Model):
     collection_enabled = db.Column(db.Boolean, nullable=False, default=False)
     is_featured = db.Column(db.Boolean, nullable=False, default=False)
     cover_image_path = db.Column(db.String(500))
+    # Budget planning (informational only — does NOT restrict expenses)
+    # DB: ALTER TABLE events ADD COLUMN IF NOT EXISTS budget NUMERIC(12, 2);
+    #     ALTER TABLE events ADD COLUMN IF NOT EXISTS budget_notes TEXT;
+    budget = db.Column(db.Numeric(12, 2), nullable=True)
+    budget_notes = db.Column(db.Text, nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
     updated_at = db.Column(
@@ -70,6 +75,8 @@ class Event(db.Model):
                 "id": self.creator.id,
                 "name": self.creator.name,
             } if self.creator else None,
+            "budget": str(self.budget) if self.budget is not None else None,
+            "budgetNotes": self.budget_notes,
             "createdAt": self.created_at.isoformat() if self.created_at else None,
             "updatedAt": self.updated_at.isoformat() if self.updated_at else None,
         }

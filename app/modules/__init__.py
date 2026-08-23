@@ -52,6 +52,3 @@ def register_all(app: Flask) -> None:
 
     from .contact.routes import bp as contact_bp
     app.register_blueprint(contact_bp, url_prefix="/api/contact")
-
-    from ..test_feature.routes import bp as test_bp
-    app.register_blueprint(test_bp, url_prefix="/test")

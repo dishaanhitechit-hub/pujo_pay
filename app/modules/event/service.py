@@ -46,6 +46,8 @@ class UpdateEventSchema(Schema):
     status             = fields.Str(validate=validate.OneOf(["draft", "published", "archived"]))
     collection_enabled = fields.Bool(data_key="collectionEnabled")
     is_featured        = fields.Bool(data_key="isFeatured")
+    budget             = fields.Decimal(places=2, allow_none=True, load_default=None)
+    budget_notes       = fields.Str(data_key="budgetNotes", allow_none=True, load_default=None)
 
 
 create_event_schema   = CreateEventSchema()
@@ -192,6 +194,12 @@ def update_event(event_id: int, data: dict) -> tuple[dict | None, str | None]:
         if data["is_featured"] and not event.is_featured:
             _clear_featured()
         event.is_featured = data["is_featured"]
+
+    if "budget" in data:
+        event.budget = data["budget"]
+
+    if "budget_notes" in data:
+        event.budget_notes = data["budget_notes"]
 
     db.session.commit()
     return event.to_dict(include_days=True), None
