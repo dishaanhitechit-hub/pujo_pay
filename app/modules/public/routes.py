@@ -55,7 +55,8 @@ def committee():
 def events():
     page = request.args.get("page", default=1, type=int)
     per_page = request.args.get("perPage", default=12, type=int)
-    return res(data=list_public_events(page=page, per_page=per_page))
+    include_days = request.args.get("includeDays", default="false").lower() == "true"
+    return res(data=list_public_events(page=page, per_page=per_page, include_days=include_days))
 
 
 @bp.route("/events/<slug>", methods=["GET"])

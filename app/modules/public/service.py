@@ -84,7 +84,7 @@ def _public_committee_dict(member: CommitteeMember) -> dict:
 
 # ── Query functions ────────────────────────────────────────────────────────
 
-def list_public_events(page: int = 1, per_page: int = 12) -> dict:
+def list_public_events(page: int = 1, per_page: int = 12, include_days: bool = False) -> dict:
     per_page = min(per_page, 50)
     query = (
         Event.query
@@ -93,7 +93,7 @@ def list_public_events(page: int = 1, per_page: int = 12) -> dict:
     )
     pagination = db.paginate(query, page=page, per_page=per_page, error_out=False)
     return {
-        "events": [_public_event_dict(e) for e in pagination.items],
+        "events": [_public_event_dict(e, include_days=include_days) for e in pagination.items],
         "page":    pagination.page,
         "perPage": pagination.per_page,
         "total":   pagination.total,
