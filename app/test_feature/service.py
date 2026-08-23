@@ -119,3 +119,62 @@ def get_today_records() -> list[dict]:
         d["sessionNumber"] = session_map.get(r.session_id, "?")
         result.append(d)
     return result
+
+
+def get_history(
+    date_from: str | None = None,
+    date_to: str | None = None,
+    search: str | None = None,
+) -> list[dict]:
+    """All records grouped by calendar date (IST) → session number, newest date first."""
+    from collections import defaultdict
+    from datetime import timedelta
+
+    IST = timedelta(hours=5, minutes=30)
+
+    query = (
+        db.session.query(AttendanceRecord, AttendanceSession)
+        .join(AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id)
+    )
+
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            AttendanceRecord.name.ilike(like) | AttendanceRecord.phone.ilike(like)
+        )
+
+    rows = query.order_by(AttendanceRecord.created_at.desc()).all()
+
+    # Group by IST date → session number
+    by_date: dict = defaultdict(lambda: defaultdict(list))
+    for record, session in rows:
+        ist_dt = (record.created_at + IST) if record.created_at else None
+        date_key = ist_dt.date().isoformat() if ist_dt else "unknown"
+
+        # apply date filters on IST date
+        if date_from and date_key < date_from:
+            continue
+        if date_to and date_key > date_to:
+            continue
+
+        d = record.to_dict()
+        d["sessionNumber"] = session.session_number
+        by_date[date_key][session.session_number].append(d)
+
+    result = []
+    for date_str in sorted(by_date.keys(), reverse=True):
+        sessions_data = []
+        for sess_num in sorted(by_date[date_str].keys()):
+            recs = by_date[date_str][sess_num]
+            sessions_data.append({
+                "sessionNumber": sess_num,
+                "count": len(recs),
+                "records": recs,
+            })
+        result.append({
+            "date": date_str,
+            "total": sum(s["count"] for s in sessions_data),
+            "sessions": sessions_data,
+        })
+
+    return result

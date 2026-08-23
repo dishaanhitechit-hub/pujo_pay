@@ -15,6 +15,7 @@ from .service import (
     submit_attendance,
     generate_qr_png,
     get_today_records,
+    get_history,
 )
 
 bp = Blueprint("test_feature", __name__)
@@ -101,3 +102,11 @@ def admin_reset():
 @bp.route("/admin/records", methods=["GET"])
 def admin_records():
     return jsonify({"records": get_today_records()})
+
+
+@bp.route("/admin/history", methods=["GET"])
+def admin_history():
+    date_from = request.args.get("dateFrom", "").strip() or None
+    date_to   = request.args.get("dateTo",   "").strip() or None
+    search    = request.args.get("search",   "").strip() or None
+    return jsonify({"history": get_history(date_from=date_from, date_to=date_to, search=search)})
