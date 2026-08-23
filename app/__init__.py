@@ -35,6 +35,7 @@ def create_app():
     from .models.committee_member import CommitteeMember  # noqa: F401
     from .models.media_file import MediaFile  # noqa: F401
     from .models.contact_query import ContactQuery  # noqa: F401
+    from .models.expense import Expense  # noqa: F401
 
     # ── DB seed (first-run admin + default permissions) ─────
     # Skipped silently if tables don't exist yet (before first migration)
