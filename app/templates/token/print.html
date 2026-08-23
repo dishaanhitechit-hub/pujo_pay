@@ -4,88 +4,218 @@
 <meta charset="UTF-8">
 <title>Token Print — PujoPay</title>
 <style>
-  /* ── Screen preview ── */
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, sans-serif; background: #f0f4ff; padding: 24px; }
-  .screen-bar { background: #fff; border-radius: 12px; padding: 16px 20px;
-                max-width: 420px; margin: 0 auto 24px; display: flex;
-                justify-content: space-between; align-items: center;
-                box-shadow: 0 2px 10px rgba(0,0,0,.08); }
-  .screen-bar h2 { font-size: 15px; color: #4361ee; }
-  .btn-print { background: #4361ee; color: #fff; border: none; padding: 10px 22px;
-               border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; }
-  .btn-print:hover { opacity: .88; }
-  .tokens-wrap { max-width: 420px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* ── Token card (screen) ── */
-  .token-page {
+/* ── Screen layout ─────────────────────────────────────────── */
+body { font-family: system-ui, sans-serif; background: #f0f4ff; padding: 24px; }
+
+.screen-bar {
+  background: #fff; border-radius: 12px; padding: 16px 20px;
+  max-width: 420px; margin: 0 auto 24px;
+  display: flex; justify-content: space-between; align-items: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,.08);
+}
+.screen-bar h2 { font-size: 15px; color: #4361ee; }
+.btn-print {
+  background: #4361ee; color: #fff; border: none;
+  padding: 10px 22px; border-radius: 8px;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.btn-print:hover { opacity: .88; }
+
+.tokens-wrap {
+  max-width: 420px; margin: 0 auto;
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+}
+
+/* ── Token card — shared base ───────────────────────────────── */
+.token-page {
+  width: 192px;         /* 2in at 96 dpi */
+  height: 192px;
+  background: #fff;
+  border: 2px solid #000;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  overflow: hidden;
+  box-shadow: 3px 5px 18px rgba(0,0,0,.18);
+}
+
+/* inner border frame */
+.token-page::before {
+  content: '';
+  position: absolute;
+  inset: 3.5px;
+  border: 0.8px solid #000;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ── Typography elements ────────────────────────────────────── */
+.t-org {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 7px;
+  font-weight: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  text-align: center;
+  color: #000;
+  line-height: 1.2;
+  flex-shrink: 0;
+  padding: 0 3px;
+}
+
+.t-rule {
+  display: block;
+  height: 0;
+  border: none;
+  border-top: 0.8px solid #000;
+  margin: 3px 0;
+  flex-shrink: 0;
+}
+
+.t-hero {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.t-no {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 23px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #000;
+  line-height: 1;
+  text-align: center;
+}
+
+.t-info {
+  flex-shrink: 0;
+  text-align: center;
+  padding: 0 3px;
+}
+
+.t-name {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #000;
+  line-height: 1.2;
+}
+
+.t-topic {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 7.5px;
+  color: #333;
+  line-height: 1.2;
+  margin-top: 1px;
+}
+
+.t-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 3px;
+  flex-shrink: 0;
+  padding-top: 3px;
+}
+
+.t-meta {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 6px;
+  color: #000;
+  line-height: 1.6;
+  text-align: left;
+  flex: 1;
+}
+
+.t-qr {
+  width: 55px;
+  height: 55px;
+  flex-shrink: 0;
+  border: 0.8px solid #000;
+  padding: 1px;
+}
+.t-qr img { width: 100%; height: 100%; display: block; }
+
+/* Inverted copy label bar */
+.copy-bar {
+  background: #000;
+  color: #fff;
+  font-family: 'Arial Narrow', 'Arial', system-ui, sans-serif;
+  font-size: 5.5px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 2.5px 0;
+  flex-shrink: 0;
+  margin-top: 3px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Cut separator — screen only */
+.cut-sep {
+  font-size: 11px;
+  color: #bbb;
+  letter-spacing: 3px;
+  text-align: center;
+}
+
+/* ── Print overrides ────────────────────────────────────────── */
+@media print {
+  @page { size: 2in 2in; margin: 0; }
+
+  html, body {
+    margin: 0; padding: 0;
     background: #fff;
-    border-radius: 12px;
-    border: 2px dashed #c0caff;
-    padding: 10px;
-    width: 192px; /* 2in at 96dpi */
-    min-height: 192px;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-    gap: 4px;
-    text-align: center;
-    position: relative;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
-  .copy-label { font-size: 7px; font-weight: 800; text-transform: uppercase;
-                letter-spacing: .5px; padding: 2px 6px; border-radius: 4px; }
-  .copy-participant { background: #e8f5e9; color: #2e7d32; }
-  .copy-official    { background: #fce4ec; color: #880e4f; }
-  .t-org  { font-size: 7px; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: .4px; }
-  .t-no   { font-size: 18px; font-weight: 900; color: #4361ee; letter-spacing: .5px; line-height: 1.1; }
-  .t-name { font-size: 8px; font-weight: 700; color: #1a1a2e; }
-  .t-topic{ font-size: 7px; color: #555; }
-  .t-meta { font-size: 6px; color: #aaa; line-height: 1.6; }
-  .t-qr   { width: 58px; height: 58px; }
-  .t-qr img { width: 100%; height: 100%; }
 
-  .cut-sep { text-align: center; font-size: 11px; color: #bbb;
-             letter-spacing: 3px; margin: 4px 0; }
+  .screen-bar { display: none; }
+  .cut-sep    { display: none; }
+  .tokens-wrap { max-width: 100%; gap: 0; align-items: flex-start; }
 
-  /* ── Print styles ── */
-  @media print {
-    @page { size: 2in 2in; margin: 0; }
-    html, body { margin: 0; padding: 0; background: #fff; }
-    .screen-bar { display: none; }
-    .tokens-wrap { max-width: 100%; gap: 0; }
-
-    .token-page {
-      width: 2in;
-      height: 2in;
-      overflow: hidden;
-      border: none;
-      border-radius: 0;
-      padding: 2pt 3pt;
-      gap: 1pt;
-      page-break-before: always;
-      break-before: page;
-      page-break-inside: avoid;
-      break-inside: avoid;
-      margin: 0;
-    }
-    .token-page:first-child { page-break-before: avoid; break-before: avoid; }
-    .cut-sep { display: none; }
-
-    .t-no   { font-size: 16pt; }
-    .t-org  { font-size: 5.5pt; }
-    .t-name { font-size: 7.5pt; }
-    .t-topic{ font-size: 6.5pt; }
-    .t-meta { font-size: 5.5pt; line-height: 1.5; }
-    .copy-label { font-size: 5.5pt; padding: 1pt 4pt; }
-    .t-qr   { width: 48pt; height: 48pt; flex-shrink: 0; }
+  .token-page {
+    width: 2in;
+    height: 2in;
+    overflow: hidden;
+    border: 1.5pt solid #000;
+    border-radius: 0;
+    padding: 5pt;
+    box-shadow: none;
+    page-break-before: always;
+    break-before: page;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    margin: 0;
   }
+  .token-page:first-child { page-break-before: avoid; break-before: avoid; }
+
+  .token-page::before { inset: 3pt; border: 0.5pt solid #000; }
+
+  .t-org   { font-size: 5.5pt; letter-spacing: 0.8pt; }
+  .t-rule  { border-top-width: 0.5pt; margin: 2pt 0; }
+  .t-no    { font-size: 18pt; letter-spacing: 1.5pt; }
+  .t-name  { font-size: 7.5pt; }
+  .t-topic { font-size: 6pt; }
+  .t-footer { padding-top: 2pt; gap: 2pt; }
+  .t-meta  { font-size: 4.5pt; line-height: 1.5; }
+  .t-qr    { width: 42pt; height: 42pt; border-width: 0.5pt; padding: 1pt; }
+  .copy-bar { font-size: 4.5pt; letter-spacing: 1.5pt; padding: 1.5pt 0; margin-top: 2pt; }
+}
 </style>
 </head>
 <body>
 
-<div class="screen-bar no-print">
+<div class="screen-bar">
   <h2>🪔 Token Print Preview</h2>
   <button class="btn-print" onclick="window.print()">🖨 Print / Save PDF</button>
 </div>
@@ -95,74 +225,91 @@
 {% for token in tokens %}
   {% set qr = qr_map[token.token_no] %}
 
-  {# ── DUAL: render twice (participant + official) ── #}
   {% if token.type.value == 'dual' %}
 
+    {# — Participant copy — #}
     <div class="token-page">
-      <span class="copy-label copy-participant">Participant Copy</span>
       <div class="t-org">{{ token.org_name }}</div>
-      <div class="t-no">{{ token.token_no }}</div>
-      {% if token.participant_name %}
-      <div class="t-name">{{ token.participant_name }}</div>
-      {% endif %}
-      {% if token.topic %}
-      <div class="t-topic">{{ token.topic }}</div>
-      {% endif %}
-      <div class="t-meta">
-        SL #{{ token.token_serial }} &nbsp;·&nbsp;
-        {{ token.generated_at.strftime("%d %b %Y %I:%M %p") if token.generated_at else "" }}<br>
-        By: {{ token.generated_by.name if token.generated_by else "—" }}
+      <hr class="t-rule">
+      <div class="t-hero">
+        <div class="t-no">{{ token.token_no }}</div>
       </div>
-      <div class="t-qr"><img src="data:image/png;base64,{{ qr }}" alt="QR"></div>
+      <hr class="t-rule">
+      {% if token.participant_name or token.topic %}
+      <div class="t-info">
+        {% if token.participant_name %}<div class="t-name">{{ token.participant_name }}</div>{% endif %}
+        {% if token.topic %}<div class="t-topic">{{ token.topic }}</div>{% endif %}
+      </div>
+      <hr class="t-rule">
+      {% endif %}
+      <div class="t-footer">
+        <div class="t-meta">
+          SL {{ "%03d"|format(token.token_serial) }}<br>
+          {{ token.generated_at.strftime("%d %b %Y") if token.generated_at else "" }}
+        </div>
+        <div class="t-qr"><img src="data:image/png;base64,{{ qr }}" alt="QR"></div>
+      </div>
+      <div class="copy-bar">&#9642; Participant Copy &#9642;</div>
     </div>
 
-    {# cut separator (screen only) #}
     <div class="cut-sep">- - - - - - - - - - - - - - - -</div>
 
+    {# — Official copy — #}
     <div class="token-page">
-      <span class="copy-label copy-official">Official Copy</span>
       <div class="t-org">{{ token.org_name }}</div>
-      <div class="t-no">{{ token.token_no }}</div>
-      {% if token.participant_name %}
-      <div class="t-name">{{ token.participant_name }}</div>
-      {% endif %}
-      {% if token.topic %}
-      <div class="t-topic">{{ token.topic }}</div>
-      {% endif %}
-      <div class="t-meta">
-        SL #{{ token.token_serial }} &nbsp;·&nbsp;
-        {{ token.generated_at.strftime("%d %b %Y %I:%M %p") if token.generated_at else "" }}<br>
-        By: {{ token.generated_by.name if token.generated_by else "—" }}
+      <hr class="t-rule">
+      <div class="t-hero">
+        <div class="t-no">{{ token.token_no }}</div>
       </div>
-      <div class="t-qr"><img src="data:image/png;base64,{{ qr }}" alt="QR"></div>
+      <hr class="t-rule">
+      {% if token.participant_name or token.topic %}
+      <div class="t-info">
+        {% if token.participant_name %}<div class="t-name">{{ token.participant_name }}</div>{% endif %}
+        {% if token.topic %}<div class="t-topic">{{ token.topic }}</div>{% endif %}
+      </div>
+      <hr class="t-rule">
+      {% endif %}
+      <div class="t-footer">
+        <div class="t-meta">
+          SL {{ "%03d"|format(token.token_serial) }}<br>
+          {{ token.generated_at.strftime("%d %b %Y") if token.generated_at else "" }}
+        </div>
+        <div class="t-qr"><img src="data:image/png;base64,{{ qr }}" alt="QR"></div>
+      </div>
+      <div class="copy-bar">&#9642; Official Copy &#9642;</div>
     </div>
 
-  {# ── SINGLE or BULK: one sticker ── #}
   {% else %}
 
+    {# — Single / bulk — #}
     <div class="token-page">
-      {% if is_bulk %}
-        <span class="copy-label" style="background:#fff3e0;color:#bf360c">Bulk Token</span>
-      {% endif %}
       <div class="t-org">{{ token.org_name }}</div>
-      <div class="t-no">{{ token.token_no }}</div>
-      {% if token.participant_name %}
-      <div class="t-name">{{ token.participant_name }}</div>
-      {% endif %}
-      {% if token.topic %}
-      <div class="t-topic">{{ token.topic }}</div>
-      {% endif %}
-      <div class="t-meta">
-        SL #{{ token.token_serial }} &nbsp;·&nbsp;
-        {{ token.generated_at.strftime("%d %b %Y %I:%M %p") if token.generated_at else "" }}<br>
-        By: {{ token.generated_by.name if token.generated_by else "—" }}
+      <hr class="t-rule">
+      <div class="t-hero">
+        <div class="t-no">{{ token.token_no }}</div>
       </div>
-      <div class="t-qr"><img src="data:image/png;base64,{{ qr }}" alt="QR"></div>
+      <hr class="t-rule">
+      {% if token.participant_name or token.topic %}
+      <div class="t-info">
+        {% if token.participant_name %}<div class="t-name">{{ token.participant_name }}</div>{% endif %}
+        {% if token.topic %}<div class="t-topic">{{ token.topic }}</div>{% endif %}
+      </div>
+      <hr class="t-rule">
+      {% endif %}
+      <div class="t-footer">
+        <div class="t-meta">
+          SL {{ "%03d"|format(token.token_serial) }}<br>
+          {{ token.generated_at.strftime("%d %b %Y") if token.generated_at else "" }}
+        </div>
+        <div class="t-qr"><img src="data:image/png;base64,{{ qr }}" alt="QR"></div>
+      </div>
+      {% if is_bulk %}
+      <div class="copy-bar">&#9642; Bulk Token &#9642;</div>
+      {% endif %}
     </div>
 
   {% endif %}
 
-  {# separator between tokens in bulk (screen only) #}
   {% if not loop.last and is_bulk %}
     <div class="cut-sep">· · · · · · · · · · · · · · ·</div>
   {% endif %}
@@ -172,7 +319,6 @@
 </div>
 
 <script>
-  // auto-trigger print dialog after page loads (can be disabled by closing dialog)
   window.addEventListener("load", () => setTimeout(() => window.print(), 400));
 </script>
 </body>
