@@ -13,7 +13,7 @@ class CreateCommitteeMemberSchema(Schema):
                             data_key="roleTitle")
     event_id   = fields.Int(load_default=None, data_key="eventId")
     phone      = fields.Str(load_default=None, validate=validate.Length(max=20))
-    sort_order = fields.Int(load_default=0, data_key="sortOrder")
+    sort_order = fields.Int(load_default=None, data_key="sortOrder")
     is_active  = fields.Bool(load_default=True, data_key="isActive")
 
 
@@ -45,12 +45,17 @@ def create_committee_member(data: dict) -> tuple[dict | None, str | None]:
         if not Event.query.get(event_id):
             return None, "event not found"
 
+    sort_order = data.get("sort_order")
+    if sort_order is None:
+        max_val = db.session.query(db.func.max(CommitteeMember.sort_order)).scalar()
+        sort_order = (max_val if max_val is not None else -1) + 1
+
     member = CommitteeMember(
         name=data["name"].strip(),
         role_title=data["role_title"].strip(),
         event_id=event_id,
         phone=data.get("phone"),
-        sort_order=data.get("sort_order", 0),
+        sort_order=sort_order,
         is_active=data.get("is_active", True),
     )
     db.session.add(member)
@@ -109,3 +114,18 @@ def list_active_committee_members(event_id: int | None = None) -> list[dict]:
         query = query.filter_by(event_id=event_id)
     members = query.order_by(CommitteeMember.sort_order, CommitteeMember.name).all()
     return [m.to_dict() for m in members]
+
+
+def reorder_committee_members(ordered_ids: list[int]) -> str | None:
+    members = {m.id: m for m in CommitteeMember.query.filter(
+        CommitteeMember.id.in_(ordered_ids)
+    ).all()}
+
+    if len(members) != len(ordered_ids):
+        return "some members not found"
+
+    for i, member_id in enumerate(ordered_ids):
+        members[member_id].sort_order = i
+
+    db.session.commit()
+    return None

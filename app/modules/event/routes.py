@@ -9,7 +9,7 @@ from .service import (
     list_events, get_active_events, create_event, get_event,
     update_event, set_event_days,
 )
-from ..media.service import upload_event_cover, upload_event_gallery
+from ..media.service import upload_event_cover, upload_event_gallery, reorder_event_gallery, get_event_gallery
 
 bp = Blueprint("event", __name__)
 
@@ -114,6 +114,22 @@ def set_days(event_id):
     if err:
         return res(err, code=400)
     return res("event days updated", data=result)
+
+
+@bp.route("/<int:event_id>/gallery/reorder", methods=["POST"])
+@require_permission("event.manage")
+def reorder_gallery(event_id):
+    from ...models.event import Event as EventModel
+    if not EventModel.query.get(event_id):
+        return res("event not found", code=404)
+    body = request.get_json(silent=True) or {}
+    ordered_ids = body.get("ids")
+    if not isinstance(ordered_ids, list) or not all(isinstance(i, int) for i in ordered_ids):
+        return res("ids must be a list of integers", code=400)
+    err = reorder_event_gallery(event_id, ordered_ids)
+    if err:
+        return res(err, code=400)
+    return res("gallery reordered", data=get_event_gallery(event_id))
 
 
 @bp.route("/<int:event_id>/cover", methods=["POST"])

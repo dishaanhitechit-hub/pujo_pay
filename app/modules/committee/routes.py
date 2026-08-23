@@ -7,7 +7,7 @@ from ...utils.helpers import res
 from .service import (
     create_committee_member_schema, update_committee_member_schema,
     list_committee_members, create_committee_member, get_committee_member,
-    update_committee_member, delete_committee_member,
+    update_committee_member, delete_committee_member, reorder_committee_members,
 )
 from ..media.service import upload_committee_photo
 
@@ -68,6 +68,19 @@ def delete(member_id):
     if err == "committee member not found":
         return res(err, code=404)
     return res("committee member deleted")
+
+
+@bp.route("/reorder", methods=["POST"])
+@require_permission("content.manage")
+def reorder():
+    body = request.get_json(silent=True) or {}
+    ordered_ids = body.get("ids")
+    if not isinstance(ordered_ids, list) or not all(isinstance(i, int) for i in ordered_ids):
+        return res("ids must be a list of integers", code=400)
+    err = reorder_committee_members(ordered_ids)
+    if err:
+        return res(err, code=400)
+    return res("order updated", data=list_committee_members())
 
 
 @bp.route("/<int:member_id>/photo", methods=["POST"])

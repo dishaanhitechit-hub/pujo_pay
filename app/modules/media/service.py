@@ -244,6 +244,25 @@ def delete_media(media_id: int) -> str | None:
     return None
 
 
+# ── Gallery reorder ────────────────────────────────────────────────────────
+
+def reorder_event_gallery(event_id: int, ordered_ids: list[int]) -> str | None:
+    items = {m.id: m for m in MediaFile.query.filter(
+        MediaFile.id.in_(ordered_ids),
+        MediaFile.event_id == event_id,
+        MediaFile.category == MediaCategoryEnum.event_gallery,
+    ).all()}
+
+    if len(items) != len(ordered_ids):
+        return "some gallery items not found"
+
+    for i, media_id in enumerate(ordered_ids):
+        items[media_id].sort_order = i
+
+    db.session.commit()
+    return None
+
+
 # ── Gallery list (used by event service) ──────────────────────────────────
 
 def get_event_gallery(event_id: int) -> list[dict]:
