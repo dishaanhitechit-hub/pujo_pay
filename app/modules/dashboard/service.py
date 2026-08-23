@@ -268,6 +268,22 @@ def get_events_with_stats() -> list[dict]:
 
     expense_map = _get_expense_total(event_ids)
 
+    # Budget totals from budget_categories (sum of planned_amount per event)
+    try:
+        from ...models.budget_category import BudgetCategory
+        bud_rows = (
+            db.session.query(
+                BudgetCategory.event_id,
+                func.coalesce(func.sum(BudgetCategory.planned_amount), 0).label("planned"),
+            )
+            .filter(BudgetCategory.event_id.in_(event_ids))
+            .group_by(BudgetCategory.event_id)
+            .all()
+        )
+        budget_map = {row.event_id: Decimal(str(row.planned)) for row in bud_rows}
+    except Exception:
+        budget_map = {}
+
     pay_map = {
         row.event_id: {
             "total":  Decimal(str(row.total)),
@@ -289,7 +305,7 @@ def get_events_with_stats() -> list[dict]:
         pm      = pay_map.get(e.id, {"total": Decimal("0"), "count": 0, "donors": 0})
         pl      = pledge_map.get(e.id, {"pledged": Decimal("0"), "outstanding": Decimal("0")})
         exp_tot = expense_map.get(e.id, Decimal("0"))
-        budget  = Decimal(str(e.budget)) if e.budget is not None else None
+        budget  = budget_map.get(e.id)
         balance = pm["total"] - exp_tot
         bud_rem = (budget - exp_tot) if budget is not None else None
 
@@ -302,16 +318,16 @@ def get_events_with_stats() -> list[dict]:
                 "startDate": e.start_date.isoformat() if e.start_date else None,
                 "endDate":   e.end_date.isoformat() if e.end_date else None,
             },
-            "donorCount":      pm["donors"],
-            "totalReceived":   _fmt(pm["total"]),
-            "paymentCount":    pm["count"],
-            "totalPledged":    _fmt(pl["pledged"]),
+            "donorCount":        pm["donors"],
+            "totalReceived":     _fmt(pm["total"]),
+            "paymentCount":      pm["count"],
+            "totalPledged":      _fmt(pl["pledged"]),
             "pledgeOutstanding": _fmt(pl["outstanding"]),
-            "expensesPaid":    _fmt(exp_tot),
-            "balanceInHand":   _fmt(balance),
-            "budget":          _fmt(budget) if budget is not None else None,
-            "budgetRemaining": _fmt(bud_rem) if bud_rem is not None else None,
-            "overBudget":      (exp_tot > budget) if budget is not None else False,
+            "expensesPaid":      _fmt(exp_tot),
+            "balanceInHand":     _fmt(balance),
+            "budget":            _fmt(budget) if budget is not None else None,
+            "budgetRemaining":   _fmt(bud_rem) if bud_rem is not None else None,
+            "overBudget":        (exp_tot > budget) if budget is not None else False,
         })
 
     return result
