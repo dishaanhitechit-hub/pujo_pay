@@ -8,6 +8,7 @@ from .service import (
     get_featured_event,
     list_public_announcements,
     list_public_committee,
+    list_all_gallery_images,
 )
 
 bp = Blueprint("public", __name__)
@@ -70,3 +71,8 @@ def featured_event():
     result = get_featured_event()
     # Return JSON null (not []) when no featured event is set.
     return jsonify({"message": "", "data": result}), 200
+
+
+@bp.route("/gallery", methods=["GET"])
+def gallery():
+    return res(data=list_all_gallery_images())

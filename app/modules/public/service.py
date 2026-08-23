@@ -133,3 +133,36 @@ def list_public_committee(event_id: int | None = None) -> list[dict]:
         query = query.filter_by(event_id=event_id)
     items = query.order_by(CommitteeMember.sort_order, CommitteeMember.name).all()
     return [_public_committee_dict(m) for m in items]
+
+
+def list_all_gallery_images() -> dict:
+    """Return gallery images from all published events, featured event first."""
+    events = (
+        Event.query
+        .filter_by(status=EventStatusEnum.published)
+        .order_by(Event.is_featured.desc(), Event.start_date.desc(), Event.created_at.desc())
+        .all()
+    )
+    images = []
+    for event in events:
+        gallery = (
+            MediaFile.query
+            .filter_by(event_id=event.id, category=MediaCategoryEnum.event_gallery)
+            .order_by(MediaFile.sort_order)
+            .all()
+        )
+        for m in gallery:
+            images.append({
+                "id":        m.id,
+                "url":       _media_url(m.path),
+                "altText":   m.alt_text,
+                "sortOrder": m.sort_order,
+                "mimeType":  m.mime_type,
+                "event": {
+                    "id":         event.id,
+                    "name":       event.name,
+                    "slug":       event.slug,
+                    "isFeatured": event.is_featured,
+                },
+            })
+    return {"images": images, "total": len(images)}
