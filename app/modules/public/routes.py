@@ -9,6 +9,7 @@ from .service import (
     list_public_announcements,
     list_public_committee,
     list_all_gallery_images,
+    get_public_stats,
 )
 
 bp = Blueprint("public", __name__)
@@ -77,3 +78,8 @@ def featured_event():
 @bp.route("/gallery", methods=["GET"])
 def gallery():
     return res(data=list_all_gallery_images())
+
+
+@bp.route("/stats", methods=["GET"])
+def stats():
+    return res(data=get_public_stats())

@@ -1,8 +1,10 @@
+from sqlalchemy import func
 from ...extensions import db
 from ...models.event import Event, EventStatusEnum
 from ...models.announcement import Announcement
 from ...models.committee_member import CommitteeMember
 from ...models.media_file import MediaFile, MediaCategoryEnum
+from ...models.donor import Donor
 
 
 # ── URL helpers ────────────────────────────────────────────────────────────
@@ -166,3 +168,22 @@ def list_all_gallery_images() -> dict:
                 },
             })
     return {"images": images, "total": len(images)}
+
+
+def get_public_stats() -> dict:
+    """
+    Lightweight stats for the public community section.
+    All queries are simple aggregates — no table scans.
+    """
+    donor_count = db.session.query(func.count(Donor.id)).scalar() or 0
+
+    oldest_year = (
+        db.session.query(func.min(Event.year))
+        .filter(Event.status == EventStatusEnum.published, Event.year.isnot(None))
+        .scalar()
+    )
+
+    return {
+        "donorCount":  donor_count,
+        "oldestYear":  oldest_year,   # None if no published events have a year set
+    }
