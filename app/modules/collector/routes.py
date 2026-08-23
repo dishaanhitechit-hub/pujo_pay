@@ -1,7 +1,7 @@
 from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity
 
-from ...middleware.permissions import require_permission
+from ...middleware.permissions import require_collect_capable
 from ...utils.helpers import res
 from .service import get_summary, get_payments, get_all_events
 
@@ -9,14 +9,14 @@ bp = Blueprint("collector", __name__)
 
 
 @bp.route("/events", methods=["GET"])
-@require_permission("collector.view_own")
+@require_collect_capable()
 def events():
     """All events for the collector's event filter dropdown in reporting pages."""
     return res(data=get_all_events())
 
 
 @bp.route("/summary", methods=["GET"])
-@require_permission("collector.view_own")
+@require_collect_capable()
 def summary():
     collector_id = int(get_jwt_identity())
     event_id = request.args.get("eventId", type=int)
@@ -25,7 +25,7 @@ def summary():
 
 
 @bp.route("/payments", methods=["GET"])
-@require_permission("collector.view_own")
+@require_collect_capable()
 def payments():
     collector_id = int(get_jwt_identity())
 

@@ -41,6 +41,7 @@ class CreateUserSchema(Schema):
     email       = fields.Email(load_default=None, allow_none=True)
     address     = fields.Str(load_default=None, validate=validate.Length(max=300), allow_none=True)
     password    = fields.Str(required=True, validate=validate.Length(min=6))
+    can_collect = fields.Bool(load_default=False, data_key="canCollect")
 
     @validates('phone')
     def validate_phone(self, value):
@@ -61,6 +62,7 @@ class UpdateUserSchema(Schema):
     address     = fields.Str(validate=validate.Length(max=300), allow_none=True)
     password    = fields.Str(validate=validate.Length(min=6))
     is_active   = fields.Bool(data_key="isActive")
+    can_collect = fields.Bool(data_key="canCollect")
 
 
 create_schema = CreateUserSchema()
@@ -69,14 +71,24 @@ update_schema = UpdateUserSchema()
 
 def create_user(data: dict, created_by: int) -> User:
     email = data.get("email")
+    role = RoleEnum(data["role"])
+    # Compute effective can_collect: collector always True, admin always False, others from input
+    raw_can_collect = bool(data.get("can_collect", False))
+    if role == RoleEnum.admin:
+        can_collect = False
+    elif role == RoleEnum.collector:
+        can_collect = True
+    else:
+        can_collect = raw_can_collect
     user = User(
         name=data["name"].strip(),
         email=email.strip().lower() if email else None,
         phone=_normalize_phone(data.get("phone")),
         whatsapp_no=_normalize_phone(data.get("whatsapp_no")),
         address=data.get("address") or None,
-        role=RoleEnum(data["role"]),
+        role=role,
         is_active=True,
+        can_collect=can_collect,
         created_by=created_by,
     )
     user.set_password(data["password"])
@@ -110,6 +122,25 @@ def update_user(user: User, data: dict) -> User:
 
     if "is_active" in data:
         user.is_active = data["is_active"]
+
+    if "can_collect" in data:
+        # Enforce role constraints: admin always False, collector always True
+        current_role = user.role if isinstance(user.role, RoleEnum) else RoleEnum(user.role)
+        if current_role == RoleEnum.admin:
+            user.can_collect = False
+        elif current_role == RoleEnum.collector:
+            user.can_collect = True
+        else:
+            user.can_collect = bool(data["can_collect"])
+
+    # If role itself changed, recompute can_collect constraints
+    if "role" in data:
+        new_role = user.role if isinstance(user.role, RoleEnum) else RoleEnum(user.role)
+        if new_role == RoleEnum.admin:
+            user.can_collect = False
+        elif new_role == RoleEnum.collector:
+            user.can_collect = True
+        # else: leave can_collect as currently set
 
     db.session.commit()
     return user

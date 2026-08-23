@@ -15,7 +15,7 @@ def events_stats():
 
 
 @bp.route("/event-report/<int:event_id>", methods=["GET"])
-@require_permission("event.manage")
+@require_permission("dashboard.view")
 def event_report(event_id: int):
     """Comprehensive event report: summary, modes, collector breakdown, pledges, expenses."""
     from ...models.event import Event as EventModel

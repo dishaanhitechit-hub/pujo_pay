@@ -2,7 +2,7 @@ from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity, get_jwt
 from marshmallow import ValidationError
 
-from ...middleware.permissions import require_permission
+from ...middleware.permissions import require_permission, require_collect_capable
 from ...utils.helpers import res
 from .service import initiate_schema, initiate_payment, get_payment, get_payment_by_receipt_no
 
@@ -10,16 +10,13 @@ bp = Blueprint("payment", __name__)
 
 
 @bp.route("/initiate", methods=["POST"])
-@require_permission("payment.initiate")
+@require_collect_capable()
 def initiate():
     body = request.get_json(silent=True) or {}
     try:
         data = initiate_schema.load(body)
     except ValidationError as e:
         return res("validation failed", data=e.messages, code=422)
-
-    if get_jwt().get("role") == "admin":
-        return res("admin accounts cannot collect payments", code=403)
 
     collector_id = int(get_jwt_identity())
     payment, err = initiate_payment(data, collector_id)

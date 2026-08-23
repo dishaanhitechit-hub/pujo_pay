@@ -30,8 +30,12 @@ class RoleEnum(str, enum.Enum):
 # 3. Add address field:
 #    ALTER TABLE users ADD COLUMN IF NOT EXISTS address VARCHAR(300);
 #
+# 4. Add collection capability flag:
+#    ALTER TABLE users ADD COLUMN IF NOT EXISTS can_collect BOOLEAN DEFAULT FALSE;
+#    (nullable; NULL is treated as False for backward compatibility)
+#
 # Until these are applied: only existing role values work; email remains required;
-# address is silently ignored on write. Existing records are never touched.
+# address and can_collect are silently ignored on write. Existing records are never touched.
 
 
 class User(db.Model):
@@ -52,6 +56,9 @@ class User(db.Model):
         default=RoleEnum.collector,
     )
     is_active     = db.Column(db.Boolean, default=True, nullable=False)
+    # Collection capability: False for admin (always), True for collector role (always),
+    # and explicitly set for other roles. NULL treated as False for old records.
+    can_collect   = db.Column(db.Boolean, default=False, nullable=True)
     created_at    = db.Column(db.DateTime, server_default=db.func.now())
     created_by    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
@@ -60,6 +67,15 @@ class User(db.Model):
 
     def check_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
+
+    def _effective_can_collect(self) -> bool:
+        """Computed collection capability — not stored directly for admin/collector roles."""
+        role = self.role if isinstance(self.role, RoleEnum) else RoleEnum(self.role)
+        if role == RoleEnum.admin:
+            return False
+        if role == RoleEnum.collector:
+            return True
+        return bool(self.can_collect)
 
     def to_dict(self) -> dict:
         return {
@@ -71,5 +87,6 @@ class User(db.Model):
             "address":     self.address,
             "role":        self.role.value if isinstance(self.role, RoleEnum) else self.role,
             "isActive":    self.is_active,
+            "canCollect":  self._effective_can_collect(),
             "createdAt":   self.created_at.isoformat() if self.created_at else None,
         }
