@@ -22,6 +22,7 @@ def site_config():
             "phone":    AppConfig.get("contact.phone"),
             "email":    AppConfig.get("contact.email"),
             "whatsapp": AppConfig.get("contact.whatsapp"),
+            "address":  AppConfig.get("contact.address"),
         },
         "social": {
             "facebook":  AppConfig.get("social.facebook"),
