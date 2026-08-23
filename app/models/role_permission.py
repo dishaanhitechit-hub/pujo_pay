@@ -47,7 +47,7 @@ class RolePermission(db.Model):
     __tablename__ = "role_permissions"
 
     id = db.Column(db.Integer, primary_key=True)
-    role = db.Column(db.Enum(RoleEnum), nullable=False)
+    role = db.Column(db.Enum(RoleEnum, native_enum=False), nullable=False)
     permission_key = db.Column(db.String(60), nullable=False)
     granted = db.Column(db.Boolean, default=True, nullable=False)
 
