@@ -15,6 +15,7 @@ PERMISSION_KEYS = [
     "token.view",
     "event.manage",
     "content.manage",
+    "expense.manage",
 ]
 
 # Default grants per role.
@@ -32,7 +33,7 @@ _DEFAULTS: dict[str, list[str]] = {
                             "token.generate", "token.view"],
     "cashier":             ["payment.initiate", "payment.confirm", "payment.view_receipt",
                             "collector.view_own", "dashboard.view",
-                            "token.generate", "token.view"],
+                            "token.generate", "token.view", "expense.manage"],
     "collector":           ["payment.initiate", "payment.confirm", "payment.view_receipt",
                             "collector.view_own", "token.generate"],
     # Legacy role values — kept for backward compatibility

@@ -218,6 +218,7 @@ def _get_expense_total(event_ids: list[int]) -> dict[int, Decimal]:
         from ..expense.service import get_expense_totals_for_events
         return get_expense_totals_for_events(event_ids)
     except Exception:
+        db.session.rollback()
         return {}
 
 
@@ -307,6 +308,7 @@ def get_events_with_stats() -> list[dict]:
         )
         budget_map = {row.event_id: Decimal(str(row.planned)) for row in bud_rows}
     except Exception:
+        db.session.rollback()
         budget_map = {}
 
     pay_map = {
@@ -492,8 +494,10 @@ def get_event_report(event_id: int) -> dict:
         try:
             budget_report = get_budget_report(event_id)
         except Exception:
+            db.session.rollback()
             budget_report = None
     except Exception:
+        db.session.rollback()
         expenses_paid = Decimal("0")
         expense_mode_breakdown = []
         budget_report = None

@@ -14,7 +14,7 @@ bp = Blueprint("budget", __name__)
 
 
 @bp.route("/", methods=["GET"])
-@require_permission("event.manage")
+@require_permission("dashboard.view")
 def list_categories():
     event_id = request.args.get("eventId", type=int)
     search   = request.args.get("search", "").strip() or None
@@ -24,7 +24,7 @@ def list_categories():
 
 
 @bp.route("/report", methods=["GET"])
-@require_permission("event.manage")
+@require_permission("dashboard.view")
 def budget_report():
     event_id = request.args.get("eventId", type=int)
     if not event_id:

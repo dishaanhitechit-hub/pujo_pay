@@ -14,7 +14,7 @@ bp = Blueprint("expense", __name__)
 
 
 @bp.route("/", methods=["GET"])
-@require_permission("event.manage")
+@require_permission("expense.manage")
 def list_expenses():
     event_id           = request.args.get("eventId", type=int)
     budget_category_id = request.args.get("budgetCategoryId", type=int)
@@ -49,7 +49,7 @@ def list_expenses():
 
 
 @bp.route("/", methods=["POST"])
-@require_permission("event.manage")
+@require_permission("expense.manage")
 def create():
     body = request.get_json(silent=True) or {}
     try:
@@ -67,7 +67,7 @@ def create():
 
 
 @bp.route("/<int:expense_id>", methods=["PATCH"])
-@require_permission("event.manage")
+@require_permission("expense.manage")
 def update(expense_id: int):
     body = request.get_json(silent=True) or {}
     try:
@@ -82,7 +82,7 @@ def update(expense_id: int):
 
 
 @bp.route("/<int:expense_id>", methods=["DELETE"])
-@require_permission("event.manage")
+@require_permission("expense.manage")
 def delete(expense_id: int):
     found = delete_expense(expense_id)
     if not found:
