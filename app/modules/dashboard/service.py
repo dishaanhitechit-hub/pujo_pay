@@ -31,11 +31,6 @@ def get_grand_summary(event_id: int | None = None) -> dict:
 
     total_confirmed = base.count()
 
-    pending_q = Payment.query.filter_by(status=StatusEnum.pending)
-    if event_id:
-        pending_q = pending_q.filter(Payment.event_id == event_id)
-    total_pending = pending_q.count()
-
     donors_q = db.session.query(func.count(func.distinct(Payment.donor_id)))
     if event_id:
         donors_q = donors_q.filter(Payment.event_id == event_id)
@@ -56,8 +51,7 @@ def get_grand_summary(event_id: int | None = None) -> dict:
         "upiTotal": _fmt(upi_total),
         "chequeTotal": _fmt(cheque_total),
         "grandTotal": _fmt(grand),
-        "confirmedCount": total_confirmed,
-        "pendingCount": total_pending,
+        "totalConfirmed": total_confirmed,
         "totalDonors": total_donors,
         "totalPledged": _fmt(total_pledged),
         "totalPledgePaid": _fmt(total_pledge_paid),
@@ -146,8 +140,13 @@ def get_all_payments(
 
     if status == "completed":
         query = query.filter(Payment.status.in_(COMPLETED_STATUSES))
-    elif status in ("pending", "expired", "cancelled"):
-        query = query.filter(Payment.status == StatusEnum(status))
+    elif status == "cancelled":
+        query = query.filter(Payment.status == StatusEnum.cancelled)
+    else:
+        # Default: only confirmed and cancelled — exclude initiated-but-unconfirmed pending
+        query = query.filter(
+            Payment.status.in_(list(COMPLETED_STATUSES) + [StatusEnum.cancelled])
+        )
 
     if collector_id:
         query = query.filter(Payment.collector_id == collector_id)
@@ -510,29 +509,28 @@ def get_event_report(event_id: int) -> dict:
     balance_in_hand  = total_received - expenses_paid
 
     # ── Derived status totals ─────────────────────────────────────────────────
-    pending_total   = Decimal("0")
     cancelled_total = Decimal("0")
     completed_count = 0
-    pending_count   = 0
 
     status_breakdown = []
     for row in status_rows:
         is_complete = row.status in COMPLETED_STATUSES
-        status_label = "completed" if is_complete else row.status.value
         amt = Decimal(str(row.total))
         cnt = int(row.cnt)
         if is_complete:
             completed_count += cnt
-        elif row.status == StatusEnum.pending:
-            pending_total += amt
-            pending_count += cnt
+            status_breakdown.append({
+                "status": "completed",
+                "count":  cnt,
+                "total":  _fmt(amt),
+            })
         elif row.status == StatusEnum.cancelled:
             cancelled_total += amt
-        status_breakdown.append({
-            "status": status_label,
-            "count":  cnt,
-            "total":  _fmt(amt),
-        })
+            status_breakdown.append({
+                "status": "cancelled",
+                "count":  cnt,
+                "total":  _fmt(amt),
+            })
 
     # Consolidate duplicate "completed" rows (completed + confirmed both → completed)
     merged: dict[str, dict] = {}
@@ -604,7 +602,6 @@ def get_event_report(event_id: int) -> dict:
             "totalPledged":     _fmt(total_pledged),
             "totalReceived":    _fmt(total_received),
             "pending":          _fmt(open_pledge_outstanding),
-            "pendingAmount":    _fmt(pending_total),
             "cancelledAmount":  _fmt(cancelled_total),
             "budget":           _fmt(budget) if budget is not None else None,
             "expensesPaid":     _fmt(expenses_paid),
@@ -612,7 +609,6 @@ def get_event_report(event_id: int) -> dict:
             "budgetRemaining":  _fmt(budget_remaining) if budget_remaining is not None else None,
             "overBudget":       over_budget,
             "completedCount":   completed_count,
-            "pendingCount":     pending_count,
             "openPledgeCount":  open_pledge_count,
             "pledgeOutstanding": _fmt(open_pledge_outstanding),
             "pledgePaid":       _fmt(total_pledge_paid),

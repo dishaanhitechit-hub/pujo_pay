@@ -45,10 +45,6 @@ def get_summary(collector_id: int, event_id: int | None = None) -> dict:
     ).scalar()
 
     count = base.count()
-    pending_q = Payment.query.filter_by(collector_id=collector_id, status=StatusEnum.pending)
-    if event_id:
-        pending_q = pending_q.filter(Payment.event_id == event_id)
-    pending_count = pending_q.count()
 
     return {
         "cashTotal": str(Decimal(str(cash_total)).quantize(Decimal("0.01"))),
@@ -58,7 +54,6 @@ def get_summary(collector_id: int, event_id: int | None = None) -> dict:
             (Decimal(str(cash_total)) + Decimal(str(upi_total)) + Decimal(str(cheque_total))).quantize(Decimal("0.01"))
         ),
         "confirmedCount": count,
-        "pendingCount": pending_count,
     }
 
 
@@ -97,8 +92,13 @@ def get_payments(
 
     if status == "completed":
         query = query.filter(Payment.status.in_(COMPLETED_STATUSES))
-    elif status in ("pending", "expired", "cancelled"):
-        query = query.filter(Payment.status == StatusEnum(status))
+    elif status == "cancelled":
+        query = query.filter(Payment.status == StatusEnum.cancelled)
+    else:
+        # Default: only confirmed and cancelled — exclude initiated-but-unconfirmed pending
+        query = query.filter(
+            Payment.status.in_(list(COMPLETED_STATUSES) + [StatusEnum.cancelled])
+        )
 
     # Legacy single-day filter (backward compat)
     if date:
