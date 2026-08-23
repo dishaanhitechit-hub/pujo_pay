@@ -255,12 +255,36 @@ def get_events_with_stats() -> list[dict]:
         .all()
     )
 
-    # Single grouped pledge query
+    # Direct (non-pledge) completed payments per event
+    direct_pay_rows = (
+        db.session.query(
+            Payment.event_id,
+            func.coalesce(func.sum(Payment.amount), 0).label("direct"),
+        )
+        .filter(
+            Payment.status.in_(COMPLETED_STATUSES),
+            Payment.event_id.in_(event_ids),
+            Payment.pledge_id.is_(None),
+        )
+        .group_by(Payment.event_id)
+        .all()
+    )
+
+    # Pledge aggregations: total, active (non-cancelled) for Donation Charge, and open outstanding for Pending
+    active_pledged_case = sa_case(
+        (Pledge.status != PledgeStatusEnum.cancelled, Pledge.total_amount),
+        else_=0,
+    )
+    open_outstanding_case = sa_case(
+        (Pledge.status == PledgeStatusEnum.open, Pledge.total_amount - Pledge.paid_amount),
+        else_=0,
+    )
     pledge_rows = (
         db.session.query(
             Pledge.event_id,
             func.coalesce(func.sum(Pledge.total_amount), 0).label("pledged"),
-            func.coalesce(func.sum(Pledge.paid_amount), 0).label("paid"),
+            func.coalesce(func.sum(active_pledged_case), 0).label("active_pledged"),
+            func.coalesce(func.sum(open_outstanding_case), 0).label("open_outstanding"),
         )
         .filter(Pledge.event_id.in_(event_ids))
         .group_by(Pledge.event_id)
@@ -293,10 +317,12 @@ def get_events_with_stats() -> list[dict]:
         }
         for row in pay_rows
     }
+    direct_pay_map = {row.event_id: Decimal(str(row.direct)) for row in direct_pay_rows}
     pledge_map = {
         row.event_id: {
-            "pledged":     Decimal(str(row.pledged)),
-            "outstanding": Decimal(str(row.pledged)) - Decimal(str(row.paid)),
+            "pledged":          Decimal(str(row.pledged)),
+            "active_pledged":   Decimal(str(row.active_pledged)),
+            "open_outstanding": Decimal(str(row.open_outstanding)),
         }
         for row in pledge_rows
     }
@@ -304,11 +330,14 @@ def get_events_with_stats() -> list[dict]:
     result = []
     for e in events:
         pm      = pay_map.get(e.id, {"total": Decimal("0"), "count": 0, "donors": 0})
-        pl      = pledge_map.get(e.id, {"pledged": Decimal("0"), "outstanding": Decimal("0")})
+        direct  = direct_pay_map.get(e.id, Decimal("0"))
+        pl      = pledge_map.get(e.id, {"pledged": Decimal("0"), "active_pledged": Decimal("0"), "open_outstanding": Decimal("0")})
         exp_tot = expense_map.get(e.id, Decimal("0"))
         budget  = budget_map.get(e.id)
         balance = pm["total"] - exp_tot
         bud_rem = (budget - exp_tot) if budget is not None else None
+        # donationCharge = direct completed payments + non-cancelled pledge commitments
+        donation_charge = direct + pl["active_pledged"]
 
         result.append({
             "event": {
@@ -320,10 +349,12 @@ def get_events_with_stats() -> list[dict]:
                 "endDate":   e.end_date.isoformat() if e.end_date else None,
             },
             "donorCount":        pm["donors"],
+            "donationCharge":    _fmt(donation_charge),
             "totalReceived":     _fmt(pm["total"]),
             "paymentCount":      pm["count"],
+            "pending":           _fmt(pl["open_outstanding"]),
             "totalPledged":      _fmt(pl["pledged"]),
-            "pledgeOutstanding": _fmt(pl["outstanding"]),
+            "pledgeOutstanding": _fmt(pl["open_outstanding"]),
             "expensesPaid":      _fmt(exp_tot),
             "balanceInHand":     _fmt(balance),
             "budget":            _fmt(budget) if budget is not None else None,
@@ -375,6 +406,17 @@ def get_event_report(event_id: int) -> dict:
         .all()
     )
 
+    # Direct (non-pledge) completed payments for this event
+    direct_received = Decimal(str(
+        db.session.query(func.coalesce(func.sum(Payment.amount), 0))
+        .filter(
+            Payment.event_id == event_id,
+            Payment.status.in_(COMPLETED_STATUSES),
+            Payment.pledge_id.is_(None),
+        )
+        .scalar()
+    ))
+
     # ── Pledge aggregations ───────────────────────────────────────────────────
     pledge_q = Pledge.query.filter(Pledge.event_id == event_id)
     total_pledged = Decimal(str(
@@ -384,6 +426,21 @@ def get_event_report(event_id: int) -> dict:
         pledge_q.with_entities(func.coalesce(func.sum(Pledge.paid_amount), 0)).scalar()
     ))
     open_pledge_count = pledge_q.filter(Pledge.status == PledgeStatusEnum.open).count()
+
+    # Non-cancelled pledge total (for donationCharge)
+    non_cancelled_pledged = Decimal(str(
+        pledge_q.filter(Pledge.status != PledgeStatusEnum.cancelled)
+        .with_entities(func.coalesce(func.sum(Pledge.total_amount), 0))
+        .scalar()
+    ))
+    # Open pledge outstanding (for pending — unpaid active pledge portions only)
+    open_pledge_outstanding = Decimal(str(
+        pledge_q.filter(Pledge.status == PledgeStatusEnum.open)
+        .with_entities(func.coalesce(func.sum(Pledge.total_amount - Pledge.paid_amount), 0))
+        .scalar()
+    ))
+    # donationCharge = direct completed payments + all non-cancelled pledge commitments
+    donation_charge = direct_received + non_cancelled_pledged
 
     # ── Pledge-based collection summary ──────────────────────────────────────
     full_cond     = Pledge.paid_amount >= Pledge.total_amount
@@ -539,8 +596,10 @@ def get_event_report(event_id: int) -> dict:
         },
         "summary": {
             "donorCount":       donor_count,
+            "donationCharge":   _fmt(donation_charge),
             "totalPledged":     _fmt(total_pledged),
             "totalReceived":    _fmt(total_received),
+            "pending":          _fmt(open_pledge_outstanding),
             "pendingAmount":    _fmt(pending_total),
             "cancelledAmount":  _fmt(cancelled_total),
             "budget":           _fmt(budget) if budget is not None else None,
@@ -551,7 +610,7 @@ def get_event_report(event_id: int) -> dict:
             "completedCount":   completed_count,
             "pendingCount":     pending_count,
             "openPledgeCount":  open_pledge_count,
-            "pledgeOutstanding": _fmt(total_pledged - total_pledge_paid),
+            "pledgeOutstanding": _fmt(open_pledge_outstanding),
             "pledgePaid":       _fmt(total_pledge_paid),
         },
         "paymentModes": [
