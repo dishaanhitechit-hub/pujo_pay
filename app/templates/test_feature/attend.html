@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attendance — Mark Your Presence</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100dvh;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #fff;
+  }
+
+  .card {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 20px;
+    padding: 32px 28px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+
+  .badge {
+    display: inline-block;
+    background: rgba(99,102,241,0.25);
+    border: 1px solid rgba(99,102,241,0.5);
+    color: #a5b4fc;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 50px;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: 24px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.25;
+    margin-bottom: 6px;
+  }
+
+  .sub {
+    font-size: 13px;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 28px;
+  }
+
+  .field { margin-bottom: 18px; }
+
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 7px;
+  }
+
+  input, textarea {
+    width: 100%;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 12px;
+    color: #fff;
+    font-size: 16px;
+    padding: 13px 16px;
+    outline: none;
+    transition: border-color .2s, background .2s;
+    font-family: inherit;
+  }
+
+  input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.3); }
+
+  input:focus, textarea:focus {
+    border-color: rgba(99,102,241,0.7);
+    background: rgba(255,255,255,0.12);
+  }
+
+  textarea { resize: none; height: 80px; }
+
+  .btn-submit {
+    width: 100%;
+    padding: 15px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    margin-top: 6px;
+    letter-spacing: 0.3px;
+    transition: opacity .2s, transform .1s;
+  }
+  .btn-submit:active { transform: scale(.98); opacity: .9; }
+
+  .session-info {
+    text-align: center;
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+    margin-top: 20px;
+    letter-spacing: 0.4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="badge">&#x2713; QR Verified</div>
+  <h1>Mark Your<br>Attendance</h1>
+  <p class="sub">Fill in your details to confirm your presence today.</p>
+
+  <form method="POST" action="/test/attend">
+    <input type="hidden" name="token" value="{{ token }}">
+
+    <div class="field">
+      <label for="name">Full Name *</label>
+      <input type="text" id="name" name="name" placeholder="Enter your full name" required autocomplete="name">
+    </div>
+
+    <div class="field">
+      <label for="phone">Mobile Number *</label>
+      <input type="tel" id="phone" name="phone" placeholder="10-digit mobile number" required
+             pattern="[0-9]{10,15}" autocomplete="tel">
+    </div>
+
+    <div class="field">
+      <label for="address">Address <span style="opacity:.5;font-weight:400">(optional)</span></label>
+      <textarea id="address" name="address" placeholder="Your address (optional)"></textarea>
+    </div>
+
+    <button type="submit" class="btn-submit">Submit Attendance &rarr;</button>
+  </form>
+
+  <p class="session-info">Session #{{ session.session_number }} &nbsp;&middot;&nbsp; {{ session.date }}</p>
+</div>
+
+</body>
+</html>

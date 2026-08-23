@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Already Recorded</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100dvh;
+    background: linear-gradient(135deg, #1c0a00, #431407, #7c2d12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #fff;
+  }
+
+  .card {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 20px;
+    padding: 40px 32px;
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  .icon {
+    width: 72px;
+    height: 72px;
+    background: rgba(239,68,68,0.2);
+    border: 2px solid rgba(239,68,68,0.5);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    margin: 0 auto 24px;
+  }
+
+  h1 {
+    font-size: 24px;
+    font-weight: 800;
+    color: #fca5a5;
+    margin-bottom: 12px;
+  }
+
+  .message {
+    font-size: 15px;
+    color: rgba(255,255,255,0.6);
+    line-height: 1.65;
+  }
+
+  .detail {
+    margin-top: 24px;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 16px 20px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.45);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="icon">&#33;</div>
+
+  {% if reason == "phone" %}
+    <h1>Already Registered</h1>
+    <p class="message">This mobile number has already been marked present in the current session. You cannot submit again.</p>
+
+  {% elif reason == "device" %}
+    <h1>Device Already Used</h1>
+    <p class="message">Attendance has already been submitted from this device in the current session. Only one submission per device is allowed.</p>
+
+  {% elif reason == "expired" %}
+    <h1>QR Code Expired</h1>
+    <p class="message">This QR code is no longer active. Please ask the admin to share the latest QR code for today's session.</p>
+
+  {% elif reason == "invalid_link" %}
+    <h1>Invalid Link</h1>
+    <p class="message">This attendance link is not valid. Please scan the QR code provided by the admin.</p>
+
+  {% elif reason == "invalid_data" %}
+    <h1>Incomplete Form</h1>
+    <p class="message">Name and mobile number are required. Please go back and fill in all required fields.</p>
+
+  {% else %}
+    <h1>Something Went Wrong</h1>
+    <p class="message">An unexpected error occurred. Please try again or contact the admin.</p>
+  {% endif %}
+
+  <div class="detail">
+    If you believe this is a mistake, please contact the event administrator to reset the session.
+  </div>
+</div>
+
+</body>
+</html>

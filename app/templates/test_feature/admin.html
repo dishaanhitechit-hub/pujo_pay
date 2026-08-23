@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attendance Admin — Test Feature</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --border: rgba(255,255,255,0.08);
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --accent: #6366f1;
+    --accent-light: rgba(99,102,241,0.15);
+    --danger: #ef4444;
+    --danger-light: rgba(239,68,68,0.15);
+    --success: #10b981;
+    --success-light: rgba(16,185,129,0.15);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100dvh;
+    padding: 0;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .topbar-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
+  .topbar h1 { font-size: 16px; font-weight: 700; color: var(--text); }
+  .topbar-date {
+    margin-left: auto;
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  /* ── Layout ── */
+  .layout {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 0;
+    min-height: calc(100dvh - 53px);
+  }
+  @media (max-width: 800px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* QR box */
+  .qr-box {
+    background: #fff;
+    border-radius: 16px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  .qr-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  .qr-spinner {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.9);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: #64748b;
+    border-radius: 16px;
+  }
+  .qr-spinner.show { display: flex; }
+
+  /* Session pill */
+  .session-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--accent-light);
+    border: 1px solid rgba(99,102,241,0.25);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  .session-pill .num {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .session-pill .meta { color: var(--muted); font-size: 12px; }
+  .session-pill .meta strong { color: var(--text); display: block; }
+
+  /* Attend URL */
+  .url-box {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 11px;
+    color: var(--muted);
+    word-break: break-all;
+    line-height: 1.5;
+    cursor: pointer;
+    transition: border-color .2s;
+  }
+  .url-box:hover { border-color: var(--accent); }
+  .url-copy-hint { font-size: 10px; color: var(--muted); margin-top: 4px; text-align: right; }
+
+  /* Buttons */
+  .btn-reset {
+    width: 100%;
+    padding: 13px;
+    background: var(--danger);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+    transition: opacity .2s, transform .1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn-reset:hover { opacity: .9; }
+  .btn-reset:active { transform: scale(.98); }
+  .btn-reset:disabled { opacity: .5; cursor: not-allowed; }
+
+  .btn-refresh-qr {
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid rgba(99,102,241,0.3);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  .btn-refresh-qr:hover { background: var(--accent-light); }
+
+  /* ── Main panel ── */
+  .main {
+    padding: 28px 24px;
+    overflow-x: auto;
+  }
+
+  .stats-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 20px;
+    flex: 1;
+    min-width: 120px;
+  }
+  .stat-value { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
+  .stat-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* Records table */
+  .table-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .table-head h2 { font-size: 15px; font-weight: 700; }
+
+  .live-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--success);
+    background: var(--success-light);
+    border: 1px solid rgba(16,185,129,0.3);
+    border-radius: 50px;
+    padding: 3px 10px;
+    letter-spacing: 0.5px;
+  }
+
+  .table-wrap { overflow-x: auto; border-radius: 14px; border: 1px solid var(--border); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+  thead th {
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background .15s;
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+  td {
+    padding: 12px 16px;
+    color: var(--text);
+    vertical-align: middle;
+  }
+  td.muted { color: var(--muted); font-size: 12px; }
+
+  .session-tag {
+    display: inline-block;
+    background: var(--accent-light);
+    color: #a5b4fc;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.4px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .empty-state .icon { font-size: 36px; margin-bottom: 10px; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #1e293b;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 14px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all .3s ease;
+    z-index: 999;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.ok  { border-color: rgba(16,185,129,0.4); color: #6ee7b7; }
+  .toast.err { border-color: rgba(239,68,68,0.4);  color: #fca5a5; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-dot"></div>
+  <h1>Attendance Admin Panel</h1>
+  <span class="topbar-date" id="live-date"></span>
+</div>
+
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <div class="sidebar">
+    <div>
+      <div class="section-label">Today's QR Code</div>
+      <div class="qr-box">
+        <img id="qr-img" src="/test/admin/qr-image" alt="QR Code">
+        <div class="qr-spinner" id="qr-spinner">Refreshing…</div>
+      </div>
+    </div>
+
+    <div class="session-pill">
+      <div class="num" id="session-num">{{ session.session_number }}</div>
+      <div class="meta">
+        <strong id="session-status">Session #{{ session.session_number }}</strong>
+        Active &middot; Created {{ session.created_at.strftime("%I:%M %p") if session.created_at else "—" }}
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Attendance URL</div>
+      <div class="url-box" id="attend-url" onclick="copyUrl(this)" title="Click to copy">
+        Loading…
+      </div>
+      <div class="url-copy-hint">Click to copy link</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="btn-reset" id="btn-reset" onclick="resetQR()">
+        <span>&#8635;</span> Reset QR &amp; New Session
+      </button>
+      <button class="btn-refresh-qr" onclick="refreshQR()">&#8634; Refresh QR Image</button>
+    </div>
+  </div>
+
+  <!-- ── Main ── -->
+  <div class="main">
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat-value" id="stat-total">—</div>
+        <div class="stat-label">Total Today</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="stat-session">—</div>
+        <div class="stat-label">This Session</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">{{ sessions | length }}</div>
+        <div class="stat-label">Sessions Today</div>
+      </div>
+    </div>
+
+    <div class="table-head">
+      <h2>Attendance Records</h2>
+      <span class="live-badge">&#9679; Live</span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Address</th>
+            <th>Session</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="records-body">
+          <tr><td colspan="6" class="empty-state">
+            <div class="icon">&#128203;</div>
+            Loading records…
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let currentSessionNum = {{ session.session_number }};
+  let currentToken = "{{ session.qr_token }}";
+  let refreshTimer;
+
+  function liveDate() {
+    const el = document.getElementById("live-date");
+    function tick() {
+      const now = new Date();
+      el.textContent = now.toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
+    }
+    tick();
+    setInterval(tick, 60000);
+  }
+
+  function buildAttendUrl(token) {
+    return window.location.origin + "/test/attend?token=" + token;
+  }
+
+  function updateAttendUrl(token) {
+    const el = document.getElementById("attend-url");
+    el.textContent = buildAttendUrl(token);
+  }
+
+  function copyUrl(el) {
+    navigator.clipboard.writeText(el.textContent.trim()).then(() => showToast("URL copied!", "ok"));
+  }
+
+  function refreshQR() {
+    const img = document.getElementById("qr-img");
+    const spin = document.getElementById("qr-spinner");
+    spin.classList.add("show");
+    img.src = "/test/admin/qr-image?t=" + Date.now();
+    img.onload = () => spin.classList.remove("show");
+    img.onerror = () => spin.classList.remove("show");
+  }
+
+  async function resetQR() {
+    const btn = document.getElementById("btn-reset");
+    btn.disabled = true;
+    btn.textContent = "Resetting…";
+    try {
+      const res = await fetch("/test/admin/reset", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        currentSessionNum = data.session.sessionNumber;
+        currentToken = data.session.qrToken;
+        document.getElementById("session-num").textContent = currentSessionNum;
+        document.getElementById("session-status").textContent = "Session #" + currentSessionNum;
+        updateAttendUrl(currentToken);
+        refreshQR();
+        await loadRecords();
+        showToast("New QR generated — Session #" + currentSessionNum, "ok");
+      } else {
+        showToast("Reset failed", "err");
+      }
+    } catch (e) {
+      showToast("Network error", "err");
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<span>&#8635;</span> Reset QR &amp; New Session';
+  }
+
+  async function loadRecords() {
+    try {
+      const res = await fetch("/test/admin/records");
+      const data = await res.json();
+      const records = data.records || [];
+
+      const total = records.length;
+      const thisSession = records.filter(r => r.sessionNumber === currentSessionNum).length;
+      document.getElementById("stat-total").textContent = total;
+      document.getElementById("stat-session").textContent = thisSession;
+
+      const tbody = document.getElementById("records-body");
+      if (records.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">
+          <div class="icon">&#128203;</div>
+          No attendance records yet for today.
+        </td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = records.map((r, i) => `
+        <tr>
+          <td class="muted">${total - i}</td>
+          <td><strong>${escHtml(r.name)}</strong></td>
+          <td class="muted">${escHtml(r.phone)}</td>
+          <td class="muted">${r.address ? escHtml(r.address) : "—"}</td>
+          <td><span class="session-tag">S${r.sessionNumber}</span></td>
+          <td class="muted">${fmtTime(r.createdAt)}</td>
+        </tr>
+      `).join("");
+    } catch (e) {
+      console.error("Failed to load records", e);
+    }
+  }
+
+  function escHtml(str) {
+    const d = document.createElement("div");
+    d.textContent = str || "";
+    return d.innerHTML;
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+  }
+
+  function showToast(msg, type) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.className = "toast " + (type || "");
+    t.classList.add("show");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove("show"), 3000);
+  }
+
+  // ── Init ──
+  liveDate();
+  updateAttendUrl(currentToken);
+  loadRecords();
+  refreshTimer = setInterval(loadRecords, 10000);
+</script>
+
+</body>
+</html>
