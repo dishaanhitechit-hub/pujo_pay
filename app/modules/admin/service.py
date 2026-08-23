@@ -1,28 +1,36 @@
 from ...models.app_config import AppConfig
 
 ALLOWED_KEYS = {
-    "upiId":            "UPI ID (e.g. committee@upi)",
-    "orgName":          "Organisation name shown on QR and receipts",
-    "contactPhone":     "Public contact phone number",
-    "contactEmail":     "Public contact email address",
-    "contactWhatsapp":  "Public WhatsApp number",
-    "contactAddress":   "Public contact address",
-    "socialFacebook":   "Facebook page URL",
-    "socialInstagram":  "Instagram profile URL",
-    "socialYoutube":    "YouTube channel URL",
+    "upiId":                  "UPI ID (e.g. committee@upi)",
+    "orgName":                "Organisation name shown on QR and receipts",
+    "contactPhone":           "Public contact phone number",
+    "contactEmail":           "Public contact email address",
+    "contactWhatsapp":        "Public WhatsApp number",
+    "contactAddress":         "Public contact address",
+    "visitHours":             "Visit hours text shown on the Contact page (e.g. 'Open to all, dawn to dusk')",
+    "supportTitle":           "Support section heading on the Contact page",
+    "supportDescription":     "Support section body text on the Contact page",
+    "supportWhatsappMessage": "Pre-filled WhatsApp message when a supporter taps the WhatsApp CTA",
+    "socialFacebook":         "Facebook page URL",
+    "socialInstagram":        "Instagram profile URL",
+    "socialYoutube":          "YouTube channel URL",
 }
 
 # maps camelCase payload key → internal DB key
 _KEY_MAP = {
-    "upiId":           "upi_id",
-    "orgName":         "org_name",
-    "contactPhone":    "contact.phone",
-    "contactEmail":    "contact.email",
-    "contactWhatsapp": "contact.whatsapp",
-    "contactAddress":  "contact.address",
-    "socialFacebook":  "social.facebook",
-    "socialInstagram": "social.instagram",
-    "socialYoutube":   "social.youtube",
+    "upiId":                  "upi_id",
+    "orgName":                "org_name",
+    "contactPhone":           "contact.phone",
+    "contactEmail":           "contact.email",
+    "contactWhatsapp":        "contact.whatsapp",
+    "contactAddress":         "contact.address",
+    "visitHours":             "visit.hours",
+    "supportTitle":           "support.title",
+    "supportDescription":     "support.description",
+    "supportWhatsappMessage": "support.whatsapp_message",
+    "socialFacebook":         "social.facebook",
+    "socialInstagram":        "social.instagram",
+    "socialYoutube":          "social.youtube",
 }
 
 

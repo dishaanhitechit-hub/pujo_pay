@@ -24,6 +24,14 @@ def site_config():
             "whatsapp": AppConfig.get("contact.whatsapp"),
             "address":  AppConfig.get("contact.address"),
         },
+        "visit": {
+            "hours": AppConfig.get("visit.hours"),
+        },
+        "support": {
+            "title":           AppConfig.get("support.title"),
+            "description":     AppConfig.get("support.description"),
+            "whatsappMessage": AppConfig.get("support.whatsapp_message"),
+        },
         "social": {
             "facebook":  AppConfig.get("social.facebook"),
             "instagram": AppConfig.get("social.instagram"),
