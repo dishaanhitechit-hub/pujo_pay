@@ -23,14 +23,9 @@ PERMISSION_KEYS = [
 # before their rows can be inserted — see migration notes in models/user.py.
 _DEFAULTS: dict[str, list[str]] = {
     "admin":               PERMISSION_KEYS,
-    "managing_committee":  ["payment.initiate", "payment.confirm", "payment.view_receipt",
-                            "collector.view_own", "dashboard.view",
-                            "token.generate", "token.view"],
-    "core_committee":      ["payment.initiate", "payment.confirm", "payment.view_receipt",
-                            "collector.view_own", "token.generate"],
-    "executive":           ["payment.initiate", "payment.confirm", "payment.view_receipt",
-                            "collector.view_own", "dashboard.view",
-                            "token.generate", "token.view"],
+    "managing_committee":  ["dashboard.view"],
+    "core_committee":      [],
+    "executive":           ["dashboard.view"],
     "cashier":             ["payment.initiate", "payment.confirm", "payment.view_receipt",
                             "collector.view_own", "dashboard.view", "expense.manage"],
     "collector":           ["payment.initiate", "payment.confirm", "payment.view_receipt",
