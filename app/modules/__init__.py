@@ -49,3 +49,6 @@ def register_all(app: Flask) -> None:
 
     from .media.routes import bp as media_bp
     app.register_blueprint(media_bp, url_prefix="")
+
+    from .contact.routes import bp as contact_bp
+    app.register_blueprint(contact_bp, url_prefix="/api/contact")
