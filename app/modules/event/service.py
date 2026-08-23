@@ -14,7 +14,7 @@ class EventDaySchema(Schema):
     label       = fields.Str(required=True, validate=validate.Length(min=1, max=100))
     date        = fields.Date(load_default=None)
     description = fields.Str(load_default=None)
-    rituals     = fields.List(fields.Str(), load_default=None)
+    rituals     = fields.List(fields.Raw(), load_default=None)  # accepts str or {time,name} dicts
     sort_order  = fields.Int(load_default=0, data_key="sortOrder")
 
 
