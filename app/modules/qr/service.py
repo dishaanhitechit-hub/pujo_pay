@@ -73,11 +73,14 @@ def confirm_upi_payment(payment: Payment, utr_number: str | None) -> tuple[bool,
         return False, "payment already processed"
 
     now = datetime.now(timezone.utc)
-    opened_at = payment.payment_page_opened_at.replace(tzinfo=timezone.utc)
-    if now - opened_at > timedelta(minutes=QR_WINDOW_MINUTES):
-        payment.status = StatusEnum.expired
-        db.session.commit()
-        return False, "session expired"
+    # payment_page_opened_at is only set when the web QR page is visited.
+    # Mobile app confirmations skip the expiry window check.
+    if payment.payment_page_opened_at is not None:
+        opened_at = payment.payment_page_opened_at.replace(tzinfo=timezone.utc)
+        if now - opened_at > timedelta(minutes=QR_WINDOW_MINUTES):
+            payment.status = StatusEnum.expired
+            db.session.commit()
+            return False, "session expired"
 
     payment.utr_number = utr_number or None
     payment.status = StatusEnum.completed
