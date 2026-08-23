@@ -52,8 +52,10 @@ class RolePermission(db.Model):
 
     @staticmethod
     def seed_defaults() -> None:
-        """Insert missing permission rows (additive — safe to re-run on new keys).
+        """Upsert permission rows to match current defaults.
 
+        Inserts missing rows and corrects any existing rows whose granted value
+        differs from the current defaults — e.g. after a role's default set changes.
         New role values (managing_committee, core_committee, cashier, collector) require
         the DB PostgreSQL ENUM type to be updated first — see models/user.py migration
         notes. Until then those role rows are skipped gracefully.
@@ -66,6 +68,7 @@ class RolePermission(db.Model):
 
             changed = False
             for perm_key in PERMISSION_KEYS:
+                should_grant = perm_key in keys
                 try:
                     exists = RolePermission.query.filter_by(
                         role=role_enum, permission_key=perm_key
@@ -77,8 +80,11 @@ class RolePermission(db.Model):
                     db.session.add(RolePermission(
                         role=role_enum,
                         permission_key=perm_key,
-                        granted=(perm_key in keys),
+                        granted=should_grant,
                     ))
+                    changed = True
+                elif exists.granted != should_grant:
+                    exists.granted = should_grant
                     changed = True
             if changed:
                 try:
