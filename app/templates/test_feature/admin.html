@@ -327,7 +327,7 @@
       <div class="num" id="session-num">{{ session.session_number }}</div>
       <div class="meta">
         <strong id="session-status">Session #{{ session.session_number }}</strong>
-        Active &middot; Created {{ session.created_at.strftime("%I:%M %p") if session.created_at else "—" }}
+        Active &middot; Created {{ session.created_at | to_ist("%I:%M %p") }}
       </div>
     </div>
 
@@ -500,7 +500,8 @@
 
   function fmtTime(iso) {
     if (!iso) return "—";
-    const d = new Date(iso);
+    // Append Z so browser parses as UTC and converts to local (IST) time correctly
+    const d = new Date(iso.endsWith("Z") ? iso : iso + "Z");
     return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
   }
 

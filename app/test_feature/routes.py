@@ -1,8 +1,11 @@
 import uuid
+from datetime import timedelta
 from flask import (
     Blueprint, render_template, request,
     make_response, jsonify, Response,
 )
+
+_IST = timedelta(hours=5, minutes=30)
 
 from .service import (
     get_or_create_today_session,
@@ -15,6 +18,13 @@ from .service import (
 )
 
 bp = Blueprint("test_feature", __name__)
+
+
+@bp.app_template_filter("to_ist")
+def _to_ist(dt, fmt="%d %b %Y, %I:%M %p"):
+    if not dt:
+        return "—"
+    return (dt + _IST).strftime(fmt)
 
 _COOKIE = "atd_dev"
 _COOKIE_AGE = 30 * 24 * 3600  # 30 days

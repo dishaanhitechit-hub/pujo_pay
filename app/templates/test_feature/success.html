@@ -122,7 +122,7 @@
     {% endif %}
     <div class="info-row">
       <span class="info-label">Time</span>
-      <span class="info-value">{{ record.created_at.strftime("%d %b %Y, %I:%M %p") if record.created_at else "—" }}</span>
+      <span class="info-value">{{ record.created_at | to_ist }}</span>
     </div>
   </div>
 
