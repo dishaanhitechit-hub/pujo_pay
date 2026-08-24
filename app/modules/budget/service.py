@@ -70,6 +70,7 @@ def get_categories(
 def get_budget_report(event_id: int) -> dict:
     """Budget vs actual for every category in an event — single aggregation pass."""
     from ...models.expense import Expense
+    from ...models.payment import Payment, COMPLETED_STATUSES
 
     categories = (
         BudgetCategory.query
@@ -77,6 +78,13 @@ def get_budget_report(event_id: int) -> dict:
         .order_by(BudgetCategory.sort_order, BudgetCategory.id)
         .all()
     )
+
+    # Total completed payments (collections) for this event
+    total_collected = Decimal(str(
+        db.session.query(func.coalesce(func.sum(Payment.amount), 0))
+        .filter(Payment.event_id == event_id, Payment.status.in_(COMPLETED_STATUSES))
+        .scalar()
+    ))
 
     # One grouped query: actual expenses by budget_category_id for this event
     expense_rows = (
@@ -131,11 +139,12 @@ def get_budget_report(event_id: int) -> dict:
             "expenseCount":   unallocated["count"],
         },
         "totals": {
-            "totalPlanned":   _fmt(total_planned),
-            "totalActual":    _fmt(total_actual),
-            "remaining":      _fmt(total_remaining),
-            "overBudget":     total_actual > total_planned,
-            "utilizationPct": total_util,
+            "totalPlanned":     _fmt(total_planned),
+            "totalCollected":   _fmt(total_collected),
+            "totalActual":      _fmt(total_actual),
+            "remaining":        _fmt(total_remaining),
+            "overBudget":       total_actual > total_planned,
+            "utilizationPct":   total_util,
         },
     }
 
