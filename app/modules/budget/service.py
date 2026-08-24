@@ -149,6 +149,79 @@ def get_budget_report(event_id: int) -> dict:
     }
 
 
+def get_all_events_budget_summary() -> list:
+    """Per-event budget summary — three aggregation queries, no N+1."""
+    from ...models.expense import Expense
+    from ...models.payment import Payment, COMPLETED_STATUSES
+    from ...models.event import Event
+
+    # planned per event
+    planned_rows = (
+        db.session.query(
+            BudgetCategory.event_id,
+            func.coalesce(func.sum(BudgetCategory.planned_amount), 0).label("total"),
+        )
+        .group_by(BudgetCategory.event_id)
+        .all()
+    )
+    planned_map = {r.event_id: Decimal(str(r.total)) for r in planned_rows}
+
+    # spent per event
+    spent_rows = (
+        db.session.query(
+            Expense.event_id,
+            func.coalesce(func.sum(Expense.amount), 0).label("total"),
+        )
+        .group_by(Expense.event_id)
+        .all()
+    )
+    spent_map = {r.event_id: Decimal(str(r.total)) for r in spent_rows}
+
+    # collected per event
+    collected_rows = (
+        db.session.query(
+            Payment.event_id,
+            func.coalesce(func.sum(Payment.amount), 0).label("total"),
+        )
+        .filter(Payment.status.in_(COMPLETED_STATUSES))
+        .group_by(Payment.event_id)
+        .all()
+    )
+    collected_map = {r.event_id: Decimal(str(r.total)) for r in collected_rows}
+
+    # events that have at least one budget category
+    event_ids = list(planned_map.keys())
+    if not event_ids:
+        return []
+
+    events = (
+        Event.query
+        .filter(Event.id.in_(event_ids))
+        .order_by(Event.year.desc().nulls_last(), Event.id.desc())
+        .all()
+    )
+
+    result = []
+    for ev in events:
+        planned   = planned_map.get(ev.id, Decimal("0"))
+        spent     = spent_map.get(ev.id, Decimal("0"))
+        collected = collected_map.get(ev.id, Decimal("0"))
+        remaining = planned - spent
+        util      = round(float(spent / planned * 100), 1) if planned > 0 else 0.0
+        result.append({
+            "eventId":        ev.id,
+            "eventName":      ev.name,
+            "eventYear":      ev.year,
+            "totalPlanned":   _fmt(planned),
+            "totalCollected": _fmt(collected),
+            "totalSpent":     _fmt(spent),
+            "remaining":      _fmt(remaining),
+            "overBudget":     spent > planned,
+            "utilizationPct": util,
+        })
+    return result
+
+
 # ── CRUD ───────────────────────────────────────────────────────────────────────
 
 def create_category(data: dict, created_by: int) -> BudgetCategory:

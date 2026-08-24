@@ -6,11 +6,17 @@ from ...middleware.permissions import require_permission
 from ...utils.helpers import res
 from .service import (
     create_budget_category_schema, update_budget_category_schema, reorder_schema,
-    get_categories, get_budget_report,
+    get_categories, get_budget_report, get_all_events_budget_summary,
     create_category, update_category, delete_category, reorder_categories,
 )
 
 bp = Blueprint("budget", __name__)
+
+
+@bp.route("/all-summary", methods=["GET"])
+@require_permission("dashboard.view")
+def all_summary():
+    return res(data=get_all_events_budget_summary())
 
 
 @bp.route("/", methods=["GET"])
