@@ -1,4 +1,6 @@
-from flask import Blueprint, request
+import io
+import qrcode
+from flask import Blueprint, request, send_file
 from flask_jwt_extended import get_jwt_identity
 from marshmallow import ValidationError
 
@@ -73,3 +75,22 @@ def deactivate_user(user_id):
     from ...extensions import db
     db.session.commit()
     return res(f"user '{user.name}' deactivated")
+
+
+@bp.route("/<int:user_id>/login-qr", methods=["GET"])
+@require_permission("users.manage")
+def login_qr(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return res("user not found", code=404)
+
+    qr = qrcode.QRCode(box_size=10, border=2)
+    qr.add_data(f"pujopay-login:{user.email}")
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return send_file(buf, mimetype="image/png",
+                     download_name=f"login-qr-{user.name}.png")
