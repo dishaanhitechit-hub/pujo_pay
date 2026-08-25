@@ -78,10 +78,6 @@ class User(db.Model):
         return bool(self.can_collect)
 
     def to_dict(self) -> dict:
-        from .role_permission import RolePermission
-        role_val = self.role.value if isinstance(self.role, RoleEnum) else self.role
-        granted_rows = RolePermission.query.filter_by(role=self.role, granted=True).all()
-        permissions = [r.permission_key for r in granted_rows]
         return {
             "id":          self.id,
             "name":        self.name,
@@ -89,9 +85,8 @@ class User(db.Model):
             "phone":       self.phone,
             "whatsappNo":  self.whatsapp_no,
             "address":     self.address,
-            "role":        role_val,
+            "role":        self.role.value if isinstance(self.role, RoleEnum) else self.role,
             "isActive":    self.is_active,
             "canCollect":  self._effective_can_collect(),
-            "permissions": permissions,
             "createdAt":   self.created_at.isoformat() if self.created_at else None,
         }
