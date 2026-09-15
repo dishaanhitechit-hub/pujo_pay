@@ -54,6 +54,7 @@ def create_app():
     from .models.meeting_discussion import MeetingDiscussion  # noqa: F401
     from .models.meeting_attendance import MeetingAttendance, MeetingAttendanceDevice  # noqa: F401
     from .models.action_plan import ActionPlan, ActionPlanAssignee  # noqa: F401
+    from .models.circular import Circular  # noqa: F401
 
     # ── DB seed (first-run admin + default permissions) ─────
     # Skipped silently if tables don't exist yet (before first migration)
