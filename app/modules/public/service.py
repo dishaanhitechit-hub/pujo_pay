@@ -1,4 +1,5 @@
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 from ...extensions import db
 from ...models.event import Event, EventStatusEnum
 from ...models.announcement import Announcement
@@ -91,7 +92,8 @@ def list_public_events(page: int = 1, per_page: int = 12, include_days: bool = F
     query = (
         Event.query
         .filter_by(status=EventStatusEnum.published)
-        .order_by(Event.start_date.desc(), Event.created_at.desc())
+        # featured first, then newest by start_date
+        .order_by(Event.is_featured.desc(), Event.start_date.desc(), Event.created_at.desc())
     )
     pagination = db.paginate(query, page=page, per_page=per_page, error_out=False)
     return {
@@ -122,7 +124,12 @@ def get_featured_event() -> dict | None:
 
 
 def list_public_announcements(event_id: int | None = None) -> list[dict]:
-    query = Announcement.query.filter_by(is_published=True)
+    # joinedload avoids N+1 when serialising ann.event for each row
+    query = (
+        Announcement.query
+        .filter_by(is_published=True)
+        .options(joinedload(Announcement.event))
+    )
     if event_id:
         query = query.filter_by(event_id=event_id)
     items = query.order_by(Announcement.published_at.desc()).all()
