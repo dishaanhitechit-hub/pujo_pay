@@ -49,6 +49,11 @@ def create_app():
     from .models.expense import Expense  # noqa: F401
     from .models.budget_category import BudgetCategory  # noqa: F401
     from .models.self_contribution import SelfContribution  # noqa: F401
+    from .models.meeting import Meeting, MeetingInvitee  # noqa: F401
+    from .models.meeting_agenda_item import MeetingAgendaItem  # noqa: F401
+    from .models.meeting_discussion import MeetingDiscussion  # noqa: F401
+    from .models.meeting_attendance import MeetingAttendance, MeetingAttendanceDevice  # noqa: F401
+    from .models.action_plan import ActionPlan, ActionPlanAssignee  # noqa: F401
 
     # ── DB seed (first-run admin + default permissions) ─────
     # Skipped silently if tables don't exist yet (before first migration)

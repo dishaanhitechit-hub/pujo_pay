@@ -62,5 +62,11 @@ def register_all(app: Flask) -> None:
     from .contribution.routes import bp as contribution_bp
     app.register_blueprint(contribution_bp, url_prefix="/api/contributions")
 
+    from .meetings.routes import bp as meetings_bp
+    app.register_blueprint(meetings_bp, url_prefix="/api/meetings")
+
+    from .action_plans.routes import bp as action_plans_bp
+    app.register_blueprint(action_plans_bp, url_prefix="/api/action-plans")
+
     from ..test_feature.routes import bp as test_bp
     app.register_blueprint(test_bp, url_prefix="/test")
