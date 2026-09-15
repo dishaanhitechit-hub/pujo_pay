@@ -26,6 +26,12 @@ def create_app():
     def request_entity_too_large(_e):
         return jsonify({"message": "File too large — maximum 10 MB allowed"}), 413
 
+    @app.errorhandler(500)
+    def internal_error(e):
+        import traceback
+        app.logger.error("Unhandled 500: %s", traceback.format_exc())
+        return jsonify({"message": "Internal server error", "detail": str(e)}), 500
+
     # ── Blueprints ──────────────────────────────────────────
     from .modules import register_all
     register_all(app)

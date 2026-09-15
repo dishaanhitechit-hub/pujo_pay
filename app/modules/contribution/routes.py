@@ -1,4 +1,5 @@
 import os
+import traceback
 from flask import Blueprint, request, send_file, current_app
 from flask_jwt_extended import verify_jwt_in_request, get_jwt, get_jwt_identity
 
@@ -47,18 +48,23 @@ def submit():
 
     data = request.form
 
-    result, err = submit_contribution(
-        user_id=user_id,
-        amount=data.get("amount"),
-        payment_method=data.get("paymentMethod"),
-        payment_date=data.get("paymentDate"),
-        payment_time=data.get("paymentTime") or None,
-        note=data.get("note") or None,
-        event_id=int(data["eventId"]) if data.get("eventId") else None,
-        fileobj=fileobj,
-        mime_type=mime,
-        media_root=current_app.config["MEDIA_STORAGE_PATH"],
-    )
+    try:
+        result, err = submit_contribution(
+            user_id=user_id,
+            amount=data.get("amount"),
+            payment_method=data.get("paymentMethod"),
+            payment_date=data.get("paymentDate"),
+            payment_time=data.get("paymentTime") or None,
+            note=data.get("note") or None,
+            event_id=int(data["eventId"]) if data.get("eventId") else None,
+            fileobj=fileobj,
+            mime_type=mime,
+            media_root=current_app.config["MEDIA_STORAGE_PATH"],
+        )
+    except Exception as exc:
+        current_app.logger.error("submit_contribution crashed: %s", traceback.format_exc())
+        return res(f"Unexpected error: {exc}", code=500)
+
     if err:
         return res(err, code=400)
     return res("contribution submitted — pending approval", data=result, code=201)
