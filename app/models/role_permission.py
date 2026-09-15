@@ -16,13 +16,14 @@ PERMISSION_KEYS = [
     "event.manage",
     "content.manage",
     "expense.manage",
+    "contribution.manage",
 ]
 
 # Default grants per role.
 # New roles (managing_committee, core_committee, cashier, collector) require DB ALTER TYPE
 # before their rows can be inserted — see migration notes in models/user.py.
 _DEFAULTS: dict[str, list[str]] = {
-    "admin":               PERMISSION_KEYS,
+    "admin":               PERMISSION_KEYS,   # includes contribution.manage
     "managing_committee":  ["dashboard.view"],
     "core_committee":      ["dashboard.view"],
     "executive":           ["dashboard.view"],

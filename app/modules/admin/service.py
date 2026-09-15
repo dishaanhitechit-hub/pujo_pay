@@ -10,9 +10,16 @@ ALLOWED_KEYS = {
     "supportTitle":           "Support section heading on the Contact page",
     "supportDescription":     "Support section body text on the Contact page",
     "supportWhatsappMessage": "Pre-filled WhatsApp message when a supporter taps the WhatsApp CTA",
-    "socialFacebook":         "Facebook page URL",
-    "socialInstagram":        "Instagram profile URL",
-    "socialYoutube":          "YouTube channel URL",
+    "socialFacebook":              "Facebook page URL",
+    "socialInstagram":             "Instagram profile URL",
+    "socialYoutube":               "YouTube channel URL",
+    # Contribution payment details
+    "contributionUpiId":           "UPI ID for member contributions (e.g. club@upi)",
+    "contributionBankName":        "Bank name (e.g. State Bank of India)",
+    "contributionAccountName":     "Account holder name",
+    "contributionAccountNumber":   "Bank account number",
+    "contributionIfsc":            "IFSC code",
+    "contributionBankBranch":      "Branch name",
 }
 
 # maps camelCase payload key → internal DB key
@@ -26,9 +33,15 @@ _KEY_MAP = {
     "supportTitle":           "support.title",
     "supportDescription":     "support.description",
     "supportWhatsappMessage": "support.whatsapp_message",
-    "socialFacebook":         "social.facebook",
-    "socialInstagram":        "social.instagram",
-    "socialYoutube":          "social.youtube",
+    "socialFacebook":              "social.facebook",
+    "socialInstagram":             "social.instagram",
+    "socialYoutube":               "social.youtube",
+    "contributionUpiId":           "contribution.upi_id",
+    "contributionBankName":        "contribution.bank_name",
+    "contributionAccountName":     "contribution.account_name",
+    "contributionAccountNumber":   "contribution.account_number",
+    "contributionIfsc":            "contribution.ifsc",
+    "contributionBankBranch":      "contribution.bank_branch",
 }
 
 
