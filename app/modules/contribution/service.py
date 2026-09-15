@@ -53,6 +53,12 @@ def _save_screenshot(fileobj, mime_type: str, media_root: str) -> tuple[str, str
     if mime_type not in ALLOWED_SCREENSHOT_MIMES:
         return "", f"unsupported file type '{mime_type}' — allowed: jpeg, png, webp"
 
+    fileobj.seek(0, os.SEEK_END)
+    size = fileobj.tell()
+    fileobj.seek(0)
+    if size > 10 * 1024 * 1024:
+        return "", "file too large — maximum 10 MB allowed"
+
     ext = _MIME_EXT[mime_type]
     filename = uuid.uuid4().hex + ext
     rel_path = f"contributions/{filename}"

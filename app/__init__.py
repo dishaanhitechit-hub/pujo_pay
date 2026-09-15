@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, jsonify
 
 from .config import get_config
 from flask_cors import CORS
@@ -20,6 +20,11 @@ def create_app():
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
         return is_blocklisted(jwt_payload["jti"])
+
+    # ── Error handlers ──────────────────────────────────────
+    @app.errorhandler(413)
+    def request_entity_too_large(_e):
+        return jsonify({"message": "File too large — maximum 10 MB allowed"}), 413
 
     # ── Blueprints ──────────────────────────────────────────
     from .modules import register_all
