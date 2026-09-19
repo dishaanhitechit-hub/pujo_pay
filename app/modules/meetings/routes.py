@@ -5,6 +5,7 @@ from flask_jwt_extended import verify_jwt_in_request, get_jwt, get_jwt_identity
 
 from ...utils.helpers import res
 from ...middleware.permissions import require_permission
+from ...middleware.tenant import get_current_org_id
 from .service import (
     list_meetings, create_meeting, get_meeting_admin, update_meeting, delete_meeting,
     list_invitees, add_invitees, remove_invitee,
@@ -43,6 +44,7 @@ def admin_list():
         event_id=request.args.get("eventId", type=int),
         page=request.args.get("page", 1, type=int),
         per_page=request.args.get("perPage", 20, type=int),
+        org_id=get_current_org_id(),
     ))
 
 

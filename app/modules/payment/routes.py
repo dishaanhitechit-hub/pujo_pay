@@ -3,6 +3,7 @@ from flask_jwt_extended import get_jwt_identity, get_jwt
 from marshmallow import ValidationError
 
 from ...middleware.permissions import require_permission, require_collect_capable
+from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from .service import initiate_schema, initiate_payment, get_payment, get_payment_by_receipt_no
 
@@ -19,7 +20,7 @@ def initiate():
         return res("validation failed", data=e.messages, code=422)
 
     collector_id = int(get_jwt_identity())
-    payment, err = initiate_payment(data, collector_id)
+    payment, err = initiate_payment(data, collector_id, org_id=get_current_org_id())
     if err:
         return res(err, code=400)
 
@@ -46,7 +47,7 @@ def initiate():
 @bp.route("/receipt/<int:payment_id>", methods=["GET"])
 @require_permission("payment.view_receipt")
 def receipt(payment_id):
-    payment = get_payment(payment_id)
+    payment = get_payment(payment_id, org_id=get_current_org_id())
     if not payment:
         return res("payment not found", code=404)
     if payment.status.value == "pending":
@@ -57,7 +58,7 @@ def receipt(payment_id):
 @bp.route("/by-receipt/<receipt_no>", methods=["GET"])
 @require_permission("payment.view_receipt")
 def by_receipt_no(receipt_no):
-    payment = get_payment_by_receipt_no(receipt_no)
+    payment = get_payment_by_receipt_no(receipt_no, org_id=get_current_org_id())
     if not payment:
         return res("receipt not found", code=404)
     return res(data=payment.to_dict())

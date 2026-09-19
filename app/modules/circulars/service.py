@@ -40,10 +40,14 @@ def _q():
 
 # ── Admin services ─────────────────────────────────────────────────────────
 
-def list_circulars(page: int = 1, per_page: int = 20) -> dict:
+def list_circulars(page: int = 1, per_page: int = 20, org_id: int | None = None) -> dict:
     per_page = min(per_page, 100)
+    q = _q()
+    if org_id is not None:
+        from ...models.user import User
+        q = q.join(User, Circular.created_by == User.id).filter(User.org_id == org_id)
     pag = (
-        _q()
+        q
         .order_by(Circular.created_at.desc())
         .paginate(page=page, per_page=per_page, error_out=False)
     )
@@ -123,12 +127,13 @@ def list_published_circulars(
     date_to: str | None = None,
     page: int = 1,
     per_page: int = 20,
+    org_id: int | None = None,
 ) -> dict:
     per_page = min(per_page, 100)
-    q = (
-        _q()
-        .filter(Circular.is_published.is_(True))
-    )
+    q = _q().filter(Circular.is_published.is_(True))
+    if org_id is not None:
+        from ...models.user import User
+        q = q.join(User, Circular.created_by == User.id).filter(User.org_id == org_id)
 
     if search:
         term = f"%{search}%"

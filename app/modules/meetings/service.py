@@ -55,11 +55,14 @@ def list_meetings(
     event_id: int | None = None,
     page: int = 1,
     per_page: int = 20,
+    org_id: int | None = None,
 ) -> dict:
     q = Meeting.query.options(
         joinedload(Meeting.creator),
         joinedload(Meeting.event),
     )
+    if org_id is not None:
+        q = q.join(User, Meeting.created_by == User.id).filter(User.org_id == org_id)
     if status:
         q = q.filter(Meeting.status == status)
     if event_id:

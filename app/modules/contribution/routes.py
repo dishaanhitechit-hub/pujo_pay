@@ -5,6 +5,7 @@ from flask_jwt_extended import verify_jwt_in_request, get_jwt, get_jwt_identity
 
 from ...utils.helpers import res
 from ...middleware.permissions import require_permission
+from ...middleware.tenant import get_current_org_id
 from .service import (
     get_payment_info,
     submit_contribution,
@@ -122,6 +123,7 @@ def admin_list():
         event_id=request.args.get("eventId", type=int),
         page=request.args.get("page", 1, type=int),
         per_page=request.args.get("perPage", 20, type=int),
+        org_id=get_current_org_id(),
     ))
 
 
@@ -148,4 +150,4 @@ def admin_review(contribution_id: int):
 @bp.route("/admin/stats", methods=["GET"])
 @require_permission("contribution.manage")
 def admin_aggregate():
-    return res(data=admin_stats())
+    return res(data=admin_stats(org_id=get_current_org_id()))

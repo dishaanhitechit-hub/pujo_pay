@@ -3,6 +3,7 @@ from flask_jwt_extended import get_jwt_identity
 from marshmallow import ValidationError
 
 from ...middleware.permissions import require_permission
+from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from .service import (
     create_expense_schema, update_expense_schema,
@@ -27,6 +28,7 @@ def list_expenses():
     min_amt            = request.args.get("minAmount", "").strip() or None
     max_amt            = request.args.get("maxAmount", "").strip() or None
 
+    org_id  = get_current_org_id()
     data    = get_expenses(
         event_id=event_id,
         budget_category_id=budget_category_id,
@@ -38,12 +40,14 @@ def list_expenses():
         date_to=date_to,
         min_amount=min_amt,
         max_amount=max_amt,
+        org_id=org_id,
     )
     summary = get_expense_summary(
         event_id=event_id,
         budget_category_id=budget_category_id,
         date_from=date_from,
         date_to=date_to,
+        org_id=org_id,
     )
     return res(data={**data, "summary": summary})
 
@@ -57,12 +61,10 @@ def create():
     except ValidationError as e:
         return res("validation failed", data=e.messages, code=422)
 
-    from ...models.event import Event as EventModel
-    if not EventModel.query.get(data["event_id"]):
-        return res("event not found", code=404)
-
     created_by = int(get_jwt_identity())
-    expense = create_expense(data, created_by)
+    expense, err = create_expense(data, created_by, org_id=get_current_org_id())
+    if err:
+        return res(err, code=404)
     return res("expense created", data=expense.to_dict(), code=201)
 
 

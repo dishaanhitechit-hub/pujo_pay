@@ -2,6 +2,7 @@ from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity
 
 from ...middleware.permissions import require_collect_capable
+from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from .service import get_summary, get_payments, get_all_events
 
@@ -12,7 +13,7 @@ bp = Blueprint("collector", __name__)
 @require_collect_capable()
 def events():
     """All events for the collector's event filter dropdown in reporting pages."""
-    return res(data=get_all_events())
+    return res(data=get_all_events(org_id=get_current_org_id()))
 
 
 @bp.route("/summary", methods=["GET"])

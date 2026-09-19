@@ -9,7 +9,7 @@ from ...models.donor import Donor
 from ...models.event import Event, EventStatusEnum
 from ...models.payment import Payment, MethodEnum, StatusEnum
 from ...models.pledge import Pledge, PledgeStatusEnum
-from ...models.user import User
+from ...models.user import User  # noqa: F401 (used for org JOIN)
 
 
 # ── Schemas ────────────────────────────────────────────────────────────────
@@ -46,10 +46,10 @@ pay_installment_schema = PayInstallmentSchema()
 
 # ── Service ────────────────────────────────────────────────────────────────
 
-def create_pledge(data: dict, collector_id: int) -> tuple[Pledge | None, str | None]:
-    # Validate event — must exist, be published, and have collection enabled
+def create_pledge(data: dict, collector_id: int, org_id: int) -> tuple[Pledge | None, str | None]:
+    # Validate event — must exist, belong to this org, be published, and have collection enabled
     event = Event.query.get(data["event_id"])
-    if not event:
+    if not event or event.org_id != org_id:
         return None, "event not found"
     if event.status != EventStatusEnum.published or not event.collection_enabled:
         return None, "event is not currently accepting collections"
@@ -60,6 +60,7 @@ def create_pledge(data: dict, collector_id: int) -> tuple[Pledge | None, str | N
         address=data.get("donor_address"),
         notes=data.get("donor_notes"),
         donor_type=data.get("donor_type"),
+        org_id=org_id,
     )
     db.session.add(donor)
     db.session.flush()
@@ -77,8 +78,10 @@ def create_pledge(data: dict, collector_id: int) -> tuple[Pledge | None, str | N
     return pledge, None
 
 
-def pay_installment(pledge_id: int, data: dict, collector_id: int) -> tuple[Payment | None, str | None]:
-    pledge = Pledge.query.get(pledge_id)
+def pay_installment(pledge_id: int, data: dict, collector_id: int, org_id: int) -> tuple[Payment | None, str | None]:
+    pledge = Pledge.query.filter_by(id=pledge_id).join(
+        User, Pledge.collector_id == User.id
+    ).filter(User.org_id == org_id).first()
     if not pledge:
         return None, "pledge not found"
     if pledge.collector_id != collector_id:
@@ -110,8 +113,12 @@ def get_pledge(
     pledge_id: int,
     viewer_id: int,
     can_view_all: bool,
+    org_id: int | None = None,
 ) -> tuple[dict | None, str | None]:
-    pledge = Pledge.query.get(pledge_id)
+    q = Pledge.query.filter_by(id=pledge_id)
+    if org_id is not None:
+        q = q.join(User, Pledge.collector_id == User.id).filter(User.org_id == org_id)
+    pledge = q.first()
     if not pledge:
         return None, "not_found"
     if not can_view_all and pledge.collector_id != viewer_id:
@@ -159,6 +166,7 @@ def get_pledge_list(
     date_to: str | None = None,
     min_amount: str | None = None,
     max_amount: str | None = None,
+    org_id: int | None = None,
 ) -> dict:
     # Always JOIN Donor (for search) and User/collector (for display) to eliminate N+1.
     query = (
@@ -170,6 +178,8 @@ def get_pledge_list(
             contains_eager(Pledge.collector),
         )
     )
+    if org_id is not None:
+        query = query.filter(User.org_id == org_id)
 
     if status in ("open", "complete", "cancelled"):
         query = query.filter(Pledge.status == PledgeStatusEnum(status))
@@ -229,8 +239,11 @@ def get_pledge_list(
     }
 
 
-def cancel_pledge(pledge_id: int) -> tuple[Pledge | None, str | None]:
-    pledge = Pledge.query.get(pledge_id)
+def cancel_pledge(pledge_id: int, org_id: int | None = None) -> tuple[Pledge | None, str | None]:
+    q = Pledge.query.filter_by(id=pledge_id)
+    if org_id is not None:
+        q = q.join(User, Pledge.collector_id == User.id).filter(User.org_id == org_id)
+    pledge = q.first()
     if not pledge:
         return None, "pledge not found"
     if pledge.status in (PledgeStatusEnum.complete, PledgeStatusEnum.cancelled):

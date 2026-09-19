@@ -45,9 +45,13 @@ def get_expense_summary(
     budget_category_id: int | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    org_id: int | None = None,
 ) -> dict:
     """Aggregate summary respecting current filters (event + category + date)."""
+    from ...models.event import Event
     base = Expense.query
+    if org_id is not None:
+        base = base.join(Event, Expense.event_id == Event.id).filter(Event.org_id == org_id)
 
     if event_id:
         base = base.filter(Expense.event_id == event_id)
@@ -71,12 +75,12 @@ def get_expense_summary(
     count = base.count()
 
     mode_rows = (
-        db.session.query(
+        base
+        .with_entities(
             Expense.mode,
             func.coalesce(func.sum(Expense.amount), 0).label("total"),
             func.count(Expense.id).label("cnt"),
         )
-        .filter(*_base_filters(event_id, budget_category_id, date_from, date_to))
         .group_by(Expense.mode)
         .all()
     )
@@ -130,8 +134,12 @@ def get_expenses(
     date_to: str | None = None,
     min_amount: str | None = None,
     max_amount: str | None = None,
+    org_id: int | None = None,
 ) -> dict:
+    from ...models.event import Event
     query = Expense.query
+    if org_id is not None:
+        query = query.join(Event, Expense.event_id == Event.id).filter(Event.org_id == org_id)
 
     if event_id:
         query = query.filter(Expense.event_id == event_id)
@@ -187,7 +195,12 @@ def get_expenses(
 
 # ── CRUD ───────────────────────────────────────────────────────────────────────
 
-def create_expense(data: dict, created_by: int) -> Expense:
+def create_expense(data: dict, created_by: int, org_id: int | None = None) -> tuple:
+    if org_id is not None:
+        from ...models.event import Event
+        event = Event.query.get(data["event_id"])
+        if not event or event.org_id != org_id:
+            return None, "event not found"
     expense = Expense(
         event_id           = data["event_id"],
         budget_category_id = data.get("budget_category_id"),
@@ -200,7 +213,7 @@ def create_expense(data: dict, created_by: int) -> Expense:
     )
     db.session.add(expense)
     db.session.commit()
-    return expense
+    return expense, None
 
 
 def update_expense(expense_id: int, data: dict) -> tuple:

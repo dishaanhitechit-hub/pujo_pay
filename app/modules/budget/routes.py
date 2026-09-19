@@ -3,6 +3,7 @@ from flask_jwt_extended import get_jwt_identity
 from marshmallow import ValidationError
 
 from ...middleware.permissions import require_permission
+from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from .service import (
     create_budget_category_schema, update_budget_category_schema, reorder_schema,
@@ -16,7 +17,7 @@ bp = Blueprint("budget", __name__)
 @bp.route("/all-summary", methods=["GET"])
 @require_permission("dashboard.view")
 def all_summary():
-    return res(data=get_all_events_budget_summary())
+    return res(data=get_all_events_budget_summary(org_id=get_current_org_id()))
 
 
 @bp.route("/", methods=["GET"])
@@ -26,7 +27,7 @@ def list_categories():
     search   = request.args.get("search", "").strip() or None
     page     = request.args.get("page", 1, type=int)
     per_page = min(request.args.get("perPage", 50, type=int), 200)
-    return res(data=get_categories(event_id=event_id, search=search, page=page, per_page=per_page))
+    return res(data=get_categories(event_id=event_id, search=search, page=page, per_page=per_page, org_id=get_current_org_id()))
 
 
 @bp.route("/report", methods=["GET"])
@@ -35,10 +36,10 @@ def budget_report():
     event_id = request.args.get("eventId", type=int)
     if not event_id:
         return res("eventId is required", code=400)
-    from ...models.event import Event as EventModel
-    if not EventModel.query.get(event_id):
+    result = get_budget_report(event_id, org_id=get_current_org_id())
+    if result is None:
         return res("event not found", code=404)
-    return res(data=get_budget_report(event_id))
+    return res(data=result)
 
 
 @bp.route("/", methods=["POST"])
@@ -50,12 +51,10 @@ def create():
     except ValidationError as e:
         return res("validation failed", data=e.messages, code=422)
 
-    from ...models.event import Event as EventModel
-    if not EventModel.query.get(data["event_id"]):
-        return res("event not found", code=404)
-
     created_by = int(get_jwt_identity())
-    cat = create_category(data, created_by)
+    cat, err = create_category(data, created_by, org_id=get_current_org_id())
+    if err:
+        return res(err, code=404)
     return res("budget category created", data=cat.to_dict(), code=201)
 
 

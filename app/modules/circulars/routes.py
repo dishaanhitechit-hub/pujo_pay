@@ -3,6 +3,7 @@ from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 from marshmallow import ValidationError
 
 from ...middleware.permissions import require_permission
+from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from .service import (
     create_circular_schema, update_circular_schema,
@@ -21,7 +22,7 @@ bp = Blueprint("circulars", __name__)
 def admin_list():
     page     = request.args.get("page", 1, type=int)
     per_page = request.args.get("perPage", 20, type=int)
-    return res(data=list_circulars(page=page, per_page=per_page))
+    return res(data=list_circulars(page=page, per_page=per_page, org_id=get_current_org_id()))
 
 
 @bp.route("/", methods=["POST"])
@@ -87,6 +88,7 @@ def member_list():
         date_to=request.args.get("dateTo") or None,
         page=request.args.get("page", 1, type=int),
         per_page=request.args.get("perPage", 20, type=int),
+        org_id=get_current_org_id(),
     ))
 
 

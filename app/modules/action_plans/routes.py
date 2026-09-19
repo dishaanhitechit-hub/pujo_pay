@@ -5,6 +5,7 @@ from flask_jwt_extended import verify_jwt_in_request, get_jwt, get_jwt_identity
 
 from ...utils.helpers import res
 from ...middleware.permissions import require_permission
+from ...middleware.tenant import get_current_org_id
 from .service import (
     list_action_plans, create_action_plan, get_action_plan,
     update_action_plan, delete_action_plan,
@@ -46,6 +47,7 @@ def admin_list():
         due_date_to=request.args.get("dueDateTo"),
         page=request.args.get("page", 1, type=int),
         per_page=request.args.get("perPage", 20, type=int),
+        org_id=get_current_org_id(),
     ))
 
 

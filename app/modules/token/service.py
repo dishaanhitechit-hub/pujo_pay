@@ -191,12 +191,16 @@ def get_token_list(
     batch_id: str | None = None,
     search: str | None = None,
     status: str | None = None,
+    org_id: int | None = None,
 ) -> dict:
+    from ...models.user import User
     q = (
         Token.query
         .options(joinedload(Token.generated_by))
         .order_by(Token.token_serial.desc())
     )
+    if org_id is not None:
+        q = q.join(User, Token.generated_by_id == User.id).filter(User.org_id == org_id)
     if batch_id:
         q = q.filter(Token.batch_id == batch_id)
 

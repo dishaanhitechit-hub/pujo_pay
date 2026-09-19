@@ -3,6 +3,7 @@ from flask_jwt_extended import get_jwt_identity, get_jwt
 from marshmallow import ValidationError
 
 from ...middleware.permissions import require_permission, has_permission
+from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from .service import (
     create_pledge_schema, pay_installment_schema,
@@ -25,7 +26,7 @@ def create():
         return res("validation failed", data=e.messages, code=422)
 
     collector_id = int(get_jwt_identity())
-    pledge, err = create_pledge(data, collector_id)
+    pledge, err = create_pledge(data, collector_id, org_id=get_current_org_id())
     if err:
         return res(err, code=400)
     return res("pledge created", data=pledge.to_dict(), code=201)
@@ -44,7 +45,7 @@ def pay(pledge_id):
         return res("validation failed", data=e.messages, code=422)
 
     collector_id = int(get_jwt_identity())
-    payment, err = pay_installment(pledge_id, data, collector_id)
+    payment, err = pay_installment(pledge_id, data, collector_id, org_id=get_current_org_id())
     if err == "forbidden":
         return res("access denied: this pledge belongs to another collector", code=403)
     if err:
@@ -102,6 +103,7 @@ def list_pledges():
         date_to=date_to,
         min_amount=min_amount,
         max_amount=max_amount,
+        org_id=get_current_org_id(),
     ))
 
 
@@ -113,7 +115,7 @@ def detail(pledge_id):
     viewer_id = int(get_jwt_identity())
     can_view_all = has_permission(role, "dashboard.view")
 
-    result, err = get_pledge(pledge_id, viewer_id=viewer_id, can_view_all=can_view_all)
+    result, err = get_pledge(pledge_id, viewer_id=viewer_id, can_view_all=can_view_all, org_id=get_current_org_id())
     if err == "not_found":
         return res("pledge not found", code=404)
     if err == "forbidden":
@@ -124,7 +126,7 @@ def detail(pledge_id):
 @bp.route("/<int:pledge_id>/cancel", methods=["POST"])
 @require_permission("users.manage")
 def cancel(pledge_id):
-    pledge, err = cancel_pledge(pledge_id)
+    pledge, err = cancel_pledge(pledge_id, org_id=get_current_org_id())
     if err:
         return res(err, code=400)
     return res("pledge cancelled", data=pledge.to_dict())

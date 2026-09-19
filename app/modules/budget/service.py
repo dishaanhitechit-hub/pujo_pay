@@ -45,11 +45,15 @@ def get_categories(
     search: str | None = None,
     page: int = 1,
     per_page: int = 50,
+    org_id: int | None = None,
 ) -> dict:
+    from ...models.event import Event
     query = BudgetCategory.query
+    if org_id is not None:
+        query = query.join(Event, BudgetCategory.event_id == Event.id).filter(Event.org_id == org_id)
 
     if event_id:
-        query = query.filter_by(event_id=event_id)
+        query = query.filter(BudgetCategory.event_id == event_id)
 
     if search:
         like = f"%{search}%"
@@ -67,10 +71,16 @@ def get_categories(
     }
 
 
-def get_budget_report(event_id: int) -> dict:
+def get_budget_report(event_id: int, org_id: int | None = None) -> dict | None:
     """Budget vs actual for every category in an event — single aggregation pass."""
     from ...models.expense import Expense
+    from ...models.event import Event
     from ...models.payment import Payment, COMPLETED_STATUSES
+
+    if org_id is not None:
+        event = Event.query.get(event_id)
+        if not event or event.org_id != org_id:
+            return None
 
     categories = (
         BudgetCategory.query
@@ -149,7 +159,7 @@ def get_budget_report(event_id: int) -> dict:
     }
 
 
-def get_all_events_budget_summary() -> list:
+def get_all_events_budget_summary(org_id: int | None = None) -> list:
     """Per-event budget summary — three aggregation queries, no N+1."""
     from ...models.expense import Expense
     from ...models.payment import Payment, COMPLETED_STATUSES
@@ -194,12 +204,10 @@ def get_all_events_budget_summary() -> list:
     if not event_ids:
         return []
 
-    events = (
-        Event.query
-        .filter(Event.id.in_(event_ids))
-        .order_by(Event.year.desc().nulls_last(), Event.id.desc())
-        .all()
-    )
+    eq = Event.query.filter(Event.id.in_(event_ids))
+    if org_id is not None:
+        eq = eq.filter(Event.org_id == org_id)
+    events = eq.order_by(Event.year.desc().nulls_last(), Event.id.desc()).all()
 
     result = []
     for ev in events:
@@ -224,7 +232,12 @@ def get_all_events_budget_summary() -> list:
 
 # ── CRUD ───────────────────────────────────────────────────────────────────────
 
-def create_category(data: dict, created_by: int) -> BudgetCategory:
+def create_category(data: dict, created_by: int, org_id: int | None = None) -> tuple:
+    if org_id is not None:
+        from ...models.event import Event
+        event = Event.query.get(data["event_id"])
+        if not event or event.org_id != org_id:
+            return None, "event not found"
     # Append after existing categories for this event
     max_sort = (
         db.session.query(func.coalesce(func.max(BudgetCategory.sort_order), -1))
@@ -241,7 +254,7 @@ def create_category(data: dict, created_by: int) -> BudgetCategory:
     )
     db.session.add(cat)
     db.session.commit()
-    return cat
+    return cat, None
 
 
 def update_category(cat_id: int, data: dict) -> tuple:

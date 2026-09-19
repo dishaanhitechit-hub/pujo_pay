@@ -12,31 +12,35 @@ from ...models.pledge import Pledge, PledgeStatusEnum
 from ...models.user import User
 
 
-def get_grand_summary(event_id: int | None = None) -> dict:
-    base = Payment.query.filter(Payment.status.in_(COMPLETED_STATUSES))
+def get_grand_summary(event_id: int | None = None, org_id: int | None = None) -> dict:
+    base = Payment.query.join(User, Payment.collector_id == User.id).filter(
+        Payment.status.in_(COMPLETED_STATUSES)
+    )
+    if org_id is not None:
+        base = base.filter(User.org_id == org_id)
     if event_id:
         base = base.filter(Payment.event_id == event_id)
 
-    cash_total = base.filter_by(method=MethodEnum.cash).with_entities(
+    cash_total = base.filter(Payment.method == MethodEnum.cash).with_entities(
         func.coalesce(func.sum(Payment.amount), 0)
     ).scalar()
 
-    upi_total = base.filter_by(method=MethodEnum.upi).with_entities(
+    upi_total = base.filter(Payment.method == MethodEnum.upi).with_entities(
         func.coalesce(func.sum(Payment.amount), 0)
     ).scalar()
 
-    cheque_total = base.filter_by(method=MethodEnum.cheque).with_entities(
+    cheque_total = base.filter(Payment.method == MethodEnum.cheque).with_entities(
         func.coalesce(func.sum(Payment.amount), 0)
     ).scalar()
 
     total_confirmed = base.count()
 
-    donors_q = db.session.query(func.count(func.distinct(Payment.donor_id)))
-    if event_id:
-        donors_q = donors_q.filter(Payment.event_id == event_id)
+    donors_q = base.with_entities(func.count(func.distinct(Payment.donor_id)))
     total_donors = donors_q.scalar()
 
-    pledge_q = Pledge.query
+    pledge_q = Pledge.query.join(User, Pledge.collector_id == User.id)
+    if org_id is not None:
+        pledge_q = pledge_q.filter(User.org_id == org_id)
     if event_id:
         pledge_q = pledge_q.filter(Pledge.event_id == event_id)
 
@@ -60,8 +64,11 @@ def get_grand_summary(event_id: int | None = None) -> dict:
     }
 
 
-def get_collector_breakdown(event_id: int | None = None) -> list:
-    collectors = User.query.filter_by(is_active=True).order_by(User.name).all()
+def get_collector_breakdown(event_id: int | None = None, org_id: int | None = None) -> list:
+    coll_q = User.query.filter_by(is_active=True)
+    if org_id is not None:
+        coll_q = coll_q.filter(User.org_id == org_id)
+    collectors = coll_q.order_by(User.name).all()
     if not collectors:
         return []
 
@@ -124,6 +131,7 @@ def get_all_payments(
     min_amount: str | None = None,
     max_amount: str | None = None,
     search: str | None = None,
+    org_id: int | None = None,
 ) -> dict:
     query = (
         Payment.query
@@ -134,6 +142,8 @@ def get_all_payments(
             contains_eager(Payment.collector),
         )
     )
+    if org_id is not None:
+        query = query.filter(User.org_id == org_id)
 
     if method in ("cash", "upi", "cheque"):
         query = query.filter(Payment.method == MethodEnum(method))
@@ -221,13 +231,15 @@ def _get_expense_total(event_ids: list[int]) -> dict[int, Decimal]:
         return {}
 
 
-def get_events_with_stats() -> list[dict]:
+def get_events_with_stats(org_id: int | None = None) -> list[dict]:
     """All events with per-event aggregated collection/pledge/expense stats."""
     from ...models.event import Event
 
+    q = Event.query
+    if org_id is not None:
+        q = q.filter(Event.org_id == org_id)
     events = (
-        Event.query
-        .order_by(
+        q.order_by(
             Event.year.desc().nullslast(),
             Event.start_date.desc().nullslast(),
             Event.created_at.desc(),
@@ -366,11 +378,14 @@ def get_events_with_stats() -> list[dict]:
     return result
 
 
-def get_event_report(event_id: int) -> dict:
+def get_event_report(event_id: int, org_id: int | None = None) -> dict:
     """Comprehensive report for a single event — used by admin event report panel."""
     from ...models.event import Event as EventModel
 
-    event = EventModel.query.get(event_id)
+    q = EventModel.query.filter_by(id=event_id)
+    if org_id is not None:
+        q = q.filter(EventModel.org_id == org_id)
+    event = q.first()
 
     # ── Payment aggregations ──────────────────────────────────────────────────
     total_received = Decimal(str(

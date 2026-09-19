@@ -6,6 +6,7 @@ from ...models.donor import Donor
 from ...models.event import Event, EventStatusEnum
 from ...models.payment import Payment, MethodEnum, StatusEnum
 from ...models.pledge import Pledge, PledgeStatusEnum
+from ...models.user import User
 
 
 class InitiatePaymentSchema(Schema):
@@ -31,21 +32,23 @@ class InitiatePaymentSchema(Schema):
 initiate_schema = InitiatePaymentSchema()
 
 
-def initiate_payment(data: dict, collector_id: int) -> tuple[Payment, str | None]:
+def initiate_payment(data: dict, collector_id: int, org_id: int) -> tuple[Payment, str | None]:
     """
     Returns (payment, error_message).
     error_message is None on success.
     """
-    # Validate event — must exist, be published, and have collection enabled
+    # Validate event — must exist, belong to this org, be published, and have collection enabled
     event = Event.query.get(data["event_id"])
-    if not event:
+    if not event or event.org_id != org_id:
         return None, "event not found"
     if event.status != EventStatusEnum.published or not event.collection_enabled:
         return None, "event is not currently accepting collections"
 
     pledge = None
     if data.get("pledge_id"):
-        pledge = Pledge.query.get(data["pledge_id"])
+        pledge = Pledge.query.filter_by(id=data["pledge_id"]).join(
+            User, Pledge.collector_id == User.id
+        ).filter(User.org_id == org_id).first()
         if not pledge:
             return None, "pledge not found"
         if pledge.status != PledgeStatusEnum.open:
@@ -60,6 +63,7 @@ def initiate_payment(data: dict, collector_id: int) -> tuple[Payment, str | None
         address=data.get("donor_address"),
         notes=data.get("donor_notes"),
         donor_type=data.get("donor_type"),
+        org_id=org_id,
     )
     db.session.add(donor)
     db.session.flush()
@@ -78,9 +82,19 @@ def initiate_payment(data: dict, collector_id: int) -> tuple[Payment, str | None
     return payment, None
 
 
-def get_payment(payment_id: int) -> Payment | None:
-    return Payment.query.get(payment_id)
+def get_payment(payment_id: int, org_id: int | None = None) -> Payment | None:
+    p = Payment.query.get(payment_id)
+    if p is None:
+        return None
+    if org_id is not None:
+        user = User.query.get(p.collector_id)
+        if not user or user.org_id != org_id:
+            return None
+    return p
 
 
-def get_payment_by_receipt_no(receipt_no: str) -> Payment | None:
-    return Payment.query.filter_by(receipt_no=receipt_no.upper()).first()
+def get_payment_by_receipt_no(receipt_no: str, org_id: int | None = None) -> Payment | None:
+    q = Payment.query.filter_by(receipt_no=receipt_no.upper())
+    if org_id is not None:
+        q = q.join(User, Payment.collector_id == User.id).filter(User.org_id == org_id)
+    return q.first()

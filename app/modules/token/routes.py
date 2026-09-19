@@ -3,6 +3,7 @@ from flask_jwt_extended import get_jwt_identity, get_jwt
 from marshmallow import ValidationError
 
 from ...middleware.permissions import require_permission
+from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from .service import (
     generate_schema, bulk_schema,
@@ -87,7 +88,7 @@ def token_list():
     batch_id = request.args.get("batchId") or None
     search = request.args.get("search", "").strip() or None
     status = request.args.get("status", "").strip() or None
-    data = get_token_list(page=page, per_page=per_page, batch_id=batch_id, search=search, status=status)
+    data = get_token_list(page=page, per_page=per_page, batch_id=batch_id, search=search, status=status, org_id=get_current_org_id())
     return res(data=data)
 
 

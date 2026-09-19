@@ -39,6 +39,7 @@ def list_action_plans(
     due_date_to: str | None = None,
     page: int = 1,
     per_page: int = 20,
+    org_id: int | None = None,
 ) -> dict:
     q = ActionPlan.query.options(
         joinedload(ActionPlan.creator),
@@ -46,6 +47,8 @@ def list_action_plans(
         joinedload(ActionPlan.meeting),
         joinedload(ActionPlan.assignees).joinedload(ActionPlanAssignee.user),
     )
+    if org_id is not None:
+        q = q.join(User, ActionPlan.created_by == User.id).filter(User.org_id == org_id)
 
     if status:    q = q.filter(ActionPlan.status   == status)
     if priority:  q = q.filter(ActionPlan.priority == priority)

@@ -205,6 +205,7 @@ def admin_list_contributions(
     event_id: int | None = None,
     page: int = 1,
     per_page: int = 20,
+    org_id: int | None = None,
 ) -> dict:
     per_page = min(per_page, 100)
     query = (
@@ -216,15 +217,18 @@ def admin_list_contributions(
         )
         .order_by(SelfContribution.created_at.desc())
     )
+    if org_id is not None:
+        from ...models.user import User
+        query = query.join(User, SelfContribution.user_id == User.id).filter(User.org_id == org_id)
     if status:
         try:
-            query = query.filter_by(status=ContributionStatusEnum(status))
+            query = query.filter(SelfContribution.status == ContributionStatusEnum(status))
         except ValueError:
             pass
     if user_id:
-        query = query.filter_by(user_id=user_id)
+        query = query.filter(SelfContribution.user_id == user_id)
     if event_id:
-        query = query.filter_by(event_id=event_id)
+        query = query.filter(SelfContribution.event_id == event_id)
 
     pag = db.paginate(query, page=page, per_page=per_page, error_out=False)
     return {
@@ -290,16 +294,16 @@ def get_screenshot_path(contribution_id: int, requesting_user_id: int, is_admin:
 
 # ── Admin: aggregate stats ─────────────────────────────────────────────────
 
-def admin_stats() -> dict:
-    rows = (
-        db.session.query(
-            SelfContribution.status,
-            func.count(SelfContribution.id).label("cnt"),
-            func.coalesce(func.sum(SelfContribution.amount), 0).label("total"),
-        )
-        .group_by(SelfContribution.status)
-        .all()
+def admin_stats(org_id: int | None = None) -> dict:
+    from ...models.user import User
+    q = db.session.query(
+        SelfContribution.status,
+        func.count(SelfContribution.id).label("cnt"),
+        func.coalesce(func.sum(SelfContribution.amount), 0).label("total"),
     )
+    if org_id is not None:
+        q = q.join(User, SelfContribution.user_id == User.id).filter(User.org_id == org_id)
+    rows = q.group_by(SelfContribution.status).all()
     stats = {s.value: {"count": 0, "total": 0.0} for s in ContributionStatusEnum}
     for row in rows:
         key = row.status.value if hasattr(row.status, "value") else row.status
