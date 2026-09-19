@@ -37,6 +37,7 @@ def create_app():
     register_all(app)
 
     # ── Import models so Flask-Migrate can detect all tables ─
+    from .models.organisation import Organisation  # noqa: F401
     from .models import User, Donor, Payment, RolePermission, AppConfig  # noqa: F401
     from .models.token import Token  # noqa: F401
     from .models.pledge import Pledge  # noqa: F401
@@ -69,18 +70,26 @@ def create_app():
 
 
 def _seed_admin():
-    """Create the admin user on first run if none exists."""
+    """Create the default org and admin user on first run if none exists."""
     import os
     from .models.user import User, RoleEnum
+    from .models.organisation import Organisation
 
     if User.query.filter_by(role=RoleEnum.admin).first():
         return
+
+    org = Organisation.query.filter_by(slug="default").first()
+    if not org:
+        org = Organisation(name=os.getenv("ADMIN_ORG_NAME", "Default Organisation"), slug="default")
+        db.session.add(org)
+        db.session.flush()
 
     admin = User(
         name=os.getenv("ADMIN_NAME", "Admin"),
         email=os.environ["ADMIN_EMAIL"],
         role=RoleEnum.admin,
         is_active=True,
+        org_id=org.id,
     )
     admin.set_password(os.environ["ADMIN_PASSWORD"])
     db.session.add(admin)

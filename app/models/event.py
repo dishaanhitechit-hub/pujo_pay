@@ -1,6 +1,8 @@
 import enum
 import re
 
+from sqlalchemy import UniqueConstraint
+
 from ..extensions import db
 
 
@@ -22,9 +24,12 @@ def _slugify(name: str) -> str:
 class Event(db.Model):
     __tablename__ = "events"
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), nullable=False)
-    slug = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    __table_args__ = (UniqueConstraint("org_id", "slug", name="uq_event_org_slug"),)
+
+    id     = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, db.ForeignKey("organisations.id"), nullable=True)
+    name   = db.Column(db.String(120), nullable=False)
+    slug   = db.Column(db.String(120), nullable=False, index=True)
     description = db.Column(db.Text)
     start_date = db.Column(db.Date)
     end_date = db.Column(db.Date)

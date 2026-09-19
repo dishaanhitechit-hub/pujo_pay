@@ -2,6 +2,9 @@ from flask import Flask
 
 
 def register_all(app: Flask) -> None:
+    from .org.routes import bp as org_bp
+    app.register_blueprint(org_bp, url_prefix="/api/org")
+
     from .auth.routes import bp as auth_bp
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
 

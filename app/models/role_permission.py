@@ -18,6 +18,7 @@ PERMISSION_KEYS = [
     "expense.manage",
     "contribution.manage",
     "meeting.manage",
+    "org.manage",
 ]
 
 # Default grants per role.

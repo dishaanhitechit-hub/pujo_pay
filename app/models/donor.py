@@ -4,8 +4,9 @@ from ..extensions import db
 class Donor(db.Model):
     __tablename__ = "donors"
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), nullable=False)
+    id     = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, db.ForeignKey("organisations.id"), nullable=True)
+    name   = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(20))
     address = db.Column(db.Text)
     notes = db.Column(db.Text)

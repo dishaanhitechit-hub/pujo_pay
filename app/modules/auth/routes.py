@@ -27,7 +27,7 @@ def login():
 
     token = create_access_token(
         identity=str(user.id),
-        additional_claims={"role": user.role.value},
+        additional_claims={"role": user.role.value, "org_id": user.org_id},
     )
     return res("login successful", data={"accessToken": token, "user": user.to_dict()})
 

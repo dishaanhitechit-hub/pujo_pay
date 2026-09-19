@@ -58,11 +58,11 @@ event_days_list_schema = EventDaySchema(many=True)
 
 # ── Slug helpers ────────────────────────────────────────────────────────────
 
-def _unique_slug(base: str) -> str:
-    """Return base slug, or base-2, base-3, ... until unique."""
+def _unique_slug(base: str, org_id: int | None) -> str:
+    """Return base slug, or base-2, base-3, ... until unique within the org."""
     candidate = base
     suffix = 2
-    while Event.query.filter_by(slug=candidate).first():
+    while Event.query.filter_by(slug=candidate, org_id=org_id).first():
         candidate = f"{base}-{suffix}"
         suffix += 1
     return candidate
@@ -71,6 +71,7 @@ def _unique_slug(base: str) -> str:
 # ── Service ────────────────────────────────────────────────────────────────
 
 def list_events(
+    org_id: int | None = None,
     search: str | None = None,
     status: str | None = None,
     collection_enabled: bool | None = None,
@@ -79,7 +80,7 @@ def list_events(
     page: int = 1,
     per_page: int = 20,
 ) -> dict:
-    query = Event.query
+    query = Event.query.filter(Event.org_id == org_id)
 
     if search:
         like = f"%{search}%"
@@ -109,19 +110,19 @@ def list_events(
     }
 
 
-def get_active_events() -> list[dict]:
+def get_active_events(org_id: int | None = None) -> list[dict]:
     """Events that collectors may currently collect against."""
     events = (
         Event.query
-        .filter_by(status=EventStatusEnum.published, collection_enabled=True)
+        .filter_by(status=EventStatusEnum.published, collection_enabled=True, org_id=org_id)
         .order_by(Event.start_date.desc())
         .all()
     )
     return [e.to_dict() for e in events]
 
 
-def create_event(data: dict, created_by: int) -> tuple[Event | None, str | None]:
-    slug = _unique_slug(_slugify(data["name"]))
+def create_event(data: dict, created_by: int, org_id: int | None = None) -> tuple[Event | None, str | None]:
+    slug = _unique_slug(_slugify(data["name"]), org_id=org_id)
 
     if data.get("is_featured"):
         _clear_featured()
@@ -138,6 +139,7 @@ def create_event(data: dict, created_by: int) -> tuple[Event | None, str | None]
         collection_enabled=data.get("collection_enabled", False),
         is_featured=data.get("is_featured", False),
         created_by=created_by,
+        org_id=org_id,
     )
     db.session.add(event)
     db.session.commit()

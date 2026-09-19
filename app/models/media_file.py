@@ -14,7 +14,8 @@ class MediaCategoryEnum(str, enum.Enum):
 class MediaFile(db.Model):
     __tablename__ = "media_files"
 
-    id                = db.Column(db.Integer, primary_key=True)
+    id     = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, db.ForeignKey("organisations.id"), nullable=True)
     # Relative path within MEDIA_STORAGE_PATH, e.g. "events/3/gallery/abc123.jpg"
     # Used directly as the URL path segment: GET /media/<path>
     path              = db.Column(db.String(600), nullable=False)

@@ -3,6 +3,7 @@ from flask_jwt_extended import get_jwt_identity
 from marshmallow import ValidationError
 
 from ...middleware.permissions import require_permission
+from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from .service import (
     create_committee_member_schema, update_committee_member_schema,
@@ -17,7 +18,7 @@ bp = Blueprint("committee", __name__)
 @bp.route("/", methods=["GET"])
 @require_permission("content.manage")
 def index():
-    return res(data=list_committee_members())
+    return res(data=list_committee_members(org_id=get_current_org_id()))
 
 
 @bp.route("/", methods=["POST"])
@@ -29,7 +30,7 @@ def create():
     except ValidationError as e:
         return res("validation failed", data=e.messages, code=422)
 
-    result, err = create_committee_member(data)
+    result, err = create_committee_member(data, org_id=get_current_org_id())
     if err:
         return res(err, code=400)
     return res("committee member created", data=result, code=201)
@@ -80,7 +81,7 @@ def reorder():
     err = reorder_committee_members(ordered_ids)
     if err:
         return res(err, code=400)
-    return res("order updated", data=list_committee_members())
+    return res("order updated", data=list_committee_members(org_id=get_current_org_id()))
 
 
 @bp.route("/<int:member_id>/photo", methods=["POST"])

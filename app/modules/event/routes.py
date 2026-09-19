@@ -3,6 +3,7 @@ from flask_jwt_extended import get_jwt_identity
 from marshmallow import ValidationError
 
 from ...middleware.permissions import require_permission
+from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from .service import (
     create_event_schema, update_event_schema, event_days_list_schema,
@@ -38,6 +39,7 @@ def index():
         is_featured = False
 
     return res(data=list_events(
+        org_id=get_current_org_id(),
         search=search,
         status=status,
         collection_enabled=collection_enabled,
@@ -52,7 +54,7 @@ def index():
 @require_permission("payment.initiate")
 def active():
     """Events currently open for collection — used by collector dropdown."""
-    return res(data=get_active_events())
+    return res(data=get_active_events(org_id=get_current_org_id()))
 
 
 @bp.route("/", methods=["POST"])
@@ -65,7 +67,7 @@ def create():
         return res("validation failed", data=e.messages, code=422)
 
     created_by = int(get_jwt_identity())
-    event, err = create_event(data, created_by)
+    event, err = create_event(data, created_by, org_id=get_current_org_id())
     if err:
         return res(err, code=400)
     return res("event created", data=event.to_dict(include_days=True), code=201)

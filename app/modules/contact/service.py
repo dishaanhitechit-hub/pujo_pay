@@ -26,13 +26,14 @@ update_query_status_schema = UpdateQueryStatusSchema()
 
 # ── Service ────────────────────────────────────────────────────────────────────
 
-def submit_contact_query(data: dict) -> dict:
+def submit_contact_query(data: dict, org_id: int | None = None) -> dict:
     query = ContactQuery(
         name=data["name"].strip(),
         phone=data["phone"].strip(),
         location=(data.get("location") or "").strip() or None,
         message=data["message"].strip(),
         status=ContactQueryStatusEnum.new,
+        org_id=org_id,
     )
     db.session.add(query)
     db.session.commit()
@@ -40,13 +41,14 @@ def submit_contact_query(data: dict) -> dict:
 
 
 def list_contact_queries(
+    org_id: int | None = None,
     page: int = 1,
     per_page: int = 20,
     status: str | None = None,
     search: str | None = None,
 ) -> dict:
     per_page = min(per_page, 50)
-    q = ContactQuery.query
+    q = ContactQuery.query.filter_by(org_id=org_id)
     if status:
         try:
             q = q.filter(ContactQuery.status == ContactQueryStatusEnum(status))

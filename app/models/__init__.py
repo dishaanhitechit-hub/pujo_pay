@@ -1,3 +1,4 @@
+from .organisation import Organisation
 from .user import User, RoleEnum
 from .donor import Donor
 from .payment import Payment, MethodEnum, StatusEnum
@@ -10,6 +11,7 @@ from .committee_member import CommitteeMember
 from .media_file import MediaFile, MediaCategoryEnum
 
 __all__ = [
+    "Organisation",
     "User", "RoleEnum",
     "Donor",
     "Payment", "MethodEnum", "StatusEnum",

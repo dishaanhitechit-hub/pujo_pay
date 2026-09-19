@@ -41,6 +41,7 @@ def _donor_row_to_dict(donor, total_donated, confirmed_count, last_donated_at) -
 
 
 def _donor_query(
+    org_id: int | None = None,
     search: str | None = None,
     donor_type: str | None = None,
     date_from: date | None = None,
@@ -70,6 +71,7 @@ def _donor_query(
             agg.c.last_donated_at,
         )
         .outerjoin(agg, Donor.id == agg.c.donor_id)
+        .filter(Donor.org_id == org_id)
         .order_by(Donor.created_at.desc())
     )
 
@@ -103,6 +105,7 @@ def _donor_query(
 
 
 def get_donor_list(
+    org_id: int | None = None,
     page: int = 1,
     per_page: int = 20,
     search: str | None = None,
@@ -113,6 +116,7 @@ def get_donor_list(
     max_amount: Decimal | None = None,
 ) -> dict:
     query = _donor_query(
+        org_id=org_id,
         search=search,
         donor_type=donor_type,
         date_from=date_from,

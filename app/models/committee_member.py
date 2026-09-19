@@ -4,7 +4,8 @@ from ..extensions import db
 class CommitteeMember(db.Model):
     __tablename__ = "committee_members"
 
-    id = db.Column(db.Integer, primary_key=True)
+    id       = db.Column(db.Integer, primary_key=True)
+    org_id   = db.Column(db.Integer, db.ForeignKey("organisations.id"), nullable=True)
     event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=True)
     name = db.Column(db.String(150), nullable=False)
     role_title = db.Column(db.String(150), nullable=False)

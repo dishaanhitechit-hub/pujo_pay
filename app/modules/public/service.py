@@ -87,11 +87,11 @@ def _public_committee_dict(member: CommitteeMember) -> dict:
 
 # ── Query functions ────────────────────────────────────────────────────────
 
-def list_public_events(page: int = 1, per_page: int = 12, include_days: bool = False) -> dict:
+def list_public_events(org_id: int | None = None, page: int = 1, per_page: int = 12, include_days: bool = False) -> dict:
     per_page = min(per_page, 50)
     query = (
         Event.query
-        .filter_by(status=EventStatusEnum.published)
+        .filter_by(status=EventStatusEnum.published, org_id=org_id)
         # featured first, then newest by start_date
         .order_by(Event.is_featured.desc(), Event.start_date.desc(), Event.created_at.desc())
     )
@@ -105,29 +105,29 @@ def list_public_events(page: int = 1, per_page: int = 12, include_days: bool = F
     }
 
 
-def get_public_event_by_slug(slug: str) -> dict | None:
+def get_public_event_by_slug(slug: str, org_id: int | None = None) -> dict | None:
     event = Event.query.filter_by(
-        slug=slug, status=EventStatusEnum.published
+        slug=slug, status=EventStatusEnum.published, org_id=org_id
     ).first()
     if not event:
         return None
     return _public_event_dict(event, include_days=True, include_gallery=True)
 
 
-def get_featured_event() -> dict | None:
+def get_featured_event(org_id: int | None = None) -> dict | None:
     event = Event.query.filter_by(
-        status=EventStatusEnum.published, is_featured=True
+        status=EventStatusEnum.published, is_featured=True, org_id=org_id
     ).first()
     if not event:
         return None
     return _public_event_dict(event, include_days=True, include_gallery=True)
 
 
-def list_public_announcements(event_id: int | None = None) -> list[dict]:
+def list_public_announcements(org_id: int | None = None, event_id: int | None = None) -> list[dict]:
     # joinedload avoids N+1 when serialising ann.event for each row
     query = (
         Announcement.query
-        .filter_by(is_published=True)
+        .filter_by(is_published=True, org_id=org_id)
         .options(joinedload(Announcement.event))
     )
     if event_id:
@@ -136,19 +136,19 @@ def list_public_announcements(event_id: int | None = None) -> list[dict]:
     return [_public_announcement_dict(a) for a in items]
 
 
-def list_public_committee(event_id: int | None = None) -> list[dict]:
-    query = CommitteeMember.query.filter_by(is_active=True)
+def list_public_committee(org_id: int | None = None, event_id: int | None = None) -> list[dict]:
+    query = CommitteeMember.query.filter_by(is_active=True, org_id=org_id)
     if event_id:
         query = query.filter_by(event_id=event_id)
     items = query.order_by(CommitteeMember.sort_order, CommitteeMember.name).all()
     return [_public_committee_dict(m) for m in items]
 
 
-def list_all_gallery_images() -> dict:
+def list_all_gallery_images(org_id: int | None = None) -> dict:
     """Return gallery images from all published events, featured event first."""
     events = (
         Event.query
-        .filter_by(status=EventStatusEnum.published)
+        .filter_by(status=EventStatusEnum.published, org_id=org_id)
         .order_by(Event.is_featured.desc(), Event.start_date.desc(), Event.created_at.desc())
         .all()
     )

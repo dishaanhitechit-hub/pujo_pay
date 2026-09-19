@@ -107,6 +107,7 @@ def upload_event_cover(
     media = MediaFile(
         path=rel_path,
         event_id=event_id,
+        org_id=event.org_id,
         category=MediaCategoryEnum.event_cover,
         filename=filename,
         original_filename=original_filename or None,
@@ -152,6 +153,7 @@ def upload_event_gallery(
     media = MediaFile(
         path=rel_path,
         event_id=event_id,
+        org_id=event.org_id,
         category=MediaCategoryEnum.event_gallery,
         filename=filename,
         original_filename=original_filename or None,
@@ -202,6 +204,7 @@ def upload_committee_photo(
     media = MediaFile(
         path=rel_path,
         event_id=member.event_id,
+        org_id=member.org_id,
         category=MediaCategoryEnum.committee,
         filename=filename,
         original_filename=original_filename or None,

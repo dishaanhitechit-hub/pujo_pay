@@ -32,14 +32,14 @@ update_committee_member_schema = UpdateCommitteeMemberSchema()
 
 # ── Service ────────────────────────────────────────────────────────────────
 
-def list_committee_members() -> list[dict]:
-    members = CommitteeMember.query.order_by(
+def list_committee_members(org_id: int | None = None) -> list[dict]:
+    members = CommitteeMember.query.filter_by(org_id=org_id).order_by(
         CommitteeMember.sort_order, CommitteeMember.name
     ).all()
     return [m.to_dict() for m in members]
 
 
-def create_committee_member(data: dict) -> tuple[dict | None, str | None]:
+def create_committee_member(data: dict, org_id: int | None = None) -> tuple[dict | None, str | None]:
     event_id = data.get("event_id")
     if event_id is not None:
         if not Event.query.get(event_id):
@@ -57,6 +57,7 @@ def create_committee_member(data: dict) -> tuple[dict | None, str | None]:
         phone=data.get("phone"),
         sort_order=sort_order,
         is_active=data.get("is_active", True),
+        org_id=org_id,
     )
     db.session.add(member)
     db.session.commit()
@@ -108,8 +109,8 @@ def delete_committee_member(member_id: int) -> str | None:
     return None
 
 
-def list_active_committee_members(event_id: int | None = None) -> list[dict]:
-    query = CommitteeMember.query.filter_by(is_active=True)
+def list_active_committee_members(org_id: int | None = None, event_id: int | None = None) -> list[dict]:
+    query = CommitteeMember.query.filter_by(is_active=True, org_id=org_id)
     if event_id:
         query = query.filter_by(event_id=event_id)
     members = query.order_by(CommitteeMember.sort_order, CommitteeMember.name).all()

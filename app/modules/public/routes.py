@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 
 from ...utils.helpers import res
 from ...models.app_config import AppConfig
+from ...models.organisation import Organisation
 from .service import (
     list_public_events,
     get_public_event_by_slug,
@@ -13,6 +14,14 @@ from .service import (
 )
 
 bp = Blueprint("public", __name__)
+
+
+def _resolve_org_id() -> int | None:
+    slug = request.args.get("orgSlug", "").strip()
+    if not slug:
+        return None
+    org = Organisation.query.filter_by(slug=slug, is_active=True).first()
+    return org.id if org else None
 
 
 @bp.route("/site-config", methods=["GET"])
@@ -43,13 +52,13 @@ def site_config():
 @bp.route("/announcements", methods=["GET"])
 def announcements():
     event_id = request.args.get("eventId", type=int)
-    return res(data=list_public_announcements(event_id=event_id))
+    return res(data=list_public_announcements(org_id=_resolve_org_id(), event_id=event_id))
 
 
 @bp.route("/committee", methods=["GET"])
 def committee():
     event_id = request.args.get("eventId", type=int)
-    return res(data=list_public_committee(event_id=event_id))
+    return res(data=list_public_committee(org_id=_resolve_org_id(), event_id=event_id))
 
 
 @bp.route("/events", methods=["GET"])
@@ -57,12 +66,12 @@ def events():
     page = request.args.get("page", default=1, type=int)
     per_page = request.args.get("perPage", default=12, type=int)
     include_days = request.args.get("includeDays", default="false").lower() == "true"
-    return res(data=list_public_events(page=page, per_page=per_page, include_days=include_days))
+    return res(data=list_public_events(org_id=_resolve_org_id(), page=page, per_page=per_page, include_days=include_days))
 
 
 @bp.route("/events/<slug>", methods=["GET"])
 def event_detail(slug: str):
-    result = get_public_event_by_slug(slug)
+    result = get_public_event_by_slug(slug, org_id=_resolve_org_id())
     if not result:
         return res("event not found", code=404)
     return res(data=result)
@@ -70,14 +79,14 @@ def event_detail(slug: str):
 
 @bp.route("/featured-event", methods=["GET"])
 def featured_event():
-    result = get_featured_event()
+    result = get_featured_event(org_id=_resolve_org_id())
     # Return JSON null (not []) when no featured event is set.
     return jsonify({"message": "", "data": result}), 200
 
 
 @bp.route("/gallery", methods=["GET"])
 def gallery():
-    return res(data=list_all_gallery_images())
+    return res(data=list_all_gallery_images(org_id=_resolve_org_id()))
 
 
 @bp.route("/stats", methods=["GET"])

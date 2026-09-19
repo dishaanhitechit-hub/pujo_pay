@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, request
 
 from ...middleware.permissions import require_permission
+from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from .service import get_donor_list, get_donor_detail
 
@@ -42,6 +43,7 @@ def list_donors():
     max_amount = _parse_decimal(request.args.get("maxAmount"))
 
     return res(data=get_donor_list(
+        org_id=get_current_org_id(),
         page=page,
         per_page=per_page,
         search=search,

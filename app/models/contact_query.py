@@ -13,6 +13,7 @@ class ContactQuery(db.Model):
     __tablename__ = "contact_queries"
 
     id       = db.Column(db.Integer, primary_key=True)
+    org_id   = db.Column(db.Integer, db.ForeignKey("organisations.id"), nullable=True)
     name     = db.Column(db.String(150), nullable=False)
     phone    = db.Column(db.String(20), nullable=False)
     location = db.Column(db.String(200), nullable=True)

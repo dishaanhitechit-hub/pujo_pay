@@ -56,6 +56,7 @@ class User(db.Model):
         default=RoleEnum.collector,
     )
     is_active     = db.Column(db.Boolean, default=True, nullable=False)
+    org_id        = db.Column(db.Integer, db.ForeignKey("organisations.id"), nullable=True)
     # Collection capability: False for admin (always), True for collector role (always),
     # and explicitly set for other roles. NULL treated as False for old records.
     can_collect   = db.Column(db.Boolean, default=False, nullable=True)
@@ -87,6 +88,7 @@ class User(db.Model):
             "address":     self.address,
             "role":        self.role.value if isinstance(self.role, RoleEnum) else self.role,
             "isActive":    self.is_active,
+            "orgId":       self.org_id,
             "canCollect":  self._effective_can_collect(),
             "createdAt":   self.created_at.isoformat() if self.created_at else None,
         }

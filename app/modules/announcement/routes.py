@@ -3,6 +3,7 @@ from flask_jwt_extended import get_jwt_identity
 from marshmallow import ValidationError
 
 from ...middleware.permissions import require_permission
+from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from .service import (
     create_announcement_schema, update_announcement_schema,
@@ -16,7 +17,7 @@ bp = Blueprint("announcement", __name__)
 @bp.route("/", methods=["GET"])
 @require_permission("content.manage")
 def index():
-    return res(data=list_announcements())
+    return res(data=list_announcements(org_id=get_current_org_id()))
 
 
 @bp.route("/", methods=["POST"])
@@ -29,7 +30,7 @@ def create():
         return res("validation failed", data=e.messages, code=422)
 
     created_by = int(get_jwt_identity())
-    result, err = create_announcement(data, created_by)
+    result, err = create_announcement(data, created_by, org_id=get_current_org_id())
     if err:
         return res(err, code=400)
     return res("announcement created", data=result, code=201)

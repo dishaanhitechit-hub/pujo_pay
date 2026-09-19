@@ -1,7 +1,10 @@
 from flask import Blueprint, request
 from marshmallow import ValidationError
 
+from flask_jwt_extended import get_jwt, jwt_required
+
 from ...middleware.permissions import require_permission
+from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from .service import (
     submit_query_schema,
@@ -24,7 +27,16 @@ def submit():
         data = submit_query_schema.load(body)
     except ValidationError as e:
         return res("validation failed", data=e.messages, code=422)
-    result = submit_contact_query(data)
+
+    org_id = None
+    org_slug = (body.get("orgSlug") or "").strip()
+    if org_slug:
+        from ...models.organisation import Organisation
+        org = Organisation.query.filter_by(slug=org_slug, is_active=True).first()
+        if org:
+            org_id = org.id
+
+    result = submit_contact_query(data, org_id=org_id)
     return res("query submitted", data=result, code=201)
 
 
@@ -38,6 +50,7 @@ def list_queries():
     status   = request.args.get("status", "").strip() or None
     search   = request.args.get("search", "").strip() or None
     return res(data=list_contact_queries(
+        org_id=get_current_org_id(),
         page=page, per_page=per_page, status=status, search=search,
     ))
 

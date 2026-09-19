@@ -4,8 +4,11 @@ from flask import Blueprint, request, send_file
 from flask_jwt_extended import get_jwt_identity
 from marshmallow import ValidationError
 
+from flask_jwt_extended import get_jwt
+
 from ...models.user import User
 from ...middleware.permissions import require_permission
+from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from .service import create_schema, update_schema, create_user, update_user
 
@@ -15,7 +18,8 @@ bp = Blueprint("users", __name__)
 @bp.route("/", methods=["GET"])
 @require_permission("users.manage")
 def list_users():
-    users = User.query.order_by(User.created_at.desc()).all()
+    org_id = get_current_org_id()
+    users = User.query.filter_by(org_id=org_id).order_by(User.created_at.desc()).all()
     return res(data=[u.to_dict() for u in users])
 
 
@@ -31,14 +35,15 @@ def create_user_route():
     if User.query.filter_by(email=data["email"].strip().lower()).first():
         return res("email already registered", code=409)
 
-    user = create_user(data, created_by=int(get_jwt_identity()))
+    user = create_user(data, created_by=int(get_jwt_identity()), org_id=get_current_org_id())
     return res("user created", data=user.to_dict(), code=201)
 
 
 @bp.route("/<int:user_id>", methods=["GET"])
 @require_permission("users.manage")
 def get_user(user_id):
-    user = User.query.get(user_id)
+    org_id = get_current_org_id()
+    user = User.query.filter_by(id=user_id, org_id=org_id).first()
     if not user:
         return res("user not found", code=404)
     return res(data=user.to_dict())
@@ -47,7 +52,8 @@ def get_user(user_id):
 @bp.route("/<int:user_id>", methods=["PATCH"])
 @require_permission("users.manage")
 def update_user_route(user_id):
-    user = User.query.get(user_id)
+    org_id = get_current_org_id()
+    user = User.query.filter_by(id=user_id, org_id=org_id).first()
     if not user:
         return res("user not found", code=404)
 
@@ -67,7 +73,8 @@ def deactivate_user(user_id):
     if int(get_jwt_identity()) == user_id:
         return res("cannot deactivate your own account", code=400)
 
-    user = User.query.get(user_id)
+    org_id = get_current_org_id()
+    user = User.query.filter_by(id=user_id, org_id=org_id).first()
     if not user:
         return res("user not found", code=404)
 

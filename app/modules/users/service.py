@@ -69,7 +69,7 @@ create_schema = CreateUserSchema()
 update_schema = UpdateUserSchema()
 
 
-def create_user(data: dict, created_by: int) -> User:
+def create_user(data: dict, created_by: int, org_id: int | None = None) -> User:
     email = data.get("email")
     role = RoleEnum(data["role"])
     # Compute effective can_collect: collector always True, admin always False, others from input
@@ -90,6 +90,7 @@ def create_user(data: dict, created_by: int) -> User:
         is_active=True,
         can_collect=can_collect,
         created_by=created_by,
+        org_id=org_id,
     )
     user.set_password(data["password"])
     db.session.add(user)

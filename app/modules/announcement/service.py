@@ -28,12 +28,12 @@ update_announcement_schema = UpdateAnnouncementSchema()
 
 # ── Service ────────────────────────────────────────────────────────────────
 
-def list_announcements() -> list[dict]:
-    announcements = Announcement.query.order_by(Announcement.created_at.desc()).all()
+def list_announcements(org_id: int | None = None) -> list[dict]:
+    announcements = Announcement.query.filter_by(org_id=org_id).order_by(Announcement.created_at.desc()).all()
     return [a.to_dict() for a in announcements]
 
 
-def create_announcement(data: dict, created_by: int) -> tuple[dict | None, str | None]:
+def create_announcement(data: dict, created_by: int, org_id: int | None = None) -> tuple[dict | None, str | None]:
     event_id = data.get("event_id")
     if event_id is not None:
         event = Event.query.get(event_id)
@@ -45,6 +45,7 @@ def create_announcement(data: dict, created_by: int) -> tuple[dict | None, str |
         body=data["body"].strip(),
         event_id=event_id,
         created_by=created_by,
+        org_id=org_id,
     )
     db.session.add(ann)
     db.session.commit()
@@ -94,8 +95,8 @@ def delete_announcement(announcement_id: int) -> str | None:
     return None
 
 
-def list_public_announcements(event_id: int | None = None) -> list[dict]:
-    query = Announcement.query.filter_by(is_published=True)
+def list_public_announcements(org_id: int | None = None, event_id: int | None = None) -> list[dict]:
+    query = Announcement.query.filter_by(is_published=True, org_id=org_id)
     if event_id:
         query = query.filter_by(event_id=event_id)
     announcements = query.order_by(Announcement.published_at.desc()).all()

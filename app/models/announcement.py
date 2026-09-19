@@ -6,8 +6,9 @@ from ..extensions import db
 class Announcement(db.Model):
     __tablename__ = "announcements"
 
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200), nullable=False)
+    id     = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, db.ForeignKey("organisations.id"), nullable=True)
+    title  = db.Column(db.String(200), nullable=False)
     body = db.Column(db.Text, nullable=False)
     event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=True)
     is_published = db.Column(db.Boolean, nullable=False, default=False)
