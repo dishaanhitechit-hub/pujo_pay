@@ -1,4 +1,5 @@
-from flask import Blueprint, request, jsonify
+import io
+from flask import Blueprint, request, jsonify, send_file
 
 from ...utils.helpers import res
 from ...models.app_config import AppConfig
@@ -92,3 +93,40 @@ def gallery():
 @bp.route("/stats", methods=["GET"])
 def stats():
     return res(data=get_public_stats())
+
+
+@bp.route("/platform-upi", methods=["GET"])
+def platform_upi():
+    upi_id = AppConfig.get("platform.registration_upi_id")
+    return res(data={"upiId": upi_id})
+
+
+@bp.route("/platform-upi-qr", methods=["GET"])
+def platform_upi_qr():
+    upi_id = AppConfig.get("platform.registration_upi_id")
+    if not upi_id:
+        return res("payment UPI not configured", code=404)
+    import qrcode
+    upi_url = f"upi://pay?pa={upi_id}&pn=PujoPay+Platform&tn=Organisation+Registration"
+    img = qrcode.make(upi_url)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return send_file(buf, mimetype="image/png")
+
+
+@bp.route("/org-request", methods=["POST"])
+def org_request():
+    from marshmallow import ValidationError
+    from ...modules.super_admin.service import create_provision_schema, create_provision
+    body = request.get_json(silent=True) or {}
+    try:
+        data = create_provision_schema.load(body)
+    except ValidationError as e:
+        return res("validation failed", data=e.messages, code=422)
+    prov = create_provision(data, created_by=None)
+    return res(
+        "request submitted — we will send your credentials once payment is confirmed",
+        data=prov.to_dict(),
+        code=201,
+    )

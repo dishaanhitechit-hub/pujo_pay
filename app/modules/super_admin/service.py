@@ -48,7 +48,7 @@ def _unique_org_slug(base: str) -> str:
 
 # ── Service functions ─────────────────────────────────────────────────────────
 
-def create_provision(data: dict, created_by: int) -> OrgProvision:
+def create_provision(data: dict, created_by: int | None) -> OrgProvision:
     prov = OrgProvision(
         org_name=data["org_name"].strip(),
         contact_name=data["contact_name"].strip(),
