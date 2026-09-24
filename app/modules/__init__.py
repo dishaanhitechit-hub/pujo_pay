@@ -74,5 +74,8 @@ def register_all(app: Flask) -> None:
     from .circulars.routes import bp as circulars_bp
     app.register_blueprint(circulars_bp, url_prefix="/api/circulars")
 
+    from .super_admin.routes import bp as super_admin_bp
+    app.register_blueprint(super_admin_bp, url_prefix="/api/super-admin")
+
     from ..test_feature.routes import bp as test_bp
     app.register_blueprint(test_bp, url_prefix="/test")

@@ -46,6 +46,21 @@ def require_collect_capable():
     return decorator
 
 
+def require_super_admin():
+    """Allow only the platform super_admin role."""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            verify_jwt_in_request()
+            claims = get_jwt()
+            role = claims.get("role")
+            if role != "super_admin":
+                return res("access denied: super admin only", code=403)
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
 def require_permission(permission_key: str):
     def decorator(fn):
         @wraps(fn)

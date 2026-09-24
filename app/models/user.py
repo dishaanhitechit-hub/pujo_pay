@@ -2,8 +2,15 @@ import enum
 from werkzeug.security import generate_password_hash, check_password_hash
 from ..extensions import db
 
+# ── DB migration note ──────────────────────────────────────────────────────
+# Add first-setup OTP columns:
+#   ALTER TABLE users ADD COLUMN IF NOT EXISTS setup_otp_hash  VARCHAR(256);
+#   ALTER TABLE users ADD COLUMN IF NOT EXISTS setup_otp_used  BOOLEAN DEFAULT FALSE;
+# ──────────────────────────────────────────────────────────────────────────
+
 
 class RoleEnum(str, enum.Enum):
+    super_admin         = "super_admin"   # platform owner — manages all orgs
     admin               = "admin"
     managing_committee  = "managing_committee"
     core_committee      = "core_committee"
@@ -63,11 +70,28 @@ class User(db.Model):
     created_at    = db.Column(db.DateTime, server_default=db.func.now())
     created_by    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
+    # First-setup OTP — set when user is provisioned; cleared after first login
+    setup_otp_hash = db.Column(db.String(256), nullable=True)
+    setup_otp_used  = db.Column(db.Boolean, default=False, nullable=True)
+
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
+
+    def set_setup_otp(self, otp: str) -> None:
+        self.setup_otp_hash = generate_password_hash(otp)
+        self.setup_otp_used = False
+
+    def check_setup_otp(self, otp: str) -> bool:
+        if not self.setup_otp_hash or self.setup_otp_used:
+            return False
+        return check_password_hash(self.setup_otp_hash, otp)
+
+    @property
+    def needs_first_setup(self) -> bool:
+        return bool(self.setup_otp_hash and not self.setup_otp_used)
 
     def _effective_can_collect(self) -> bool:
         """Computed collection capability — not stored directly for admin/collector roles."""

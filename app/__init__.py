@@ -56,6 +56,7 @@ def create_app():
     from .models.meeting_attendance import MeetingAttendance, MeetingAttendanceDevice  # noqa: F401
     from .models.action_plan import ActionPlan, ActionPlanAssignee  # noqa: F401
     from .models.circular import Circular  # noqa: F401
+    from .models.org_provision import OrgProvision  # noqa: F401
 
     # ── DB seed (first-run admin + default permissions) ─────
     # Skipped silently if tables don't exist yet (before first migration)
@@ -70,24 +71,24 @@ def create_app():
 
 
 def _seed_admin():
-    """Create the default org and admin user on first run if none exists."""
+    """Create the platform super-admin on first run if none exists."""
     import os
     from .models.user import User, RoleEnum
     from .models.organisation import Organisation
 
-    if User.query.filter_by(role=RoleEnum.admin).first():
+    if User.query.filter_by(role=RoleEnum.super_admin).first():
         return
 
-    org = Organisation.query.filter_by(slug="default").first()
+    org = Organisation.query.filter_by(slug="platform").first()
     if not org:
-        org = Organisation(name=os.getenv("ADMIN_ORG_NAME", "Default Organisation"), slug="default")
+        org = Organisation(name=os.getenv("ADMIN_ORG_NAME", "Platform Admin"), slug="platform")
         db.session.add(org)
         db.session.flush()
 
     admin = User(
-        name=os.getenv("ADMIN_NAME", "Admin"),
+        name=os.getenv("ADMIN_NAME", "Super Admin"),
         email=os.environ["ADMIN_EMAIL"],
-        role=RoleEnum.admin,
+        role=RoleEnum.super_admin,
         is_active=True,
         org_id=org.id,
     )
