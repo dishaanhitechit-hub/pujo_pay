@@ -77,5 +77,8 @@ def register_all(app: Flask) -> None:
     from .super_admin.routes import bp as super_admin_bp
     app.register_blueprint(super_admin_bp, url_prefix="/api/super-admin")
 
+    from .super_admin.ui_routes import ui_bp as super_admin_ui_bp
+    app.register_blueprint(super_admin_ui_bp)
+
     from ..test_feature.routes import bp as test_bp
     app.register_blueprint(test_bp, url_prefix="/test")

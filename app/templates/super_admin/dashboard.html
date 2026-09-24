@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PujoPay Super Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surface: #161b27; --surface-2: #1e2535; --surface-3: #252d40;
+      --border: #2a3347; --accent: #6366f1; --success: #22c55e; --warning: #f59e0b;
+      --danger: #ef4444; --info: #38bdf8;
+      --text: #e2e8f0; --text-2: #94a3b8; --text-3: #5a6780;
+    }
+    html, body { height: 100%; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+
+    /* ── Login screen ── */
+    #login-screen {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .login-box {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 36px 32px; width: 100%; max-width: 380px;
+    }
+    .login-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+    .logo-mark { width: 36px; height: 36px; background: var(--accent); border-radius: 9px; display: grid; place-items: center; font-weight: 700; font-size: 16px; color: #fff; }
+    .logo-name { font-weight: 700; font-size: 17px; }
+    .login-badge { font-size: 10px; font-weight: 600; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: 4px; padding: 2px 7px; letter-spacing: .4px; text-transform: uppercase; }
+    .login-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .login-sub { color: var(--text-2); font-size: 13px; margin-bottom: 24px; }
+    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+    .field label { font-size: 12px; font-weight: 600; color: var(--text-2); }
+    .field input {
+      padding: 9px 12px; background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 7px; color: var(--text); font-size: 13px; font-family: inherit; outline: none;
+      transition: border-color .15s;
+    }
+    .field input:focus { border-color: var(--accent); }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 9px 16px; border-radius: 7px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: none; font-family: inherit; transition: opacity .12s; white-space: nowrap;
+    }
+    .btn:hover { opacity: .88; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+    .btn-success { background: color-mix(in srgb,var(--success) 15%,transparent); color: var(--success); border: 1px solid color-mix(in srgb,var(--success) 25%,transparent); }
+    .btn-warning { background: color-mix(in srgb,var(--warning) 18%,transparent); color: var(--warning); border: 1px solid color-mix(in srgb,var(--warning) 28%,transparent); }
+    .btn-sm { padding: 5px 11px; font-size: 12px; }
+    .btn-full { width: 100%; }
+    .login-err { color: var(--danger); font-size: 12px; margin-top: 8px; min-height: 18px; }
+
+    /* ── App shell ── */
+    #app-screen { display: none; flex-direction: column; min-height: 100vh; }
+    .topbar {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 20px; gap: 12px; height: 54px;
+      position: sticky; top: 0; z-index: 50;
+    }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+    .user-name { font-size: 13px; font-weight: 500; color: var(--text-2); }
+    .btn-logout { background: none; border: none; color: var(--text-3); font-size: 12px; cursor: pointer; font-family: inherit; padding: 4px 8px; border-radius: 5px; transition: color .12s; }
+    .btn-logout:hover { color: var(--danger); }
+
+    .main { padding: 24px; display: flex; flex-direction: column; gap: 20px; max-width: 1100px; margin: 0 auto; width: 100%; }
+    @media (max-width: 600px) { .main { padding: 14px; } }
+
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .page-title { font-size: 20px; font-weight: 700; letter-spacing: -.4px; }
+    .page-sub { color: var(--text-2); font-size: 13px; margin-top: 2px; }
+
+    /* stats */
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 12px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .stat-label { font-size: 10px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--text-3); margin-bottom: 6px; }
+    .stat-value { font-size: 28px; font-weight: 700; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+    .stat-sub { font-size: 11px; color: var(--text-2); margin-top: 3px; }
+    .c-accent { color: var(--accent); } .c-warning { color: var(--warning); } .c-success { color: var(--success); }
+
+    /* toolbar */
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .search-wrap { position: relative; flex: 1; min-width: 180px; }
+    .search-wrap input { width: 100%; padding: 8px 12px 8px 34px; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-size: 13px; font-family: inherit; outline: none; transition: border-color .15s; }
+    .search-wrap input:focus { border-color: var(--accent); }
+    .search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-3); font-size: 14px; pointer-events: none; }
+    .filter-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+    .fbtn { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); font-family: inherit; transition: .12s; }
+    .fbtn:hover { background: var(--surface-2); color: var(--text); }
+    .fbtn.active { background: color-mix(in srgb,var(--accent) 15%,transparent); color: var(--accent); border-color: color-mix(in srgb,var(--accent) 35%,transparent); }
+
+    /* table */
+    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .overflow-x { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--text-3); background: var(--surface-2); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; cursor: pointer; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface-2); }
+    tbody td { padding: 12px 14px; vertical-align: middle; }
+
+    .org-cell { display: flex; align-items: center; gap: 10px; }
+    .org-av { width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center; font-size: 13px; font-weight: 700; background: color-mix(in srgb,var(--accent) 20%,transparent); color: var(--accent); }
+    .org-name { font-weight: 600; font-size: 13px; }
+    .org-id { font-size: 11px; color: var(--text-2); font-family: 'JetBrains Mono', monospace; }
+    .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    .actions-cell { display: flex; gap: 5px; flex-wrap: wrap; }
+
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .badge-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .badge-pending { background: color-mix(in srgb,var(--warning) 15%,transparent); color: var(--warning); }
+    .badge-pending .badge-dot { background: var(--warning); }
+    .badge-active { background: color-mix(in srgb,var(--success) 15%,transparent); color: var(--success); }
+    .badge-active .badge-dot { background: var(--success); }
+
+    .empty-state { padding: 48px 24px; text-align: center; }
+    .empty-icon { font-size: 36px; opacity: .4; margin-bottom: 10px; }
+    .empty-text { font-size: 15px; font-weight: 600; }
+    .empty-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
+
+    /* modal */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; opacity: 0; transition: opacity .18s; pointer-events: none; }
+    .modal-backdrop.open { opacity: 1; pointer-events: auto; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; transform: translateY(16px); transition: transform .18s; }
+    .modal-backdrop.open .modal { transform: translateY(0); }
+    .modal-head { padding: 20px 20px 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .modal-title { font-size: 17px; font-weight: 700; }
+    .modal-close { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); border-radius: 7px; width: 28px; height: 28px; display: grid; place-items: center; cursor: pointer; font-size: 14px; font-family: inherit; flex-shrink: 0; }
+    .modal-close:hover { background: var(--surface-3); }
+    .modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 13px; }
+    .modal-foot { padding: 0 20px 20px; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
+    .divider { border: none; border-top: 1px solid var(--border); }
+    .confirm-box { background: var(--surface-3); border-radius: 8px; padding: 14px; border: 1px solid var(--border); }
+    .confirm-title { font-weight: 600; margin-bottom: 5px; }
+    .confirm-text { font-size: 12.5px; color: var(--text-2); line-height: 1.55; }
+
+    .detail-grid { display: grid; gap: 10px; }
+    .detail-row { display: flex; gap: 10px; align-items: flex-start; }
+    .detail-key { font-size: 11px; font-weight: 600; color: var(--text-3); min-width: 130px; padding-top: 1px; text-transform: uppercase; letter-spacing: .4px; }
+    .detail-val { font-size: 13px; color: var(--text); word-break: break-all; }
+
+    /* toast */
+    #toast-container { position: fixed; bottom: 20px; right: 18px; z-index: 200; display: flex; flex-direction: column; gap: 7px; }
+    .toast { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 10px 15px; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 20px rgba(0,0,0,.35); min-width: 200px; max-width: 300px; animation: sIn .2s ease forwards; }
+    .toast.success { border-color: color-mix(in srgb,var(--success) 35%,transparent); }
+    .toast.error { border-color: color-mix(in srgb,var(--danger) 35%,transparent); }
+    @keyframes sIn { from { opacity:0; transform:translateX(18px); } to { opacity:1; transform:none; } }
+    @keyframes sOut { to { opacity:0; transform:translateX(18px); } }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .spin { display: inline-block; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- ── Login ── -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="logo-mark">P</div>
+      <span class="logo-name">PujoPay</span>
+      <span class="login-badge">Super Admin</span>
+    </div>
+    <div class="login-title">Sign in</div>
+    <div class="login-sub">Use your super admin credentials</div>
+    <div class="field">
+      <label>Email</label>
+      <input id="l-email" type="email" placeholder="admin@pujopay.local" autocomplete="email">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input id="l-password" type="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary btn-full" id="login-btn" onclick="doLogin()">Sign in</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- ── App ── -->
+<div id="app-screen">
+  <header class="topbar">
+    <div class="logo-mark">P</div>
+    <span style="font-weight:700;font-size:15px">PujoPay</span>
+    <span class="login-badge">Super Admin</span>
+    <div class="topbar-right">
+      <span class="user-name" id="top-user"></span>
+      <div class="avatar" id="top-avatar">SA</div>
+      <button class="btn-logout" onclick="doLogout()">Sign out</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Organisation Requests</div>
+        <div class="page-sub">Manage sign-ups, confirm payments, dispatch credentials</div>
+      </div>
+      <button class="btn btn-primary" onclick="openAdd()">＋ New Request</button>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value c-accent" id="s-total">—</div><div class="stat-sub">all time</div></div>
+      <div class="stat-card"><div class="stat-label">Pending Payment</div><div class="stat-value c-warning" id="s-pending">—</div><div class="stat-sub">awaiting confirmation</div></div>
+      <div class="stat-card"><div class="stat-label">Active</div><div class="stat-value c-success" id="s-active">—</div><div class="stat-sub">live orgs</div></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="Search org, email…" oninput="renderTable()">
+      </div>
+      <div class="filter-btns">
+        <button class="fbtn active" onclick="setFilter('all',this)">All</button>
+        <button class="fbtn" onclick="setFilter('pending_payment',this)">Pending</button>
+        <button class="fbtn" onclick="setFilter('active',this)">Active</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="overflow-x">
+        <table>
+          <thead>
+            <tr>
+              <th>Organisation</th>
+              <th>Contact</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add modal ── -->
+<div class="modal-backdrop" id="add-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">New Organisation Request</div>
+      <button class="modal-close" onclick="closeModal('add-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Organisation Name *</label><input id="f-org" type="text" placeholder="e.g. Bagbazar Sarbojanin"></div>
+      <div class="form-row">
+        <div class="field"><label>Contact Name *</label><input id="f-name" type="text" placeholder="Full name"></div>
+        <div class="field"><label>Contact Phone</label><input id="f-phone" type="text" placeholder="+91 98xxx xxxxx"></div>
+      </div>
+      <div class="field">
+        <label>Contact Email * <span style="color:var(--text-3);font-weight:400">(will be the admin login)</span></label>
+        <input id="f-email" type="email" placeholder="admin@clubname.com">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('add-modal')">Cancel</button>
+      <button class="btn btn-primary" id="add-submit-btn" onclick="submitAdd()">Create Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Detail modal ── -->
+<div class="modal-backdrop" id="detail-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="detail-title">—</div>
+      <button class="modal-close" onclick="closeModal('detail-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="detail-body"></div>
+    <div class="modal-foot" id="detail-foot"></div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────
+  let token = localStorage.getItem('sa_token') || ''
+  let provisions = []
+  let activeFilter = 'all'
+
+  // ── Boot ───────────────────────────────────────────────────────────────
+  if (token) showApp()
+
+  // ── API helpers ────────────────────────────────────────────────────────
+  async function api(method, path, body) {
+    const opts = {
+      method,
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+    }
+    if (body) opts.body = JSON.stringify(body)
+    const r = await fetch(path, opts)
+    const json = await r.json().catch(() => ({}))
+    if (!r.ok) throw { status: r.status, message: json.message || 'Request failed' }
+    return json.data
+  }
+
+  // ── Login ──────────────────────────────────────────────────────────────
+  document.getElementById('l-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin() })
+  document.getElementById('l-email').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin() })
+
+  async function doLogin() {
+    const email = document.getElementById('l-email').value.trim()
+    const password = document.getElementById('l-password').value
+    const errEl = document.getElementById('login-err')
+    const btn = document.getElementById('login-btn')
+    errEl.textContent = ''
+    if (!email || !password) { errEl.textContent = 'Email and password are required.'; return }
+    btn.disabled = true; btn.innerHTML = '<span class="spin">⟳</span> Signing in…'
+    try {
+      const data = await api('POST', '/api/auth/login', { email, password })
+      if (data.user?.role !== 'super_admin') {
+        errEl.textContent = 'Access denied — super admin only.'
+        btn.disabled = false; btn.textContent = 'Sign in'
+        return
+      }
+      token = data.accessToken
+      localStorage.setItem('sa_token', token)
+      showApp(data.user)
+    } catch (e) {
+      errEl.textContent = e.message || 'Login failed.'
+      btn.disabled = false; btn.textContent = 'Sign in'
+    }
+  }
+
+  async function showApp(user) {
+    document.getElementById('login-screen').style.display = 'none'
+    document.getElementById('app-screen').style.display = 'flex'
+    document.getElementById('app-screen').style.flexDirection = 'column'
+    if (user) {
+      document.getElementById('top-user').textContent = user.name || ''
+      document.getElementById('top-avatar').textContent = (user.name || 'SA').charAt(0).toUpperCase()
+    }
+    await loadProvisions()
+  }
+
+  function doLogout() {
+    token = ''; localStorage.removeItem('sa_token')
+    document.getElementById('login-screen').style.display = 'flex'
+    document.getElementById('app-screen').style.display = 'none'
+    document.getElementById('l-password').value = ''
+    document.getElementById('login-err').textContent = ''
+  }
+
+  // ── Load data ──────────────────────────────────────────────────────────
+  async function loadProvisions() {
+    try {
+      provisions = await api('GET', '/api/super-admin/orgs') || []
+      if (!Array.isArray(provisions)) provisions = []
+    } catch (e) {
+      if (e.status === 401 || e.status === 403) { doLogout(); return }
+      toast('Failed to load data: ' + e.message, 'error')
+      provisions = []
+    }
+    renderTable()
+  }
+
+  // ── Filter / Render ────────────────────────────────────────────────────
+  function setFilter(f, el) {
+    activeFilter = f
+    document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'))
+    el.classList.add('active')
+    renderTable()
+  }
+
+  function renderTable() {
+    const q = (document.getElementById('search-input').value || '').toLowerCase()
+    const filtered = provisions.filter(p => {
+      if (activeFilter !== 'all' && p.status !== activeFilter) return false
+      if (q) return (p.orgName + p.contactEmail + p.contactName).toLowerCase().includes(q)
+      return true
+    }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
+    const tbody = document.getElementById('tbody')
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <div class="empty-text">No requests found</div>
+        <div class="empty-sub">Try a different filter or search</div>
+      </div></td></tr>`
+    } else {
+      tbody.innerHTML = filtered.map(p => {
+        const bc = p.status === 'active' ? 'badge-active' : 'badge-pending'
+        const bl = p.status === 'active' ? 'Active' : 'Pending Payment'
+        const dt = p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'2-digit' }) : '—'
+        const actions = p.status === 'pending_payment'
+          ? `<button class="btn btn-sm btn-warning" onclick="event.stopPropagation();openConfirm(${p.id})">✓ Confirm Payment</button>
+             <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDetail(${p.id})">View</button>`
+          : `<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDetail(${p.id})">View</button>
+             <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();doResend(${p.id})">↺ Resend</button>`
+        return `<tr onclick="openDetail(${p.id})">
+          <td><div class="org-cell"><div class="org-av">${esc(p.orgName).charAt(0)}</div>
+            <div><div class="org-name">${esc(p.orgName)}</div>
+            <div class="org-id">${p.orgId ? '#' + p.orgId : '—'}</div></div></div></td>
+          <td>${esc(p.contactName)}</td>
+          <td><span class="mono">${esc(p.contactEmail)}</span></td>
+          <td><span class="badge ${bc}"><span class="badge-dot"></span>${bl}</span></td>
+          <td>${dt}</td>
+          <td><div class="actions-cell" onclick="event.stopPropagation()">${actions}</div></td>
+        </tr>`
+      }).join('')
+    }
+
+    const total = provisions.length
+    const pend = provisions.filter(p => p.status === 'pending_payment').length
+    const active = provisions.filter(p => p.status === 'active').length
+    document.getElementById('s-total').textContent = total
+    document.getElementById('s-pending').textContent = pend
+    document.getElementById('s-active').textContent = active
+  }
+
+  // ── Add ────────────────────────────────────────────────────────────────
+  function openAdd() {
+    document.getElementById('f-org').value = ''
+    document.getElementById('f-name').value = ''
+    document.getElementById('f-phone').value = ''
+    document.getElementById('f-email').value = ''
+    openModal('add-modal')
+  }
+
+  async function submitAdd() {
+    const orgName = document.getElementById('f-org').value.trim()
+    const contactName = document.getElementById('f-name').value.trim()
+    const contactEmail = document.getElementById('f-email').value.trim()
+    const contactPhone = document.getElementById('f-phone').value.trim()
+    if (!orgName || !contactName || !contactEmail) { toast('Fill in all required fields', 'error'); return }
+    const btn = document.getElementById('add-submit-btn')
+    btn.disabled = true; btn.innerHTML = '<span class="spin">⟳</span> Creating…'
+    try {
+      await api('POST', '/api/super-admin/orgs', { orgName, contactName, contactEmail, contactPhone: contactPhone || null })
+      closeModal('add-modal')
+      toast('Request created ✓', 'success')
+      await loadProvisions()
+    } catch (e) {
+      toast(e.message, 'error')
+    } finally {
+      btn.disabled = false; btn.textContent = 'Create Request'
+    }
+  }
+
+  // ── Detail ─────────────────────────────────────────────────────────────
+  function openDetail(id) {
+    const p = provisions.find(x => x.id === id)
+    if (!p) return
+    document.getElementById('detail-title').textContent = p.orgName
+    const rows = [
+      ['Status', `<span class="badge ${p.status === 'active' ? 'badge-active' : 'badge-pending'}"><span class="badge-dot"></span>${p.status === 'active' ? 'Active' : 'Pending Payment'}</span>`],
+      ['Org Name', esc(p.orgName)],
+      ['Contact Name', esc(p.contactName)],
+      ['Contact Email', `<span class="mono">${esc(p.contactEmail)}</span>`],
+      ['Contact Phone', p.contactPhone ? esc(p.contactPhone) : '<span style="color:var(--text-3)">—</span>'],
+      ['Created', p.createdAt ? new Date(p.createdAt).toLocaleString('en-IN') : '—'],
+      ...(p.paymentConfirmedAt ? [['Payment Confirmed', new Date(p.paymentConfirmedAt).toLocaleString('en-IN')]] : []),
+      ...(p.orgId ? [['Org ID', `<span class="mono">#${p.orgId}</span>`]] : []),
+      ...(p.adminUserId ? [['Admin User ID', `<span class="mono">#${p.adminUserId}</span>`]] : []),
+    ]
+    document.getElementById('detail-body').innerHTML = `<div class="detail-grid">${rows.map(([k,v]) =>
+      `<div class="detail-row"><span class="detail-key">${k}</span><span class="detail-val">${v}</span></div>`
+    ).join('')}</div>`
+    if (p.status === 'active') {
+      document.getElementById('detail-foot').innerHTML =
+        `<button class="btn btn-ghost btn-sm" onclick="closeModal('detail-modal')">Close</button>
+         <button class="btn btn-warning btn-sm" onclick="closeModal('detail-modal');doResend(${p.id})">↺ Resend Credentials</button>`
+    } else {
+      document.getElementById('detail-foot').innerHTML =
+        `<button class="btn btn-ghost" onclick="closeModal('detail-modal')">Close</button>
+         <button class="btn btn-warning" onclick="closeModal('detail-modal');openConfirm(${p.id})">✓ Confirm Payment</button>`
+    }
+    openModal('detail-modal')
+  }
+
+  // ── Confirm payment ────────────────────────────────────────────────────
+  function openConfirm(id) {
+    const p = provisions.find(x => x.id === id)
+    if (!p) return
+    document.getElementById('detail-title').textContent = p.orgName
+    document.getElementById('detail-body').innerHTML = `
+      <div class="detail-grid">
+        <div class="detail-row"><span class="detail-key">Org</span><span class="detail-val">${esc(p.orgName)}</span></div>
+        <div class="detail-row"><span class="detail-key">Email</span><span class="detail-val mono">${esc(p.contactEmail)}</span></div>
+      </div>
+      <hr class="divider" style="margin-top:4px">
+      <div class="confirm-box">
+        <div class="confirm-title">⚡ Confirm Payment Received</div>
+        <div class="confirm-text">This will create the organisation, generate admin credentials + one-time setup code, and dispatch a welcome email to <strong>${esc(p.contactEmail)}</strong>. Cannot be undone.</div>
+      </div>`
+    document.getElementById('detail-foot').innerHTML =
+      `<button class="btn btn-ghost" onclick="closeModal('detail-modal')">Cancel</button>
+       <button class="btn btn-success" id="confirm-btn-${p.id}" onclick="doConfirm(${p.id})">✓ Confirm &amp; Send Email</button>`
+    openModal('detail-modal')
+  }
+
+  async function doConfirm(id) {
+    const btn = document.getElementById('confirm-btn-' + id)
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin">⟳</span> Processing…' }
+    try {
+      await api('POST', `/api/super-admin/orgs/${id}/confirm-payment`)
+      closeModal('detail-modal')
+      toast('Payment confirmed — credentials sent via email ✓', 'success')
+      await loadProvisions()
+    } catch (e) {
+      toast(e.message, 'error')
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Confirm & Send Email' }
+    }
+  }
+
+  async function doResend(id) {
+    try {
+      await api('POST', `/api/super-admin/orgs/${id}/resend-credentials`)
+      toast('Credentials resent ✓', 'success')
+    } catch (e) {
+      toast(e.message, 'error')
+    }
+  }
+
+  // ── Modal helpers ──────────────────────────────────────────────────────
+  function openModal(id) { document.getElementById(id).classList.add('open') }
+  function closeModal(id) { document.getElementById(id).classList.remove('open') }
+  document.querySelectorAll('.modal-backdrop').forEach(el => {
+    el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open') })
+  })
+
+  // ── Toast ──────────────────────────────────────────────────────────────
+  function toast(msg, type = 'success') {
+    const c = document.getElementById('toast-container')
+    const icons = { success: '✅', error: '❌' }
+    const el = document.createElement('div')
+    el.className = `toast ${type}`
+    el.innerHTML = `<span>${icons[type] || '💬'}</span><span>${esc(msg)}</span>`
+    c.appendChild(el)
+    setTimeout(() => { el.style.animation = 'sOut .25s ease forwards'; setTimeout(() => el.remove(), 260) }, 3200)
+  }
+
+  function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+  }
+</script>
+</body>
+</html>
