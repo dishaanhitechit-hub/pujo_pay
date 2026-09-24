@@ -79,10 +79,6 @@ def confirm_payment_and_activate(prov: OrgProvision) -> tuple[OrgProvision, str,
         return None, "already activated", ""
 
     email = prov.contact_email
-
-    if User.query.filter_by(email=email).first():
-        return None, "email already registered as a user", ""
-
     slug = _unique_org_slug(_slugify_org(prov.org_name))
 
     org = Organisation(name=prov.org_name.strip(), slug=slug)

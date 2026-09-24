@@ -45,12 +45,24 @@ class RoleEnum(str, enum.Enum):
 # address and can_collect are silently ignored on write. Existing records are never touched.
 
 
+# ── DB migration note ──────────────────────────────────────────────────────
+# To allow same email across different orgs (but not within the same org):
+#   -- drop the old global unique constraint (name may vary, check with \d users)
+#   ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
+#   -- add composite unique so (email, org_id) must be unique
+#   ALTER TABLE users ADD CONSTRAINT uq_users_email_org UNIQUE (email, org_id);
+# ──────────────────────────────────────────────────────────────────────────
+
+
 class User(db.Model):
     __tablename__ = "users"
+    __table_args__ = (
+        db.UniqueConstraint("email", "org_id", name="uq_users_email_org"),
+    )
 
     id            = db.Column(db.Integer, primary_key=True)
     name          = db.Column(db.String(120), nullable=False)
-    email         = db.Column(db.String(120), unique=True, nullable=True)
+    email         = db.Column(db.String(120), nullable=True)
     password_hash = db.Column(db.String(256), nullable=False)
     phone         = db.Column(db.String(30), nullable=True)
     # upi_id: legacy column — intentionally unused in application logic; do not remove from DB
