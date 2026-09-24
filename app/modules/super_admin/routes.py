@@ -77,3 +77,24 @@ def resend_org_credentials(provision_id: int):
     if not ok:
         return res(msg, code=409)
     return res(msg)
+
+
+@bp.route("/platform-config", methods=["GET"])
+@require_super_admin()
+def get_platform_config():
+    from ...models.app_config import AppConfig
+    return res(data={
+        "platformRegistrationUpiId": AppConfig.get("platform.registration_upi_id"),
+    })
+
+
+@bp.route("/platform-config", methods=["POST"])
+@require_super_admin()
+def set_platform_config():
+    from ...models.app_config import AppConfig
+    body = request.get_json(silent=True) or {}
+    upi_id = (body.get("platformRegistrationUpiId") or "").strip()
+    if not upi_id:
+        return res("platformRegistrationUpiId is required", code=422)
+    AppConfig.set("platform.registration_upi_id", upi_id)
+    return res("platform config updated", data={"platformRegistrationUpiId": upi_id})
