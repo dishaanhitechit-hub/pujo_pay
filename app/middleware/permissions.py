@@ -17,7 +17,7 @@ def require_collect_capable():
 
     - admin role     → always denied (403)
     - collector role → always allowed
-    - other roles    → allowed only if user.can_collect == True in the database
+    - other roles    → allowed only if user.can_collect = True in the database
     """
     def decorator(fn):
         @wraps(fn)
