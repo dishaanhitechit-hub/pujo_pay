@@ -150,10 +150,14 @@ def get_all_payments(
 
     if status == "completed":
         query = query.filter(Payment.status.in_(COMPLETED_STATUSES))
+    elif status == "pending":
+        query = query.filter(Payment.status == StatusEnum.pending)
     elif status == "cancelled":
         query = query.filter(Payment.status == StatusEnum.cancelled)
+    elif status == "expired":
+        query = query.filter(Payment.status == StatusEnum.expired)
     else:
-        # Default: only confirmed and cancelled — exclude initiated-but-unconfirmed pending
+        # Default (no filter): show all except raw-pending (unconfirmed initiations)
         query = query.filter(
             Payment.status.in_(list(COMPLETED_STATUSES) + [StatusEnum.cancelled])
         )
