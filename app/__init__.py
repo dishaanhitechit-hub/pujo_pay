@@ -57,6 +57,7 @@ def create_app():
     from .models.action_plan import ActionPlan, ActionPlanAssignee  # noqa: F401
     from .models.circular import Circular  # noqa: F401
     from .models.org_provision import OrgProvision  # noqa: F401
+    from .models.contact_diary import ContactDiaryEntry  # noqa: F401
 
     # ── DB seed (first-run admin + default permissions) ─────
     # Skipped silently if tables don't exist yet (before first migration)
