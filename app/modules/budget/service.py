@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from marshmallow import Schema, fields, validate
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from ...extensions import db
 from ...models.budget_category import BudgetCategory
@@ -48,7 +49,7 @@ def get_categories(
     org_id: int | None = None,
 ) -> dict:
     from ...models.event import Event
-    query = BudgetCategory.query
+    query = BudgetCategory.query.options(joinedload(BudgetCategory.creator))
     if org_id is not None:
         query = query.join(Event, BudgetCategory.event_id == Event.id).filter(Event.org_id == org_id)
 

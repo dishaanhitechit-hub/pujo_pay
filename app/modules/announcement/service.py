@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from marshmallow import Schema, fields, validate
+from sqlalchemy.orm import joinedload
 
 from ...extensions import db
 from ...models.announcement import Announcement
@@ -29,7 +30,13 @@ update_announcement_schema = UpdateAnnouncementSchema()
 # ── Service ────────────────────────────────────────────────────────────────
 
 def list_announcements(org_id: int | None = None) -> list[dict]:
-    announcements = Announcement.query.filter_by(org_id=org_id).order_by(Announcement.created_at.desc()).all()
+    announcements = (
+        Announcement.query
+        .filter_by(org_id=org_id)
+        .options(joinedload(Announcement.event), joinedload(Announcement.creator))
+        .order_by(Announcement.created_at.desc())
+        .all()
+    )
     return [a.to_dict() for a in announcements]
 
 
@@ -96,7 +103,11 @@ def delete_announcement(announcement_id: int) -> str | None:
 
 
 def list_public_announcements(org_id: int | None = None, event_id: int | None = None) -> list[dict]:
-    query = Announcement.query.filter_by(is_published=True, org_id=org_id)
+    query = (
+        Announcement.query
+        .filter_by(is_published=True, org_id=org_id)
+        .options(joinedload(Announcement.event), joinedload(Announcement.creator))
+    )
     if event_id:
         query = query.filter_by(event_id=event_id)
     announcements = query.order_by(Announcement.published_at.desc()).all()

@@ -1,4 +1,5 @@
 from marshmallow import Schema, fields, validate
+from sqlalchemy.orm import joinedload
 
 from ...extensions import db
 from ...models.committee_member import CommitteeMember
@@ -33,9 +34,13 @@ update_committee_member_schema = UpdateCommitteeMemberSchema()
 # ── Service ────────────────────────────────────────────────────────────────
 
 def list_committee_members(org_id: int | None = None) -> list[dict]:
-    members = CommitteeMember.query.filter_by(org_id=org_id).order_by(
-        CommitteeMember.sort_order, CommitteeMember.name
-    ).all()
+    members = (
+        CommitteeMember.query
+        .filter_by(org_id=org_id)
+        .options(joinedload(CommitteeMember.event))
+        .order_by(CommitteeMember.sort_order, CommitteeMember.name)
+        .all()
+    )
     return [m.to_dict() for m in members]
 
 
@@ -110,7 +115,11 @@ def delete_committee_member(member_id: int) -> str | None:
 
 
 def list_active_committee_members(org_id: int | None = None, event_id: int | None = None) -> list[dict]:
-    query = CommitteeMember.query.filter_by(is_active=True, org_id=org_id)
+    query = (
+        CommitteeMember.query
+        .filter_by(is_active=True, org_id=org_id)
+        .options(joinedload(CommitteeMember.event))
+    )
     if event_id:
         query = query.filter_by(event_id=event_id)
     members = query.order_by(CommitteeMember.sort_order, CommitteeMember.name).all()

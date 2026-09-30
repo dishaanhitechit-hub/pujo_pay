@@ -1,4 +1,5 @@
 from marshmallow import Schema, fields, validate
+from sqlalchemy.orm import joinedload
 
 from ...extensions import db
 from ...models.contact_diary import ContactDiaryEntry
@@ -35,7 +36,7 @@ def list_entries(
     search: str | None = None,
 ) -> dict:
     per_page = min(per_page, 50)
-    q = ContactDiaryEntry.query.filter_by(org_id=org_id)
+    q = ContactDiaryEntry.query.filter_by(org_id=org_id).options(joinedload(ContactDiaryEntry.creator))
     if search:
         like = f"%{search.strip()}%"
         q = q.filter(

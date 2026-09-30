@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from marshmallow import Schema, fields, validate
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from ...extensions import db
 from ...models.expense import Expense
@@ -137,7 +138,10 @@ def get_expenses(
     org_id: int | None = None,
 ) -> dict:
     from ...models.event import Event
-    query = Expense.query
+    query = Expense.query.options(
+        joinedload(Expense.budget_category),
+        joinedload(Expense.creator),
+    )
     if org_id is not None:
         query = query.join(Event, Expense.event_id == Event.id).filter(Event.org_id == org_id)
 
