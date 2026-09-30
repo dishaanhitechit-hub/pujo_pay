@@ -1,9 +1,10 @@
 import random
+import re
 import secrets
 import string
 from datetime import datetime, timezone
 
-from marshmallow import Schema, fields, validate
+from marshmallow import Schema, fields, validate, validates, ValidationError
 
 from ...extensions import db
 from ...models.org_provision import OrgProvision, ProvisionStatus
@@ -21,6 +22,15 @@ class CreateProvisionSchema(Schema):
                                data_key="contactName")
     contact_email = fields.Email(required=True, data_key="contactEmail")
     contact_phone = fields.Str(load_default=None, data_key="contactPhone")
+    org_code      = fields.Str(load_default=None, data_key="orgCode",
+                               validate=validate.Length(min=3, max=20))
+
+    @validates("org_code")
+    def validate_org_code(self, value):
+        if value is None:
+            return
+        if not re.match(r'^[A-Z0-9][A-Z0-9\-]{2,19}$', value.upper()):
+            raise ValidationError("orgCode must be 3-20 chars, uppercase letters, digits and hyphens only")
 
 
 create_provision_schema = CreateProvisionSchema()
@@ -37,6 +47,22 @@ def _gen_password(length: int = 12) -> str:
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
+def _gen_org_code(org_name: str) -> str:
+    """Auto-generate: first 4 uppercase alpha chars of org name + 4 random digits."""
+    letters = re.sub(r"[^A-Za-z]", "", org_name).upper()[:4].ljust(4, "X")
+    digits = "".join(random.choices(string.digits, k=4))
+    return letters + digits
+
+
+def _unique_org_code(candidate: str) -> str:
+    """Append random suffix until the code is unique across organisations."""
+    base = candidate[:16]  # leave room for suffix
+    code = candidate
+    while Organisation.query.filter_by(org_code=code).first():
+        code = base + "".join(random.choices(string.digits, k=2))
+    return code
+
+
 def _unique_org_slug(base: str) -> str:
     candidate = base
     suffix = 2
@@ -49,11 +75,14 @@ def _unique_org_slug(base: str) -> str:
 # ── Service functions ─────────────────────────────────────────────────────────
 
 def create_provision(data: dict, created_by: int | None) -> OrgProvision:
+    raw_code = data.get("org_code")
+    org_code = raw_code.strip().upper() if raw_code else None
     prov = OrgProvision(
         org_name=data["org_name"].strip(),
         contact_name=data["contact_name"].strip(),
         contact_email=data["contact_email"].strip().lower(),
         contact_phone=data.get("contact_phone"),
+        org_code=org_code,
         status=ProvisionStatus.PENDING_PAYMENT,
         created_by=created_by,
     )
@@ -81,7 +110,15 @@ def confirm_payment_and_activate(prov: OrgProvision) -> tuple[OrgProvision, str,
     email = prov.contact_email
     slug = _unique_org_slug(_slugify_org(prov.org_name))
 
-    org = Organisation(name=prov.org_name.strip(), slug=slug)
+    # Determine org_code: use provisioned value or auto-generate, ensure uniqueness
+    if prov.org_code:
+        if Organisation.query.filter_by(org_code=prov.org_code).first():
+            return None, f"org code '{prov.org_code}' is already taken", ""
+        org_code = prov.org_code
+    else:
+        org_code = _unique_org_code(_gen_org_code(prov.org_name))
+
+    org = Organisation(name=prov.org_name.strip(), slug=slug, org_code=org_code)
     db.session.add(org)
     db.session.flush()
 
@@ -115,6 +152,7 @@ def confirm_payment_and_activate(prov: OrgProvision) -> tuple[OrgProvision, str,
         admin_email=email,
         temp_password=temp_password,
         otp_code=otp_code,
+        org_code=org_code,
     )
 
     return prov, temp_password, otp_code
@@ -136,6 +174,8 @@ def resend_credentials(prov: OrgProvision) -> tuple[bool, str]:
     admin.set_setup_otp(otp_code)
     db.session.commit()
 
+    from ...models.organisation import Organisation as Org
+    org = Org.query.get(prov.org_id)
     send_org_credentials_email(
         to_email=prov.contact_email,
         contact_name=prov.contact_name,
@@ -143,5 +183,6 @@ def resend_credentials(prov: OrgProvision) -> tuple[bool, str]:
         admin_email=prov.contact_email,
         temp_password=temp_password,
         otp_code=otp_code,
+        org_code=org.org_code if org else None,
     )
     return True, "credentials resent"

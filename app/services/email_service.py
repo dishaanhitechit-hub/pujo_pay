@@ -55,8 +55,19 @@ def send_org_credentials_email(
     admin_email: str,
     temp_password: str,
     otp_code: str,
+    org_code: str | None = None,
 ) -> bool:
     subject = f"Welcome to PujoPay — Your {org_name} Credentials"
+
+    org_code_row = ""
+    if org_code:
+        org_code_row = f"""
+        <tr style="background:#e0f2fe;">
+          <td style="padding:8px 12px;font-weight:bold;">Organisation Code</td>
+          <td style="padding:8px 12px;font-size:18px;letter-spacing:3px;font-weight:bold;color:#0369a1;">
+            {org_code}
+          </td>
+        </tr>"""
 
     html_body = f"""
     <html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:auto;">
@@ -74,6 +85,7 @@ def send_org_credentials_email(
           <td style="padding:8px 12px;font-weight:bold;">Temporary Password</td>
           <td style="padding:8px 12px;">{temp_password}</td>
         </tr>
+        {org_code_row}
         <tr style="background:#fff3cd;">
           <td style="padding:8px 12px;font-weight:bold;">One-Time Setup Code</td>
           <td style="padding:8px 12px;font-size:22px;letter-spacing:4px;font-weight:bold;color:#d97706;">
@@ -83,11 +95,11 @@ def send_org_credentials_email(
       </table>
 
       <p style="margin-top:20px;">
-        Use the <strong>One-Time Setup Code</strong> along with your credentials on your first login
-        to activate your account and set a new password.
+        Use the <strong>Organisation Code</strong>, <strong>One-Time Setup Code</strong>, and your
+        credentials on your first login to activate your account and set a new password.
       </p>
       <p style="color:#e53e3e;font-size:13px;">
-        This code can only be used once. Please change your password immediately after first login.
+        The setup code can only be used once. The Organisation Code cannot be changed — keep it safe.
       </p>
       <hr style="margin:24px 0;border:none;border-top:1px solid #eee;">
       <p style="font-size:12px;color:#999;">
@@ -96,13 +108,15 @@ def send_org_credentials_email(
     </body></html>
     """
 
+    org_code_line = f"Organisation Code: {org_code}\n" if org_code else ""
     text_body = (
         f"Welcome to PujoPay!\n\n"
         f"Organisation: {org_name}\n"
         f"Admin Email: {admin_email}\n"
         f"Temporary Password: {temp_password}\n"
+        f"{org_code_line}"
         f"One-Time Setup Code: {otp_code}\n\n"
-        f"Use the setup code on your first login to activate your account."
+        f"Use the Organisation Code and setup code on your first login to activate your account."
     )
 
     return send_email(to_email, subject, html_body, text_body)

@@ -9,6 +9,11 @@ class ProvisionStatus:
     ACTIVE           = "active"
 
 
+# ── DB migration note ──────────────────────────────────────────────────────
+# ALTER TABLE org_provisions ADD COLUMN IF NOT EXISTS org_code VARCHAR(20);
+# ──────────────────────────────────────────────────────────────────────────
+
+
 class OrgProvision(db.Model):
     __tablename__ = "org_provisions"
 
@@ -17,6 +22,8 @@ class OrgProvision(db.Model):
     contact_name         = db.Column(db.String(120), nullable=False)
     contact_email        = db.Column(db.String(120), nullable=False)
     contact_phone        = db.Column(db.String(30), nullable=True)
+    # org_code: optionally pre-set by super admin; used at activation
+    org_code             = db.Column(db.String(20), nullable=True)
     status               = db.Column(db.String(30), default=ProvisionStatus.PENDING_PAYMENT, nullable=False)
 
     # generated on payment confirmation
@@ -46,6 +53,7 @@ class OrgProvision(db.Model):
             "contactName":         self.contact_name,
             "contactEmail":        self.contact_email,
             "contactPhone":        self.contact_phone,
+            "orgCode":             self.org_code,
             "status":              self.status,
             "otpUsed":             self.otp_used,
             "orgId":               self.org_id,

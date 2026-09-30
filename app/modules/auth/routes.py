@@ -42,20 +42,21 @@ def login():
 def first_setup_route():
     """
     One-time account activation for newly provisioned org admins.
-    Body: { email, password, otpCode, newPassword }
+    Body: { email, password, otpCode, orgCode, newPassword }
     """
     body = request.get_json(silent=True) or {}
     email        = (body.get("email") or "").strip().lower()
     password     = body.get("password") or ""
     otp_code     = (body.get("otpCode") or "").strip()
+    org_code     = (body.get("orgCode") or "").strip()
     new_password = body.get("newPassword") or ""
 
-    if not email or not password or not otp_code or not new_password:
-        return res("email, password, otpCode and newPassword are required", code=400)
+    if not email or not password or not otp_code or not org_code or not new_password:
+        return res("email, password, otpCode, orgCode and newPassword are required", code=400)
     if len(new_password) < 6:
         return res("newPassword must be at least 6 characters", code=400)
 
-    user, error = first_setup(email, password, otp_code, new_password)
+    user, error = first_setup(email, password, otp_code, new_password, org_code)
     if error:
         return res(error, code=401)
 

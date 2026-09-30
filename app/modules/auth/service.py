@@ -21,9 +21,13 @@ def get_active_user(user_id: int) -> User | None:
 
 
 def first_setup(
-    email: str, password: str, otp_code: str, new_password: str
+    email: str,
+    password: str,
+    otp_code: str,
+    new_password: str,
+    org_code: str,
 ) -> tuple[User | None, str | None]:
-    """Verify temp credentials + OTP, set new password, clear the OTP."""
+    """Verify temp credentials + OTP + org code, set new password, clear the OTP."""
     user = User.query.filter_by(email=email, is_active=True).first()
     if not user or not user.check_password(password):
         return None, "invalid credentials"
@@ -33,6 +37,14 @@ def first_setup(
         return None, "one-time code has already been used"
     if not user.check_setup_otp(otp_code):
         return None, "invalid one-time code"
+
+    # Verify org code (case-insensitive)
+    from ...models.organisation import Organisation
+    org = Organisation.query.get(user.org_id) if user.org_id else None
+    if not org or not org.org_code:
+        return None, "organisation code not configured — contact support"
+    if org.org_code.upper() != (org_code or "").strip().upper():
+        return None, "invalid organisation code"
 
     user.set_password(new_password)
     user.setup_otp_used = True
