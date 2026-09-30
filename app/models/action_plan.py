@@ -38,7 +38,7 @@ class ActionPlan(db.Model):
         default=ActionPlanStatusEnum.not_started,
     )
     notes      = db.Column(db.Text, nullable=True)
-    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
     updated_at = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())
 

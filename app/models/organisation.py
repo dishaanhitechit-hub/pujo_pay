@@ -19,6 +19,7 @@ def _slugify_org(name: str) -> str:
 # ──────────────────────────────────────────────────────────────────────────
 
 
+
 class Organisation(db.Model):
     __tablename__ = "organisations"
 

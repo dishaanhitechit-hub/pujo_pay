@@ -23,7 +23,7 @@ class Expense(db.Model):
     __tablename__ = "expenses"
 
     id                 = db.Column(db.Integer, primary_key=True)
-    event_id           = db.Column(db.Integer, db.ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
+    event_id           = db.Column(db.Integer, db.ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
     budget_category_id = db.Column(db.Integer, db.ForeignKey("budget_categories.id", ondelete="SET NULL"), nullable=True)
     purpose            = db.Column(db.String(200), nullable=False)
     mode               = db.Column(
@@ -33,7 +33,7 @@ class Expense(db.Model):
     amount       = db.Column(db.Numeric(12, 2), nullable=False)
     expense_date = db.Column(db.Date, nullable=False)
     notes        = db.Column(db.Text, nullable=True)
-    created_by   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_by   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     created_at   = db.Column(db.DateTime, server_default=db.func.now())
     updated_at   = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())
 

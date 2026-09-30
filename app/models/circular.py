@@ -10,10 +10,10 @@ class Circular(db.Model):
     title        = db.Column(db.String(200), nullable=False)
     body         = db.Column(db.Text, nullable=False)
     circular_no  = db.Column(db.String(50))          # optional reference number
-    event_id     = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=True)
+    event_id     = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=True, index=True)
     is_published = db.Column(db.Boolean, nullable=False, default=False)
     published_at = db.Column(db.DateTime)
-    created_by   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_by   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     created_at   = db.Column(db.DateTime, server_default=db.func.now())
     updated_at   = db.Column(db.DateTime, server_default=db.func.now(), onupdate=datetime.utcnow)
 

@@ -25,29 +25,30 @@ def _generate_receipt_no() -> str:
     return "RCP-" + uuid.uuid4().hex[:8].upper()
 
 
+
 class Payment(db.Model):
     __tablename__ = "payments"
 
     id = db.Column(db.Integer, primary_key=True)
-    donor_id = db.Column(db.Integer, db.ForeignKey("donors.id"), nullable=False)
-    collector_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    amount = db.Column(db.Numeric(10, 2), nullable=False)
-    method = db.Column(db.Enum(MethodEnum, native_enum=False), nullable=False)
-    utr_number = db.Column(db.String(100))
-    status = db.Column(db.Enum(StatusEnum, native_enum=False), nullable=False, default=StatusEnum.pending)
-    receipt_no = db.Column(db.String(20), unique=True)
+    donor_id     = db.Column(db.Integer, db.ForeignKey("donors.id"), nullable=False, index=True)
+    collector_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    amount       = db.Column(db.Numeric(10, 2), nullable=False)
+    method       = db.Column(db.Enum(MethodEnum, native_enum=False), nullable=False)
+    utr_number   = db.Column(db.String(100))
+    status       = db.Column(db.Enum(StatusEnum, native_enum=False), nullable=False, default=StatusEnum.pending, index=True)
+    receipt_no   = db.Column(db.String(20), unique=True)
     cheque_number = db.Column(db.String(50))
-    bank_name = db.Column(db.String(100))
-    cheque_date = db.Column(db.Date)
-    pledge_id = db.Column(db.Integer, db.ForeignKey("pledges.id"), nullable=True)
-    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=True)
+    bank_name    = db.Column(db.String(100))
+    cheque_date  = db.Column(db.Date)
+    pledge_id    = db.Column(db.Integer, db.ForeignKey("pledges.id"), nullable=True)
+    event_id     = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=True, index=True)
     whatsapp_sent = db.Column(db.Boolean, default=False, nullable=False)
     # set when the QR page is first opened; used to enforce 10-min window
     payment_page_opened_at = db.Column(db.DateTime)
     confirmed_at = db.Column(db.DateTime)
     cancelled_at = db.Column(db.DateTime)
     receipt_pdf_path = db.Column(db.String(500))
-    created_at = db.Column(db.DateTime, server_default=db.func.now())
+    created_at   = db.Column(db.DateTime, server_default=db.func.now(), index=True)
 
     donor = db.relationship("Donor", back_populates="payments")
     collector = db.relationship("User", foreign_keys=[collector_id])

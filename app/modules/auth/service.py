@@ -1,14 +1,29 @@
 from ...extensions import db
 from ...models.user import User
+from ...models.organisation import Organisation
 
 
-def get_user_by_credentials(email: str, password: str) -> tuple[User | None, str | None]:
+def _user_by_email_and_org_code(email: str, org_code: str) -> User | None:
+    """Find the unique user row scoped to the org identified by org_code — single JOIN query."""
+    return (
+        User.query
+        .join(Organisation, User.org_id == Organisation.id)
+        .filter(
+            User.email == email.strip().lower(),
+            User.is_active == True,
+            db.func.upper(Organisation.org_code) == org_code.strip().upper(),
+        )
+        .first()
+    )
+
+
+def get_user_by_credentials(email: str, password: str, org_code: str) -> tuple[User | None, str | None]:
     """
     Returns (user, None) on success.
     Returns (None, 'setup_required') if credentials are correct but first-setup OTP is pending.
-    Returns (None, 'invalid') on bad credentials.
+    Returns (None, 'invalid') on bad credentials or unknown org_code.
     """
-    user = User.query.filter_by(email=email.strip().lower(), is_active=True).first()
+    user = _user_by_email_and_org_code(email, org_code)
     if not user or not user.check_password(password):
         return None, "invalid"
     if user.needs_first_setup:
@@ -20,6 +35,29 @@ def get_active_user(user_id: int) -> User | None:
     return User.query.filter_by(id=user_id, is_active=True).first()
 
 
+def orgs_for_email(email: str) -> list[dict]:
+    """Return all orgs a given email belongs to — single JOIN query, no N+1."""
+    rows = (
+        db.session.query(User, Organisation)
+        .join(Organisation, User.org_id == Organisation.id)
+        .filter(
+            User.email == email.strip().lower(),
+            User.is_active == True,
+            Organisation.is_active == True,
+            Organisation.org_code.isnot(None),
+        )
+        .all()
+    )
+    return [
+        {
+            "orgCode": org.org_code,
+            "orgName": org.name,
+            "role":    u.role.value if hasattr(u.role, "value") else u.role,
+        }
+        for u, org in rows
+    ]
+
+
 def first_setup(
     email: str,
     password: str,
@@ -28,23 +66,16 @@ def first_setup(
     org_code: str,
 ) -> tuple[User | None, str | None]:
     """Verify temp credentials + OTP + org code, set new password, clear the OTP."""
-    user = User.query.filter_by(email=email, is_active=True).first()
+    # Scope lookup by org_code — prevents cross-org collision on same email
+    user = _user_by_email_and_org_code(email, org_code)
     if not user or not user.check_password(password):
-        return None, "invalid credentials"
+        return None, "invalid credentials or organisation code"
     if not user.setup_otp_hash:
         return None, "no setup pending for this account"
     if user.setup_otp_used:
         return None, "one-time code has already been used"
     if not user.check_setup_otp(otp_code):
         return None, "invalid one-time code"
-
-    # Verify org code (case-insensitive)
-    from ...models.organisation import Organisation
-    org = Organisation.query.get(user.org_id) if user.org_id else None
-    if not org or not org.org_code:
-        return None, "organisation code not configured — contact support"
-    if org.org_code.upper() != (org_code or "").strip().upper():
-        return None, "invalid organisation code"
 
     user.set_password(new_password)
     user.setup_otp_used = True

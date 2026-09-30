@@ -38,8 +38,8 @@ class Meeting(db.Model):
         nullable=False,
         default=MeetingStatusEnum.draft,
     )
-    event_id   = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=True)
-    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    event_id   = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=True, index=True)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
     updated_at = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())
 

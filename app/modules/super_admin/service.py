@@ -92,7 +92,13 @@ def create_provision(data: dict, created_by: int | None) -> OrgProvision:
 
 
 def list_provisions() -> list[OrgProvision]:
-    return OrgProvision.query.order_by(OrgProvision.created_at.desc()).all()
+    from sqlalchemy.orm import joinedload
+    return (
+        OrgProvision.query
+        .options(joinedload(OrgProvision.org))
+        .order_by(OrgProvision.created_at.desc())
+        .all()
+    )
 
 
 def get_provision(provision_id: int) -> OrgProvision | None:

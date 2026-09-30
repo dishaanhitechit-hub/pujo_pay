@@ -7,27 +7,41 @@ from flask_jwt_extended import (
 )
 from ...extensions import add_to_blocklist
 from ...utils.helpers import res
-from .service import get_user_by_credentials, get_active_user, first_setup
+from .service import get_user_by_credentials, get_active_user, first_setup, orgs_for_email
 
 bp = Blueprint("auth", __name__)
+
+
+@bp.route("/orgs-by-email", methods=["GET"])
+def orgs_by_email():
+    """
+    Public endpoint — returns orgs (code, name, role) for a given email.
+    Used by the login page to populate the org-code dropdown.
+    Body: ?email=...
+    """
+    email = (request.args.get("email") or "").strip().lower()
+    if not email:
+        return res("email is required", code=400)
+    return res(data=orgs_for_email(email))
 
 
 @bp.route("/login", methods=["POST"])
 def login():
     body = request.get_json(silent=True) or {}
-    email = (body.get("email") or "").strip()
+    email    = (body.get("email") or "").strip().lower()
     password = body.get("password") or ""
+    org_code = (body.get("orgCode") or "").strip()
 
-    if not email or not password:
-        return res("email and password are required", code=400)
+    if not email or not password or not org_code:
+        return res("email, password and orgCode are required", code=400)
 
-    user, reason = get_user_by_credentials(email, password)
+    user, reason = get_user_by_credentials(email, password, org_code)
     if reason == "invalid":
-        return res("invalid credentials", code=401)
+        return res("invalid credentials or organisation code", code=401)
     if reason == "setup_required":
         return res(
             "account setup required — use your one-time code to complete first login",
-            data={"code": "SETUP_REQUIRED", "email": email},
+            data={"code": "SETUP_REQUIRED", "email": email, "orgCode": org_code},
             code=403,
         )
 

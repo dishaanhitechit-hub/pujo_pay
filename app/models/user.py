@@ -54,6 +54,7 @@ class RoleEnum(str, enum.Enum):
 # ──────────────────────────────────────────────────────────────────────────
 
 
+
 class User(db.Model):
     __tablename__ = "users"
     __table_args__ = (
@@ -62,7 +63,7 @@ class User(db.Model):
 
     id            = db.Column(db.Integer, primary_key=True)
     name          = db.Column(db.String(120), nullable=False)
-    email         = db.Column(db.String(120), nullable=True)
+    email         = db.Column(db.String(120), nullable=True, index=True)
     password_hash = db.Column(db.String(256), nullable=False)
     phone         = db.Column(db.String(30), nullable=True)
     # upi_id: legacy column — intentionally unused in application logic; do not remove from DB
@@ -75,7 +76,7 @@ class User(db.Model):
         default=RoleEnum.collector,
     )
     is_active     = db.Column(db.Boolean, default=True, nullable=False)
-    org_id        = db.Column(db.Integer, db.ForeignKey("organisations.id"), nullable=True)
+    org_id        = db.Column(db.Integer, db.ForeignKey("organisations.id"), nullable=True, index=True)
     # Collection capability: False for admin (always), True for collector role (always),
     # and explicitly set for other roles. NULL treated as False for old records.
     can_collect   = db.Column(db.Boolean, default=False, nullable=True)
