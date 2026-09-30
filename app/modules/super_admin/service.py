@@ -173,7 +173,7 @@ def deactivate_org(prov: OrgProvision) -> tuple[bool, str]:
 
 
 def reactivate_org(prov: OrgProvision) -> tuple[bool, str]:
-    """Reactivate a previously deactivated Organisation."""
+    """Reactivate a deactivated Organisation and resend fresh credentials."""
     if prov.status != ProvisionStatus.ACTIVE or not prov.org_id:
         return False, "provision has not been activated"
     org = Organisation.query.get(prov.org_id)
@@ -183,7 +183,9 @@ def reactivate_org(prov: OrgProvision) -> tuple[bool, str]:
         return False, "organisation is already active"
     org.is_active = True
     db.session.commit()
-    return True, "organisation reactivated"
+    # Immediately issue fresh credentials so admin can log back in
+    resend_credentials(prov)
+    return True, "organisation reactivated and credentials sent via email"
 
 
 def resend_credentials(prov: OrgProvision) -> tuple[bool, str]:

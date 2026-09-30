@@ -689,7 +689,7 @@
       <hr class="divider" style="margin-top:4px">
       <div class="confirm-box" style="border-color:color-mix(in srgb,var(--success) 30%,transparent)">
         <div class="confirm-title" style="color:var(--success)">↑ Are you sure?</div>
-        <div class="confirm-text">This will <strong>reactivate the organisation</strong>. All users in this org will regain access immediately.</div>
+        <div class="confirm-text">This will <strong>reactivate the organisation</strong> and automatically send <strong>fresh credentials</strong> (new temporary password + new one-time setup code) to <strong>${esc(p.contactEmail)}</strong>.<br><br>The org code stays the same: <strong>${p.resolvedOrgCode ? esc(p.resolvedOrgCode) : 'unchanged'}</strong>. All users will regain access immediately.</div>
       </div>`
     document.getElementById('detail-foot').innerHTML =
       `<button class="btn btn-ghost" onclick="closeModal('detail-modal')">Cancel</button>
@@ -703,7 +703,7 @@
     try {
       await api('POST', `/api/super-admin/orgs/${id}/reactivate`)
       closeModal('detail-modal')
-      toast('Organisation reactivated ✓', 'success')
+      toast('Organisation reactivated — fresh credentials sent via email ✓', 'success')
       await loadProvisions()
     } catch (e) {
       toast(e.message, 'error')
