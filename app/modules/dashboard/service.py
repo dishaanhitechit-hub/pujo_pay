@@ -3,7 +3,7 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 
 from sqlalchemy import func, case as sa_case, and_
-from sqlalchemy.orm import contains_eager
+from sqlalchemy.orm import contains_eager, joinedload
 
 from ...extensions import db
 from ...models.donor import Donor
@@ -140,6 +140,7 @@ def get_all_payments(
         .options(
             contains_eager(Payment.donor),
             contains_eager(Payment.collector),
+            joinedload(Payment.event),
         )
     )
     if org_id is not None:

@@ -126,6 +126,7 @@ def get_pledge(
 
     payments = (
         Payment.query.filter_by(pledge_id=pledge_id)
+        .options(joinedload(Payment.collector))
         .order_by(Payment.created_at.desc())
         .all()
     )
@@ -176,6 +177,7 @@ def get_pledge_list(
         .options(
             contains_eager(Pledge.donor),
             contains_eager(Pledge.collector),
+            joinedload(Pledge.event),
         )
     )
     if org_id is not None:

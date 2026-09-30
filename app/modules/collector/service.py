@@ -80,6 +80,7 @@ def get_payments(
         .options(
             contains_eager(Payment.donor),
             joinedload(Payment.collector),
+            joinedload(Payment.event),
         )
     )
 

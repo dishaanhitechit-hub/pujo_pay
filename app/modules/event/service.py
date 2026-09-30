@@ -1,6 +1,7 @@
 from datetime import date
 
 from marshmallow import Schema, fields, validate, validates, ValidationError
+from sqlalchemy.orm import joinedload
 
 from ...extensions import db
 from ...models.event import Event, EventStatusEnum, _slugify
@@ -80,7 +81,7 @@ def list_events(
     page: int = 1,
     per_page: int = 20,
 ) -> dict:
-    query = Event.query.filter(Event.org_id == org_id)
+    query = Event.query.filter(Event.org_id == org_id).options(joinedload(Event.creator))
 
     if search:
         like = f"%{search}%"
@@ -115,6 +116,7 @@ def get_active_events(org_id: int | None = None) -> list[dict]:
     events = (
         Event.query
         .filter_by(status=EventStatusEnum.published, collection_enabled=True, org_id=org_id)
+        .options(joinedload(Event.creator))
         .order_by(Event.start_date.desc())
         .all()
     )
