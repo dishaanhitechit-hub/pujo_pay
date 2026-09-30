@@ -1,5 +1,5 @@
 from ...extensions import db
-from ...models.user import User
+from ...models.user import User, RoleEnum
 from ...models.organisation import Organisation
 
 
@@ -28,6 +28,14 @@ def get_user_by_credentials(email: str, password: str, org_code: str) -> tuple[U
         return None, "invalid"
     if user.needs_first_setup:
         return None, "setup_required"
+    return user, None
+
+
+def get_super_admin_by_credentials(email: str, password: str) -> tuple[User | None, str | None]:
+    """Login path for super admin only — no org_code required."""
+    user = User.query.filter_by(email=email, is_active=True, role=RoleEnum.super_admin).first()
+    if not user or not user.check_password(password):
+        return None, "invalid"
     return user, None
 
 

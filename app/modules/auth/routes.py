@@ -7,7 +7,7 @@ from flask_jwt_extended import (
 )
 from ...extensions import add_to_blocklist
 from ...utils.helpers import res
-from .service import get_user_by_credentials, get_active_user, first_setup, orgs_for_email
+from .service import get_user_by_credentials, get_super_admin_by_credentials, get_active_user, first_setup, orgs_for_email
 
 bp = Blueprint("auth", __name__)
 
@@ -32,10 +32,15 @@ def login():
     password = body.get("password") or ""
     org_code = (body.get("orgCode") or "").strip()
 
-    if not email or not password or not org_code:
-        return res("email, password and orgCode are required", code=400)
+    if not email or not password:
+        return res("email and password are required", code=400)
 
-    user, reason = get_user_by_credentials(email, password, org_code)
+    # Super admin login — no org_code required (platform org has none)
+    if not org_code:
+        user, reason = get_super_admin_by_credentials(email, password)
+    else:
+        user, reason = get_user_by_credentials(email, password, org_code)
+
     if reason == "invalid":
         return res("invalid credentials or organisation code", code=401)
     if reason == "setup_required":
