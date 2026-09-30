@@ -11,6 +11,7 @@ from .service import (
     get_provision,
     confirm_payment_and_activate,
     resend_credentials,
+    deactivate_org,
 )
 
 bp = Blueprint("super_admin", __name__)
@@ -74,6 +75,20 @@ def resend_org_credentials(provision_id: int):
         return res("provision not found", code=404)
 
     ok, msg = resend_credentials(prov)
+    if not ok:
+        return res(msg, code=409)
+    return res(msg)
+
+
+@bp.route("/orgs/<int:provision_id>/deactivate", methods=["POST"])
+@require_super_admin()
+def deactivate_org_route(provision_id: int):
+    """Deactivate an active organisation."""
+    prov = get_provision(provision_id)
+    if not prov:
+        return res("provision not found", code=404)
+
+    ok, msg = deactivate_org(prov)
     if not ok:
         return res(msg, code=409)
     return res(msg)

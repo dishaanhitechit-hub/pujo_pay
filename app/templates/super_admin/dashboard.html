@@ -285,6 +285,11 @@
         <label>Contact Email * <span style="color:var(--text-3);font-weight:400">(will be the admin login)</span></label>
         <input id="f-email" type="email" placeholder="admin@clubname.com">
       </div>
+      <div class="field">
+        <label>Org Code <span style="color:var(--text-3);font-weight:400">(optional — auto-generated if blank)</span></label>
+        <input id="f-orgcode" type="text" placeholder="e.g. PUJA3847" maxlength="20" style="font-family:'JetBrains Mono',monospace;text-transform:uppercase">
+        <span style="font-size:11px;color:var(--text-3);margin-top:3px">3–20 chars, uppercase letters, digits and hyphens only</span>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('add-modal')">Cancel</button>
@@ -444,7 +449,7 @@
           ? `<button class="btn btn-sm btn-warning" onclick="event.stopPropagation();openConfirm(${p.id})">✓ Confirm Payment</button>
              <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDetail(${p.id})">View</button>`
           : `<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDetail(${p.id})">View</button>
-             <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();doResend(${p.id})">↺ Resend</button>`
+             <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openResendConfirm(${p.id})">↺ Resend</button>`
         return `<tr onclick="openDetail(${p.id})">
           <td><div class="org-cell"><div class="org-av">${esc(p.orgName).charAt(0)}</div>
             <div><div class="org-name">${esc(p.orgName)}</div>
@@ -472,6 +477,7 @@
     document.getElementById('f-name').value = ''
     document.getElementById('f-phone').value = ''
     document.getElementById('f-email').value = ''
+    document.getElementById('f-orgcode').value = ''
     openModal('add-modal')
   }
 
@@ -480,11 +486,14 @@
     const contactName = document.getElementById('f-name').value.trim()
     const contactEmail = document.getElementById('f-email').value.trim()
     const contactPhone = document.getElementById('f-phone').value.trim()
+    const orgCodeRaw = document.getElementById('f-orgcode').value.trim().toUpperCase()
     if (!orgName || !contactName || !contactEmail) { toast('Fill in all required fields', 'error'); return }
     const btn = document.getElementById('add-submit-btn')
     btn.disabled = true; btn.innerHTML = '<span class="spin">⟳</span> Creating…'
     try {
-      await api('POST', '/api/super-admin/orgs', { orgName, contactName, contactEmail, contactPhone: contactPhone || null })
+      const payload = { orgName, contactName, contactEmail, contactPhone: contactPhone || null }
+      if (orgCodeRaw) payload.orgCode = orgCodeRaw
+      await api('POST', '/api/super-admin/orgs', payload)
       closeModal('add-modal')
       toast('Request created ✓', 'success')
       await loadProvisions()
@@ -506,6 +515,7 @@
       ['Contact Name', esc(p.contactName)],
       ['Contact Email', `<span class="mono">${esc(p.contactEmail)}</span>`],
       ['Contact Phone', p.contactPhone ? esc(p.contactPhone) : '<span style="color:var(--text-3)">—</span>'],
+      ...(p.orgCode ? [['Org Code', `<span class="mono" style="color:var(--accent)">${esc(p.orgCode)}</span>`]] : [['Org Code', '<span style="color:var(--text-3)">auto-generated on activation</span>']]),
       ['Created', p.createdAt ? new Date(p.createdAt).toLocaleString('en-IN') : '—'],
       ...(p.paymentConfirmedAt ? [['Payment Confirmed', new Date(p.paymentConfirmedAt).toLocaleString('en-IN')]] : []),
       ...(p.orgId ? [['Org ID', `<span class="mono">#${p.orgId}</span>`]] : []),
@@ -517,7 +527,8 @@
     if (p.status === 'active') {
       document.getElementById('detail-foot').innerHTML =
         `<button class="btn btn-ghost btn-sm" onclick="closeModal('detail-modal')">Close</button>
-         <button class="btn btn-warning btn-sm" onclick="closeModal('detail-modal');doResend(${p.id})">↺ Resend Credentials</button>`
+         <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:color-mix(in srgb,var(--danger) 30%,transparent)" onclick="closeModal('detail-modal');openDeactivate(${p.id})">⊘ Deactivate</button>
+         <button class="btn btn-warning btn-sm" onclick="closeModal('detail-modal');openResendConfirm(${p.id})">↺ Resend Credentials</button>`
     } else {
       document.getElementById('detail-foot').innerHTML =
         `<button class="btn btn-ghost" onclick="closeModal('detail-modal')">Close</button>
@@ -530,20 +541,21 @@
   function openConfirm(id) {
     const p = provisions.find(x => x.id === id)
     if (!p) return
-    document.getElementById('detail-title').textContent = p.orgName
+    document.getElementById('detail-title').textContent = 'Confirm Payment — ' + p.orgName
     document.getElementById('detail-body').innerHTML = `
       <div class="detail-grid">
         <div class="detail-row"><span class="detail-key">Org</span><span class="detail-val">${esc(p.orgName)}</span></div>
         <div class="detail-row"><span class="detail-key">Email</span><span class="detail-val mono">${esc(p.contactEmail)}</span></div>
+        ${p.orgCode ? `<div class="detail-row"><span class="detail-key">Org Code</span><span class="detail-val mono" style="color:var(--accent)">${esc(p.orgCode)}</span></div>` : ''}
       </div>
       <hr class="divider" style="margin-top:4px">
       <div class="confirm-box">
-        <div class="confirm-title">⚡ Confirm Payment Received</div>
-        <div class="confirm-text">This will create the organisation, generate admin credentials + one-time setup code, and dispatch a welcome email to <strong>${esc(p.contactEmail)}</strong>. Cannot be undone.</div>
+        <div class="confirm-title">⚡ Are you sure?</div>
+        <div class="confirm-text">This will <strong>create the organisation</strong>, generate admin credentials + one-time setup code${p.orgCode ? ` with org code <strong>${esc(p.orgCode)}</strong>` : ' (org code auto-generated)'}, and dispatch a welcome email to <strong>${esc(p.contactEmail)}</strong>.<br><br>This action <strong>cannot be undone</strong>.</div>
       </div>`
     document.getElementById('detail-foot').innerHTML =
       `<button class="btn btn-ghost" onclick="closeModal('detail-modal')">Cancel</button>
-       <button class="btn btn-success" id="confirm-btn-${p.id}" onclick="doConfirm(${p.id})">✓ Confirm &amp; Send Email</button>`
+       <button class="btn btn-success" id="confirm-btn-${p.id}" onclick="doConfirm(${p.id})">✓ Yes, Confirm &amp; Send Email</button>`
     openModal('detail-modal')
   }
 
@@ -557,16 +569,77 @@
       await loadProvisions()
     } catch (e) {
       toast(e.message, 'error')
-      if (btn) { btn.disabled = false; btn.textContent = '✓ Confirm & Send Email' }
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Yes, Confirm & Send Email' }
     }
   }
 
+  // ── Resend credentials (with pre-confirm) ──────────────────────────────
+  function openResendConfirm(id) {
+    const p = provisions.find(x => x.id === id)
+    if (!p) return
+    document.getElementById('detail-title').textContent = 'Resend Credentials — ' + p.orgName
+    document.getElementById('detail-body').innerHTML = `
+      <div class="detail-grid">
+        <div class="detail-row"><span class="detail-key">Org</span><span class="detail-val">${esc(p.orgName)}</span></div>
+        <div class="detail-row"><span class="detail-key">Email</span><span class="detail-val mono">${esc(p.contactEmail)}</span></div>
+      </div>
+      <hr class="divider" style="margin-top:4px">
+      <div class="confirm-box">
+        <div class="confirm-title">↺ Are you sure?</div>
+        <div class="confirm-text">This will <strong>regenerate the temporary password and one-time setup code</strong> and resend the welcome email to <strong>${esc(p.contactEmail)}</strong>.<br><br>Any previous credentials will stop working immediately.</div>
+      </div>`
+    document.getElementById('detail-foot').innerHTML =
+      `<button class="btn btn-ghost" onclick="closeModal('detail-modal')">Cancel</button>
+       <button class="btn btn-warning" id="resend-btn-${p.id}" onclick="doResend(${p.id})">↺ Yes, Resend Credentials</button>`
+    openModal('detail-modal')
+  }
+
   async function doResend(id) {
+    const btn = document.getElementById('resend-btn-' + id)
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin">⟳</span> Sending…' }
     try {
       await api('POST', `/api/super-admin/orgs/${id}/resend-credentials`)
+      closeModal('detail-modal')
       toast('Credentials resent ✓', 'success')
     } catch (e) {
       toast(e.message, 'error')
+      if (btn) { btn.disabled = false; btn.textContent = '↺ Yes, Resend Credentials' }
+    }
+  }
+
+  // ── Deactivate org (with pre-confirm) ──────────────────────────────────
+  function openDeactivate(id) {
+    const p = provisions.find(x => x.id === id)
+    if (!p) return
+    document.getElementById('detail-title').textContent = 'Deactivate — ' + p.orgName
+    document.getElementById('detail-body').innerHTML = `
+      <div class="detail-grid">
+        <div class="detail-row"><span class="detail-key">Org</span><span class="detail-val">${esc(p.orgName)}</span></div>
+        <div class="detail-row"><span class="detail-key">Email</span><span class="detail-val mono">${esc(p.contactEmail)}</span></div>
+        ${p.orgCode ? `<div class="detail-row"><span class="detail-key">Org Code</span><span class="detail-val mono">${esc(p.orgCode)}</span></div>` : ''}
+      </div>
+      <hr class="divider" style="margin-top:4px">
+      <div class="confirm-box" style="border-color:color-mix(in srgb,var(--danger) 30%,transparent)">
+        <div class="confirm-title" style="color:var(--danger)">⊘ Are you absolutely sure?</div>
+        <div class="confirm-text">This will <strong>deactivate the organisation</strong>. All users in this org will lose access immediately. The org's data is preserved but the org will no longer be accessible.<br><br>This does <strong>not</strong> delete any data.</div>
+      </div>`
+    document.getElementById('detail-foot').innerHTML =
+      `<button class="btn btn-ghost" onclick="closeModal('detail-modal')">Cancel</button>
+       <button class="btn btn-sm" style="background:color-mix(in srgb,var(--danger) 15%,transparent);color:var(--danger);border:1px solid color-mix(in srgb,var(--danger) 30%,transparent)" id="deactivate-btn-${p.id}" onclick="doDeactivate(${p.id})">⊘ Yes, Deactivate</button>`
+    openModal('detail-modal')
+  }
+
+  async function doDeactivate(id) {
+    const btn = document.getElementById('deactivate-btn-' + id)
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin">⟳</span> Deactivating…' }
+    try {
+      await api('POST', `/api/super-admin/orgs/${id}/deactivate`)
+      closeModal('detail-modal')
+      toast('Organisation deactivated', 'success')
+      await loadProvisions()
+    } catch (e) {
+      toast(e.message, 'error')
+      if (btn) { btn.disabled = false; btn.textContent = '⊘ Yes, Deactivate' }
     }
   }
 
