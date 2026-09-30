@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, date
 
 from sqlalchemy import func
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, contains_eager
 
 from ...extensions import db
 from ...models.self_contribution import SelfContribution, ContributionStatusEnum, PaymentMethodEnum
@@ -208,18 +208,29 @@ def admin_list_contributions(
     org_id: int | None = None,
 ) -> dict:
     per_page = min(per_page, 100)
-    query = (
-        SelfContribution.query
-        .options(
-            joinedload(SelfContribution.user),
-            joinedload(SelfContribution.event),
-            joinedload(SelfContribution.reviewer),
-        )
-        .order_by(SelfContribution.created_at.desc())
-    )
     if org_id is not None:
         from ...models.user import User
-        query = query.join(User, SelfContribution.user_id == User.id).filter(User.org_id == org_id)
+        query = (
+            SelfContribution.query
+            .join(User, SelfContribution.user_id == User.id)
+            .filter(User.org_id == org_id)
+            .options(
+                contains_eager(SelfContribution.user),
+                joinedload(SelfContribution.event),
+                joinedload(SelfContribution.reviewer),
+            )
+            .order_by(SelfContribution.created_at.desc())
+        )
+    else:
+        query = (
+            SelfContribution.query
+            .options(
+                joinedload(SelfContribution.user),
+                joinedload(SelfContribution.event),
+                joinedload(SelfContribution.reviewer),
+            )
+            .order_by(SelfContribution.created_at.desc())
+        )
     if status:
         try:
             query = query.filter(SelfContribution.status == ContributionStatusEnum(status))

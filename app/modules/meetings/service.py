@@ -69,15 +69,14 @@ def list_meetings(
         q = q.filter(Meeting.event_id == event_id)
 
     q = q.order_by(Meeting.date.desc(), Meeting.start_time.desc())
-    total   = q.count()
-    meetings = q.offset((page - 1) * per_page).limit(per_page).all()
+    pagination = db.paginate(q, page=page, per_page=per_page, error_out=False)
 
     return {
-        "meetings": [m.to_dict() for m in meetings],
-        "page":     page,
-        "perPage":  per_page,
-        "total":    total,
-        "pages":    max(1, -(-total // per_page)),
+        "meetings": [m.to_dict() for m in pagination.items],
+        "page":     pagination.page,
+        "perPage":  pagination.per_page,
+        "total":    pagination.total,
+        "pages":    pagination.pages,
     }
 
 

@@ -1,15 +1,39 @@
+import threading
 from functools import wraps
 from flask_jwt_extended import get_jwt, get_jwt_identity, verify_jwt_in_request
 from ..models.role_permission import RolePermission
 from ..utils.helpers import res
 
+# In-memory permission cache: role → frozenset of granted permission keys.
+# Eliminates one DB roundtrip per request. Invalidated on any permission write.
+_perm_cache: dict[str, frozenset] = {}
+_cache_lock = threading.Lock()
+
+
+def _grants_for_role(role: str) -> frozenset:
+    """Return cached set of granted permission keys for a role."""
+    if role in _perm_cache:
+        return _perm_cache[role]
+    with _cache_lock:
+        if role in _perm_cache:
+            return _perm_cache[role]
+        rows = RolePermission.query.filter_by(role=role, granted=True).all()
+        keys = frozenset(r.permission_key for r in rows)
+        _perm_cache[role] = keys
+        return keys
+
+
+def invalidate_permission_cache(role: str | None = None) -> None:
+    """Call after any RolePermission write so the next request re-loads from DB."""
+    with _cache_lock:
+        if role:
+            _perm_cache.pop(role, None)
+        else:
+            _perm_cache.clear()
+
 
 def has_permission(role: str, permission_key: str) -> bool:
-    return RolePermission.query.filter_by(
-        role=role,
-        permission_key=permission_key,
-        granted=True,
-    ).first() is not None
+    return permission_key in _grants_for_role(role)
 
 
 def require_collect_capable():
@@ -72,13 +96,7 @@ def require_permission(permission_key: str):
             if not role:
                 return res("no role assigned to this token", code=403)
 
-            granted = RolePermission.query.filter_by(
-                role=role,
-                permission_key=permission_key,
-                granted=True,
-            ).first()
-
-            if not granted:
+            if permission_key not in _grants_for_role(role):
                 return res(
                     f"access denied: '{permission_key}' not allowed for role '{role}'",
                     code=403,
