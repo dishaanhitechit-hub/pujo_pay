@@ -1,6 +1,6 @@
 from ..extensions import db
 
-# DB: Run manually — no migration file:
+# DB: Run manually —no migration file:
 #   CREATE TABLE IF NOT EXISTS budget_categories (
 #       id             SERIAL PRIMARY KEY,
 #       event_id       INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
