@@ -11,7 +11,8 @@ def create_app():
     app.config.from_object(get_config())
 
     # ── Extensions ──────────────────────────────────────────
-    CORS(app)
+    # max_age: browser caches preflight for 1 hour — eliminates repeated OPTIONS round-trips
+    CORS(app, max_age=3600)
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)

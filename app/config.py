@@ -11,6 +11,12 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 class BaseConfig:
     SECRET_KEY = os.environ["SECRET_KEY"]
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,   # detect stale connections before use
+        "pool_recycle": 300,     # recycle connections every 5 min (avoids OS-level drops)
+        "pool_size": 10,
+        "max_overflow": 5,
+    }
     JWT_SECRET_KEY = os.environ["JWT_SECRET_KEY"]
     PDF_STORAGE_PATH = os.getenv("PDF_STORAGE_PATH", "/srv/pujo/recipet/storages/pdf")
     MEDIA_STORAGE_PATH = os.getenv("MEDIA_STORAGE_PATH", "/srv/pujo/media")
