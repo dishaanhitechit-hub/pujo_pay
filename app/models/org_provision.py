@@ -34,6 +34,8 @@ class OrgProvision(db.Model):
     org_id               = db.Column(db.Integer, db.ForeignKey("organisations.id"), nullable=True)
     admin_user_id        = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
+    org = db.relationship("Organisation", foreign_keys=[org_id], lazy="select")
+
     payment_confirmed_at = db.Column(db.DateTime, nullable=True)
     created_at           = db.Column(db.DateTime, server_default=db.func.now())
     created_by           = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
@@ -60,4 +62,7 @@ class OrgProvision(db.Model):
             "adminUserId":         self.admin_user_id,
             "paymentConfirmedAt":  self.payment_confirmed_at.isoformat() if self.payment_confirmed_at else None,
             "createdAt":           self.created_at.isoformat() if self.created_at else None,
+            # live org state (None when not yet activated)
+            "orgIsActive":         self.org.is_active if self.org else None,
+            "resolvedOrgCode":     self.org.org_code if self.org else self.org_code,
         }

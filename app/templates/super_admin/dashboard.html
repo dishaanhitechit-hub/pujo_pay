@@ -116,6 +116,8 @@
     .badge-pending .badge-dot { background: var(--warning); }
     .badge-active { background: color-mix(in srgb,var(--success) 15%,transparent); color: var(--success); }
     .badge-active .badge-dot { background: var(--success); }
+    .badge-inactive { background: color-mix(in srgb,var(--danger) 12%,transparent); color: var(--danger); }
+    .badge-inactive .badge-dot { background: var(--danger); }
 
     .empty-state { padding: 48px 24px; text-align: center; }
     .empty-icon { font-size: 36px; opacity: .4; margin-bottom: 10px; }
@@ -234,6 +236,7 @@
       <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value c-accent" id="s-total">—</div><div class="stat-sub">all time</div></div>
       <div class="stat-card"><div class="stat-label">Pending Payment</div><div class="stat-value c-warning" id="s-pending">—</div><div class="stat-sub">awaiting confirmation</div></div>
       <div class="stat-card"><div class="stat-label">Active</div><div class="stat-value c-success" id="s-active">—</div><div class="stat-sub">live orgs</div></div>
+      <div class="stat-card"><div class="stat-label">Inactive</div><div class="stat-value" style="color:var(--danger)" id="s-inactive">—</div><div class="stat-sub">deactivated</div></div>
     </div>
 
     <div class="toolbar">
@@ -245,6 +248,7 @@
         <button class="fbtn active" onclick="setFilter('all',this)">All</button>
         <button class="fbtn" onclick="setFilter('pending_payment',this)">Pending</button>
         <button class="fbtn" onclick="setFilter('active',this)">Active</button>
+        <button class="fbtn" onclick="setFilter('inactive',this)">Inactive</button>
       </div>
     </div>
 
@@ -317,6 +321,19 @@
   let token = localStorage.getItem('sa_token') || ''
   let provisions = []
   let activeFilter = 'all'
+
+  // ── Helpers ────────────────────────────────────────────────────────────
+  // Returns the display state: 'pending_payment' | 'active' | 'inactive'
+  function displayStatus(p) {
+    if (p.status !== 'active') return p.status
+    return p.orgIsActive === false ? 'inactive' : 'active'
+  }
+  function statusBadge(p) {
+    const s = displayStatus(p)
+    if (s === 'active')          return `<span class="badge badge-active"><span class="badge-dot"></span>Active</span>`
+    if (s === 'inactive')        return `<span class="badge badge-inactive"><span class="badge-dot"></span>Inactive</span>`
+    return `<span class="badge badge-pending"><span class="badge-dot"></span>Pending Payment</span>`
+  }
 
   // ── Boot ───────────────────────────────────────────────────────────────
   if (token) showApp()
@@ -428,7 +445,7 @@
   function renderTable() {
     const q = (document.getElementById('search-input').value || '').toLowerCase()
     const filtered = provisions.filter(p => {
-      if (activeFilter !== 'all' && p.status !== activeFilter) return false
+      if (activeFilter !== 'all' && displayStatus(p) !== activeFilter) return false
       if (q) return (p.orgName + p.contactEmail + p.contactName).toLowerCase().includes(q)
       return true
     }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -442,21 +459,26 @@
       </div></td></tr>`
     } else {
       tbody.innerHTML = filtered.map(p => {
-        const bc = p.status === 'active' ? 'badge-active' : 'badge-pending'
-        const bl = p.status === 'active' ? 'Active' : 'Pending Payment'
+        const ds = displayStatus(p)
         const dt = p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'2-digit' }) : '—'
-        const actions = p.status === 'pending_payment'
-          ? `<button class="btn btn-sm btn-warning" onclick="event.stopPropagation();openConfirm(${p.id})">✓ Confirm Payment</button>
-             <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDetail(${p.id})">View</button>`
-          : `<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDetail(${p.id})">View</button>
-             <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openResendConfirm(${p.id})">↺ Resend</button>`
+        let actions
+        if (ds === 'pending_payment') {
+          actions = `<button class="btn btn-sm btn-warning" onclick="event.stopPropagation();openConfirm(${p.id})">✓ Confirm Payment</button>
+                     <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDetail(${p.id})">View</button>`
+        } else if (ds === 'inactive') {
+          actions = `<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDetail(${p.id})">View</button>
+                     <button class="btn btn-sm btn-success" onclick="event.stopPropagation();openReactivate(${p.id})">↑ Reactivate</button>`
+        } else {
+          actions = `<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDetail(${p.id})">View</button>
+                     <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openResendConfirm(${p.id})">↺ Resend</button>`
+        }
         return `<tr onclick="openDetail(${p.id})">
           <td><div class="org-cell"><div class="org-av">${esc(p.orgName).charAt(0)}</div>
             <div><div class="org-name">${esc(p.orgName)}</div>
             <div class="org-id">${p.orgId ? '#' + p.orgId : '—'}</div></div></div></td>
           <td>${esc(p.contactName)}</td>
           <td><span class="mono">${esc(p.contactEmail)}</span></td>
-          <td><span class="badge ${bc}"><span class="badge-dot"></span>${bl}</span></td>
+          <td>${statusBadge(p)}</td>
           <td>${dt}</td>
           <td><div class="actions-cell" onclick="event.stopPropagation()">${actions}</div></td>
         </tr>`
@@ -464,11 +486,13 @@
     }
 
     const total = provisions.length
-    const pend = provisions.filter(p => p.status === 'pending_payment').length
-    const active = provisions.filter(p => p.status === 'active').length
+    const pend  = provisions.filter(p => displayStatus(p) === 'pending_payment').length
+    const actv  = provisions.filter(p => displayStatus(p) === 'active').length
+    const inact = provisions.filter(p => displayStatus(p) === 'inactive').length
     document.getElementById('s-total').textContent = total
     document.getElementById('s-pending').textContent = pend
-    document.getElementById('s-active').textContent = active
+    document.getElementById('s-active').textContent = actv
+    if (document.getElementById('s-inactive')) document.getElementById('s-inactive').textContent = inact
   }
 
   // ── Add ────────────────────────────────────────────────────────────────
@@ -508,14 +532,18 @@
   function openDetail(id) {
     const p = provisions.find(x => x.id === id)
     if (!p) return
+    const ds = displayStatus(p)
     document.getElementById('detail-title').textContent = p.orgName
+    const codeVal = p.resolvedOrgCode
+      ? `<span class="mono" style="color:var(--accent)">${esc(p.resolvedOrgCode)}</span>`
+      : '<span style="color:var(--text-3)">auto-generated on activation</span>'
     const rows = [
-      ['Status', `<span class="badge ${p.status === 'active' ? 'badge-active' : 'badge-pending'}"><span class="badge-dot"></span>${p.status === 'active' ? 'Active' : 'Pending Payment'}</span>`],
+      ['Status', statusBadge(p)],
       ['Org Name', esc(p.orgName)],
       ['Contact Name', esc(p.contactName)],
       ['Contact Email', `<span class="mono">${esc(p.contactEmail)}</span>`],
       ['Contact Phone', p.contactPhone ? esc(p.contactPhone) : '<span style="color:var(--text-3)">—</span>'],
-      ...(p.orgCode ? [['Org Code', `<span class="mono" style="color:var(--accent)">${esc(p.orgCode)}</span>`]] : [['Org Code', '<span style="color:var(--text-3)">auto-generated on activation</span>']]),
+      ['Org Code', codeVal],
       ['Created', p.createdAt ? new Date(p.createdAt).toLocaleString('en-IN') : '—'],
       ...(p.paymentConfirmedAt ? [['Payment Confirmed', new Date(p.paymentConfirmedAt).toLocaleString('en-IN')]] : []),
       ...(p.orgId ? [['Org ID', `<span class="mono">#${p.orgId}</span>`]] : []),
@@ -524,11 +552,15 @@
     document.getElementById('detail-body').innerHTML = `<div class="detail-grid">${rows.map(([k,v]) =>
       `<div class="detail-row"><span class="detail-key">${k}</span><span class="detail-val">${v}</span></div>`
     ).join('')}</div>`
-    if (p.status === 'active') {
+    if (ds === 'active') {
       document.getElementById('detail-foot').innerHTML =
         `<button class="btn btn-ghost btn-sm" onclick="closeModal('detail-modal')">Close</button>
          <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:color-mix(in srgb,var(--danger) 30%,transparent)" onclick="closeModal('detail-modal');openDeactivate(${p.id})">⊘ Deactivate</button>
          <button class="btn btn-warning btn-sm" onclick="closeModal('detail-modal');openResendConfirm(${p.id})">↺ Resend Credentials</button>`
+    } else if (ds === 'inactive') {
+      document.getElementById('detail-foot').innerHTML =
+        `<button class="btn btn-ghost btn-sm" onclick="closeModal('detail-modal')">Close</button>
+         <button class="btn btn-success btn-sm" onclick="closeModal('detail-modal');openReactivate(${p.id})">↑ Reactivate</button>`
     } else {
       document.getElementById('detail-foot').innerHTML =
         `<button class="btn btn-ghost" onclick="closeModal('detail-modal')">Close</button>
@@ -640,6 +672,42 @@
     } catch (e) {
       toast(e.message, 'error')
       if (btn) { btn.disabled = false; btn.textContent = '⊘ Yes, Deactivate' }
+    }
+  }
+
+  // ── Reactivate org (with pre-confirm) ──────────────────────────────────
+  function openReactivate(id) {
+    const p = provisions.find(x => x.id === id)
+    if (!p) return
+    document.getElementById('detail-title').textContent = 'Reactivate — ' + p.orgName
+    document.getElementById('detail-body').innerHTML = `
+      <div class="detail-grid">
+        <div class="detail-row"><span class="detail-key">Org</span><span class="detail-val">${esc(p.orgName)}</span></div>
+        <div class="detail-row"><span class="detail-key">Email</span><span class="detail-val mono">${esc(p.contactEmail)}</span></div>
+        ${p.resolvedOrgCode ? `<div class="detail-row"><span class="detail-key">Org Code</span><span class="detail-val mono">${esc(p.resolvedOrgCode)}</span></div>` : ''}
+      </div>
+      <hr class="divider" style="margin-top:4px">
+      <div class="confirm-box" style="border-color:color-mix(in srgb,var(--success) 30%,transparent)">
+        <div class="confirm-title" style="color:var(--success)">↑ Are you sure?</div>
+        <div class="confirm-text">This will <strong>reactivate the organisation</strong>. All users in this org will regain access immediately.</div>
+      </div>`
+    document.getElementById('detail-foot').innerHTML =
+      `<button class="btn btn-ghost" onclick="closeModal('detail-modal')">Cancel</button>
+       <button class="btn btn-success" id="reactivate-btn-${p.id}" onclick="doReactivate(${p.id})">↑ Yes, Reactivate</button>`
+    openModal('detail-modal')
+  }
+
+  async function doReactivate(id) {
+    const btn = document.getElementById('reactivate-btn-' + id)
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin">⟳</span> Reactivating…' }
+    try {
+      await api('POST', `/api/super-admin/orgs/${id}/reactivate`)
+      closeModal('detail-modal')
+      toast('Organisation reactivated ✓', 'success')
+      await loadProvisions()
+    } catch (e) {
+      toast(e.message, 'error')
+      if (btn) { btn.disabled = false; btn.textContent = '↑ Yes, Reactivate' }
     }
   }
 

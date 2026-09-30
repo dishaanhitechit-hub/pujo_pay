@@ -172,6 +172,20 @@ def deactivate_org(prov: OrgProvision) -> tuple[bool, str]:
     return True, "organisation deactivated"
 
 
+def reactivate_org(prov: OrgProvision) -> tuple[bool, str]:
+    """Reactivate a previously deactivated Organisation."""
+    if prov.status != ProvisionStatus.ACTIVE or not prov.org_id:
+        return False, "provision has not been activated"
+    org = Organisation.query.get(prov.org_id)
+    if not org:
+        return False, "organisation not found"
+    if org.is_active:
+        return False, "organisation is already active"
+    org.is_active = True
+    db.session.commit()
+    return True, "organisation reactivated"
+
+
 def resend_credentials(prov: OrgProvision) -> tuple[bool, str]:
     """Regenerate OTP and resend credentials email (password reset not exposed)."""
     if prov.status != ProvisionStatus.ACTIVE or not prov.admin_user_id:
