@@ -59,6 +59,9 @@ def create_app():
     from .models.circular import Circular  # noqa: F401
     from .models.org_provision import OrgProvision  # noqa: F401
     from .models.contact_diary import ContactDiaryEntry  # noqa: F401
+    from .models.committee_role import (  # noqa: F401
+        ClubYear, YearRoleAssignment, EventRoleAssignment,
+    )
 
     # ── DB seed (first-run admin + default permissions) ─────
     # Skipped silently if tables don't exist yet (before first migration)

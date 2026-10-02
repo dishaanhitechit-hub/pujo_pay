@@ -1,0 +1,213 @@
+from ...extensions import db
+from ...models.user import User, RoleEnum
+from ...models.committee_role import (
+    ClubYear, YearRoleAssignment, EventRoleAssignment,
+    CommitteeRoleEnum, COMMITTEE_ROLE_ORDER,
+)
+
+VALID_ROLES = [r.value for r in CommitteeRoleEnum]
+
+
+def _valid_role(role: str) -> bool:
+    return role in VALID_ROLES
+
+
+def _non_admin_members(org_id: int | None):
+    """Active members of the org, excluding admin/super_admin accounts, ordered by name."""
+    return (
+        User.query
+        .filter(
+            User.org_id == org_id,
+            User.is_active.is_(True),
+            User.role.notin_([RoleEnum.admin, RoleEnum.super_admin]),
+        )
+        .order_by(User.name.asc())
+        .all()
+    )
+
+
+def _member_dict(u: User) -> dict:
+    return {"id": u.id, "name": u.name, "phone": u.phone, "memberId": u.member_id,
+            "memberCategory": u.member_category}
+
+
+# ── Club years ───────────────────────────────────────────────────────────────
+
+def list_club_years(org_id: int | None) -> list[dict]:
+    years = (
+        ClubYear.query
+        .filter_by(org_id=org_id)
+        .order_by(ClubYear.is_current.desc(), ClubYear.created_at.desc(), ClubYear.id.desc())
+        .all()
+    )
+    return [y.to_dict() for y in years]
+
+
+def create_club_year(org_id: int | None, label: str) -> tuple[dict | None, str | None]:
+    label = (label or "").strip()
+    if not label:
+        return None, "label is required"
+    if ClubYear.query.filter_by(org_id=org_id, label=label).first():
+        return None, "a year with this label already exists"
+
+    # The year to copy assignments from — the current one, else the newest.
+    source = (
+        ClubYear.query.filter_by(org_id=org_id, is_current=True).first()
+        or ClubYear.query.filter_by(org_id=org_id)
+        .order_by(ClubYear.created_at.desc(), ClubYear.id.desc()).first()
+    )
+
+    # New year becomes the current one.
+    ClubYear.query.filter_by(org_id=org_id, is_current=True).update({"is_current": False})
+    year = ClubYear(org_id=org_id, label=label, is_current=True)
+    db.session.add(year)
+    db.session.flush()  # need year.id
+
+    if source:
+        prev = YearRoleAssignment.query.filter_by(club_year_id=source.id).all()
+        for a in prev:
+            db.session.add(YearRoleAssignment(
+                org_id=org_id, club_year_id=year.id, user_id=a.user_id,
+                role=a.role, is_public=a.is_public,
+            ))
+
+    db.session.commit()
+    return year.to_dict(), None
+
+
+def set_current_year(org_id: int | None, club_year_id: int) -> tuple[dict | None, str | None]:
+    year = ClubYear.query.filter_by(id=club_year_id, org_id=org_id).first()
+    if not year:
+        return None, "year not found"
+    ClubYear.query.filter_by(org_id=org_id, is_current=True).update({"is_current": False})
+    year.is_current = True
+    db.session.commit()
+    return year.to_dict(), None
+
+
+# ── Year role assignments ────────────────────────────────────────────────────
+
+def list_year_assignments(org_id: int | None, club_year_id: int) -> tuple[dict | None, str | None]:
+    year = ClubYear.query.filter_by(id=club_year_id, org_id=org_id).first()
+    if not year:
+        return None, "year not found"
+
+    assignments = {
+        a.user_id: a for a in YearRoleAssignment.query.filter_by(club_year_id=club_year_id).all()
+    }
+    members = []
+    for u in _non_admin_members(org_id):
+        a = assignments.get(u.id)
+        members.append({
+            **_member_dict(u),
+            "role":     (a.role.value if a and isinstance(a.role, CommitteeRoleEnum) else (a.role if a else None)),
+            "isPublic": a.is_public if a else True,
+        })
+    members.sort(key=lambda m: (COMMITTEE_ROLE_ORDER.get(m["role"], 99), m["name"].lower()))
+    return {"year": year.to_dict(), "members": members}, None
+
+
+def set_year_assignment(org_id, club_year_id, user_id, role, is_public=True) -> tuple[dict | None, str | None]:
+    year = ClubYear.query.filter_by(id=club_year_id, org_id=org_id).first()
+    if not year:
+        return None, "year not found"
+    if not _valid_role(role):
+        return None, "invalid role"
+    user = User.query.filter_by(id=user_id, org_id=org_id).first()
+    if not user or user.role in (RoleEnum.admin, RoleEnum.super_admin):
+        return None, "member not found"
+
+    a = YearRoleAssignment.query.filter_by(club_year_id=club_year_id, user_id=user_id).first()
+    if a:
+        a.role = CommitteeRoleEnum(role)
+        if is_public is not None:
+            a.is_public = bool(is_public)
+    else:
+        a = YearRoleAssignment(
+            org_id=org_id, club_year_id=club_year_id, user_id=user_id,
+            role=CommitteeRoleEnum(role), is_public=bool(is_public),
+        )
+        db.session.add(a)
+    db.session.commit()
+    return a.to_dict(), None
+
+
+def clear_year_assignment(org_id, club_year_id, user_id) -> tuple[bool, str | None]:
+    year = ClubYear.query.filter_by(id=club_year_id, org_id=org_id).first()
+    if not year:
+        return False, "year not found"
+    a = YearRoleAssignment.query.filter_by(club_year_id=club_year_id, user_id=user_id).first()
+    if a:
+        db.session.delete(a)
+        db.session.commit()
+    return True, None
+
+
+# ── Event role assignments ───────────────────────────────────────────────────
+
+def _event_in_org(org_id, event_id):
+    from ...models.event import Event
+    return Event.query.filter_by(id=event_id, org_id=org_id).first() if org_id is not None \
+        else Event.query.get(event_id)
+
+
+def list_event_assignments(org_id: int | None, event_id: int) -> tuple[dict | None, str | None]:
+    event = _event_in_org(org_id, event_id)
+    if not event:
+        return None, "event not found"
+
+    assignments = {
+        a.user_id: a for a in EventRoleAssignment.query.filter_by(event_id=event_id).all()
+    }
+    members = []
+    for u in _non_admin_members(org_id):
+        a = assignments.get(u.id)
+        members.append({
+            **_member_dict(u),
+            "role":       (a.role.value if a and isinstance(a.role, CommitteeRoleEnum) else (a.role if a else None)),
+            "canCollect": a.can_collect if a else False,
+            "isPublic":   a.is_public if a else True,
+        })
+    members.sort(key=lambda m: (COMMITTEE_ROLE_ORDER.get(m["role"], 99), m["name"].lower()))
+    return {
+        "event": {"id": event.id, "name": event.name, "year": event.year,
+                  "status": event.status.value if hasattr(event.status, "value") else event.status},
+        "members": members,
+    }, None
+
+
+def set_event_assignment(org_id, event_id, user_id, role, can_collect=False, is_public=True) -> tuple[dict | None, str | None]:
+    event = _event_in_org(org_id, event_id)
+    if not event:
+        return None, "event not found"
+    if not _valid_role(role):
+        return None, "invalid role"
+    user = User.query.filter_by(id=user_id, org_id=org_id).first()
+    if not user or user.role in (RoleEnum.admin, RoleEnum.super_admin):
+        return None, "member not found"
+
+    a = EventRoleAssignment.query.filter_by(event_id=event_id, user_id=user_id).first()
+    if a:
+        a.role = CommitteeRoleEnum(role)
+        a.can_collect = bool(can_collect)
+        if is_public is not None:
+            a.is_public = bool(is_public)
+    else:
+        a = EventRoleAssignment(
+            org_id=org_id, event_id=event_id, user_id=user_id,
+            role=CommitteeRoleEnum(role), can_collect=bool(can_collect), is_public=bool(is_public),
+        )
+        db.session.add(a)
+    db.session.commit()
+    return a.to_dict(), None
+
+
+def clear_event_assignment(org_id, event_id, user_id) -> tuple[bool, str | None]:
+    event = _event_in_org(org_id, event_id)
+    if not event:
+        return False, "event not found"
+    a = EventRoleAssignment.query.filter_by(event_id=event_id, user_id=user_id).first()
+    if a:
+        db.session.delete(a)
+        db.session.commit()
+    return True, None
