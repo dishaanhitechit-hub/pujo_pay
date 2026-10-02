@@ -46,6 +46,11 @@ class RoleEnum(str, enum.Enum):
 #    ALTER TABLE users ADD COLUMN IF NOT EXISTS member_since    DATE;
 #    (both nullable; existing records keep NULL and are unaffected)
 #
+# 6. Add human-facing membership id, unique within an org:
+#    ALTER TABLE users ADD COLUMN IF NOT EXISTS member_id VARCHAR(40);
+#    ALTER TABLE users ADD CONSTRAINT uq_users_member_id_org UNIQUE (member_id, org_id);
+#    (NULL member_id is allowed and not subject to the unique constraint in Postgres)
+#
 # Until these are applied: only existing role values work; email remains required;
 # address and can_collect are silently ignored on write. Existing records are never touched.
 
@@ -64,6 +69,7 @@ class User(db.Model):
     __tablename__ = "users"
     __table_args__ = (
         db.UniqueConstraint("email", "org_id", name="uq_users_email_org"),
+        db.UniqueConstraint("member_id", "org_id", name="uq_users_member_id_org"),
     )
 
     id            = db.Column(db.Integer, primary_key=True)
@@ -90,6 +96,8 @@ class User(db.Model):
     member_category = db.Column(db.String(40), nullable=True)
     # Manually-set membership start date; display falls back to created_at when NULL.
     member_since    = db.Column(db.Date, nullable=True)
+    # Human-facing membership id (e.g. "ABC-0001"); unique within an organisation. NULL for legacy/staff.
+    member_id       = db.Column(db.String(40), nullable=True, index=True)
     created_at    = db.Column(db.DateTime, server_default=db.func.now())
     created_by    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
@@ -139,5 +147,6 @@ class User(db.Model):
             "canCollect":  self._effective_can_collect(),
             "memberCategory": self.member_category,
             "memberSince":    self.member_since.isoformat() if self.member_since else None,
+            "memberId":    self.member_id,
             "createdAt":   self.created_at.isoformat() if self.created_at else None,
         }

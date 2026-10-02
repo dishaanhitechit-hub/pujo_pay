@@ -22,6 +22,9 @@ ALLOWED_KEYS = {
     "contributionBankBranch":      "Branch name",
     # Platform-level registration payment
     "platformRegistrationUpiId":   "UPI ID shown on the Register Organisation page for payment",
+    # Member ID format
+    "memberIdPrefix":              "Prefix for auto-generated member IDs (e.g. ABC)",
+    "memberIdDigits":              "Number of digits in the member ID sequence (3-6, default 4)",
 }
 
 # maps camelCase payload key → internal DB key
@@ -45,6 +48,8 @@ _KEY_MAP = {
     "contributionIfsc":            "contribution.ifsc",
     "contributionBankBranch":      "contribution.bank_branch",
     "platformRegistrationUpiId":   "platform.registration_upi_id",
+    "memberIdPrefix":              "member_id.prefix",
+    "memberIdDigits":              "member_id.digits",
 }
 
 

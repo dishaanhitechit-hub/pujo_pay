@@ -10,7 +10,10 @@ from ...models.user import User
 from ...middleware.permissions import require_permission
 from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
-from .service import create_schema, update_schema, create_user, update_user
+from .service import (
+    create_schema, update_schema, create_user, update_user,
+    generate_next_member_id, member_id_exists,
+)
 
 bp = Blueprint("users", __name__)
 
@@ -21,6 +24,12 @@ def list_users():
     org_id = get_current_org_id()
     users = User.query.filter_by(org_id=org_id).order_by(User.created_at.desc()).all()
     return res(data=[u.to_dict() for u in users])
+
+
+@bp.route("/next-member-id", methods=["GET"])
+@require_permission("users.manage")
+def next_member_id():
+    return res(data={"memberId": generate_next_member_id(get_current_org_id())})
 
 
 @bp.route("/", methods=["POST"])
@@ -36,6 +45,10 @@ def create_user_route():
     email = data.get("email")
     if email and User.query.filter_by(email=email.strip().lower(), org_id=org_id).first():
         return res("email already registered", code=409)
+
+    member_id = (data.get("member_id") or "").strip()
+    if member_id and member_id_exists(org_id, member_id):
+        return res("member ID already in use", code=409)
 
     user = create_user(data, created_by=int(get_jwt_identity()), org_id=org_id)
     return res("user created", data=user.to_dict(), code=201)
@@ -64,6 +77,11 @@ def update_user_route(user_id):
         data = update_schema.load(body)
     except ValidationError as e:
         return res("validation failed", data=e.messages, code=422)
+
+    if "member_id" in data:
+        member_id = (data.get("member_id") or "").strip()
+        if member_id and member_id_exists(org_id, member_id, exclude_user_id=user.id):
+            return res("member ID already in use", code=409)
 
     user = update_user(user, data)
     return res("user updated", data=user.to_dict())
