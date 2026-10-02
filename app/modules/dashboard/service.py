@@ -57,10 +57,10 @@ def get_grand_summary(event_id: int | None = None, org_id: int | None = None) ->
         "grandTotal": _fmt(grand),
         "totalConfirmed": total_confirmed,
         "totalDonors": total_donors,
-        "totalContributionSlipd": _fmt(total_pledged),
-        "totalContributionSlipPaid": _fmt(total_pledge_paid),
-        "totalContributionSlipOutstanding": _fmt(Decimal(str(total_pledged)) - Decimal(str(total_pledge_paid))),
-        "openContributionSlipCount": open_pledge_count,
+        "totalPledged": _fmt(total_pledged),
+        "totalPledgePaid": _fmt(total_pledge_paid),
+        "totalPledgeOutstanding": _fmt(Decimal(str(total_pledged)) - Decimal(str(total_pledge_paid))),
+        "openPledgeCount": open_pledge_count,
     }
 
 
@@ -371,7 +371,7 @@ def get_events_with_stats(org_id: int | None = None) -> list[dict]:
             "totalReceived":     _fmt(pm["total"]),
             "paymentCount":      pm["count"],
             "pending":           _fmt(pl["open_outstanding"]),
-            "totalContributionSlipd":      _fmt(pl["pledged"]),
+            "totalPledged":      _fmt(pl["pledged"]),
             "pledgeOutstanding": _fmt(pl["open_outstanding"]),
             "expensesPaid":      _fmt(exp_tot),
             "balanceInHand":     _fmt(balance),
@@ -619,7 +619,7 @@ def get_event_report(event_id: int, org_id: int | None = None) -> dict:
         "summary": {
             "donorCount":       donor_count,
             "donationCharge":   _fmt(donation_charge),
-            "totalContributionSlipd":     _fmt(total_pledged),
+            "totalPledged":     _fmt(total_pledged),
             "totalReceived":    _fmt(total_received),
             "pending":          _fmt(open_pledge_outstanding),
             "cancelledAmount":  _fmt(cancelled_total),
@@ -629,7 +629,7 @@ def get_event_report(event_id: int, org_id: int | None = None) -> dict:
             "budgetRemaining":  _fmt(budget_remaining) if budget_remaining is not None else None,
             "overBudget":       over_budget,
             "completedCount":   completed_count,
-            "openContributionSlipCount":  open_pledge_count,
+            "openPledgeCount":  open_pledge_count,
             "pledgeOutstanding": _fmt(open_pledge_outstanding),
             "pledgePaid":       _fmt(total_pledge_paid),
         },
@@ -644,7 +644,7 @@ def get_event_report(event_id: int, org_id: int | None = None) -> dict:
         "paymentStatusBreakdown": status_breakdown,
         "collectorBreakdown":     collector_data,
         "pledgeSummary": {
-            "totalContributionSlipd": _fmt(total_pledged),
+            "totalPledged": _fmt(total_pledged),
             "paid":         _fmt(total_pledge_paid),
             "outstanding":  _fmt(total_pledged - total_pledge_paid),
             "openCount":    open_pledge_count,
