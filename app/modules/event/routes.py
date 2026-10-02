@@ -57,6 +57,38 @@ def active():
     return res(data=get_active_events(org_id=get_current_org_id()))
 
 
+# ── Member-facing (authenticated, org-scoped) event browsing ─────────────────
+# Baseline permission so every member can browse their org's published events.
+
+@bp.route("/member/list", methods=["GET"])
+@require_permission("dashboard.view")
+def member_list():
+    from ..public.service import list_public_events
+    page = request.args.get("page", default=1, type=int)
+    per_page = request.args.get("perPage", default=12, type=int)
+    include_days = request.args.get("includeDays", default="false").lower() == "true"
+    return res(data=list_public_events(
+        org_id=get_current_org_id(), page=page, per_page=per_page, include_days=include_days,
+    ))
+
+
+@bp.route("/member/featured", methods=["GET"])
+@require_permission("dashboard.view")
+def member_featured():
+    from ..public.service import get_featured_event
+    return res(data=get_featured_event(org_id=get_current_org_id()))
+
+
+@bp.route("/member/<slug>", methods=["GET"])
+@require_permission("dashboard.view")
+def member_detail(slug: str):
+    from ..public.service import get_public_event_by_slug
+    result = get_public_event_by_slug(slug, org_id=get_current_org_id())
+    if not result:
+        return res("event not found", code=404)
+    return res(data=result)
+
+
 @bp.route("/", methods=["POST"])
 @require_permission("event.manage")
 def create():
