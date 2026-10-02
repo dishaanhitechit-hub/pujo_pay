@@ -19,6 +19,7 @@ PERMISSION_KEYS = [
     "contribution.manage",
     "meeting.manage",
     "org.manage",
+    "handover.manage",
 ]
 
 # Default grants per role.
@@ -30,7 +31,7 @@ _DEFAULTS: dict[str, list[str]] = {
     "core_committee":      ["dashboard.view"],
     "executive":           ["dashboard.view"],
     "cashier":             ["payment.initiate", "payment.confirm", "payment.view_receipt",
-                            "collector.view_own", "dashboard.view", "expense.manage"],
+                            "collector.view_own", "dashboard.view", "expense.manage", "handover.manage"],
     "collector":           ["payment.initiate", "payment.confirm", "payment.view_receipt",
                             "collector.view_own", "token.generate"],
     # Legacy role values — kept for backward compatibility

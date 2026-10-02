@@ -38,6 +38,9 @@ def register_all(app: Flask) -> None:
     from .slip.routes import bp as slip_bp
     app.register_blueprint(slip_bp, url_prefix="/api/slip")
 
+    from .handover.routes import bp as handover_bp
+    app.register_blueprint(handover_bp, url_prefix="/api/handover")
+
     from .event.routes import bp as event_bp
     app.register_blueprint(event_bp, url_prefix="/api/events")
 
