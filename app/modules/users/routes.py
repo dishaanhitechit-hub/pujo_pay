@@ -32,10 +32,12 @@ def create_user_route():
     except ValidationError as e:
         return res("validation failed", data=e.messages, code=422)
 
-    if User.query.filter_by(email=data["email"].strip().lower()).first():
+    org_id = get_current_org_id()
+    email = data.get("email")
+    if email and User.query.filter_by(email=email.strip().lower(), org_id=org_id).first():
         return res("email already registered", code=409)
 
-    user = create_user(data, created_by=int(get_jwt_identity()), org_id=get_current_org_id())
+    user = create_user(data, created_by=int(get_jwt_identity()), org_id=org_id)
     return res("user created", data=user.to_dict(), code=201)
 
 

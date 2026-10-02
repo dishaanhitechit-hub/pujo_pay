@@ -7,6 +7,14 @@ from ...models.user import User, RoleEnum
 # All selectable role values (new + backward-compat legacy)
 _ALL_ROLES = [r.value for r in RoleEnum]
 
+# Membership tiers — independent of `role` (which drives permissions).
+MEMBER_CATEGORIES = ["lifetime_executive", "premium_executive", "executive", "general"]
+
+# Members created via the admin "Members" page get this placeholder permission-role
+# (dashboard-only: no collect, no admin). Real permissions will come from the future
+# committee/event-role system. Stored as VARCHAR (native_enum=False) so no enum migration.
+DEFAULT_MEMBER_ROLE = RoleEnum.executive
+
 # Valid Indian mobile number: 10 digits starting with 6-9
 _IN_MOBILE_RE = re.compile(r'^[6-9]\d{9}$')
 
@@ -31,10 +39,16 @@ def _normalize_phone(raw: str | None) -> str | None:
 
 class CreateUserSchema(Schema):
     name        = fields.Str(required=True, validate=validate.Length(min=1, max=120))
+    # `role` is no longer sent by the Members form; kept optional for backward compat.
     role        = fields.Str(
-        required=True,
+        load_default=None, allow_none=True,
         validate=validate.OneOf(_ALL_ROLES, error="Invalid role."),
     )
+    member_category = fields.Str(
+        required=True, data_key="memberCategory",
+        validate=validate.OneOf(MEMBER_CATEGORIES, error="Invalid member category."),
+    )
+    member_since = fields.Date(load_default=None, data_key="memberSince", allow_none=True)
     phone       = fields.Str(required=True, validate=validate.Length(min=1, max=30))
     whatsapp_no = fields.Str(load_default=None, data_key="whatsappNo",
                              validate=validate.Length(max=30), allow_none=True)
@@ -55,6 +69,9 @@ class CreateUserSchema(Schema):
 class UpdateUserSchema(Schema):
     name        = fields.Str(validate=validate.Length(min=1, max=120))
     role        = fields.Str(validate=validate.OneOf(_ALL_ROLES, error="Invalid role."))
+    member_category = fields.Str(data_key="memberCategory",
+                                 validate=validate.OneOf(MEMBER_CATEGORIES, error="Invalid member category."))
+    member_since = fields.Date(data_key="memberSince", allow_none=True)
     phone       = fields.Str(validate=validate.Length(max=30), allow_none=True)
     whatsapp_no = fields.Str(data_key="whatsappNo", validate=validate.Length(max=30),
                              allow_none=True)
@@ -71,7 +88,8 @@ update_schema = UpdateUserSchema()
 
 def create_user(data: dict, created_by: int, org_id: int | None = None) -> User:
     email = data.get("email")
-    role = RoleEnum(data["role"])
+    # Members no longer carry a chosen role — default to the placeholder member role.
+    role = RoleEnum(data["role"]) if data.get("role") else DEFAULT_MEMBER_ROLE
     # Compute effective can_collect: collector always True, admin always False, others from input
     raw_can_collect = bool(data.get("can_collect", False))
     if role == RoleEnum.admin:
@@ -87,6 +105,8 @@ def create_user(data: dict, created_by: int, org_id: int | None = None) -> User:
         whatsapp_no=_normalize_phone(data.get("whatsapp_no")),
         address=data.get("address") or None,
         role=role,
+        member_category=data.get("member_category"),
+        member_since=data.get("member_since"),
         is_active=True,
         can_collect=can_collect,
         created_by=created_by,
@@ -114,6 +134,12 @@ def update_user(user: User, data: dict) -> User:
 
     if "address" in data:
         user.address = data["address"] or None
+
+    if "member_category" in data:
+        user.member_category = data["member_category"]
+
+    if "member_since" in data:
+        user.member_since = data["member_since"]
 
     if "role" in data:
         user.role = RoleEnum(data["role"])

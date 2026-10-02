@@ -41,6 +41,11 @@ class RoleEnum(str, enum.Enum):
 #    ALTER TABLE users ADD COLUMN IF NOT EXISTS can_collect BOOLEAN DEFAULT FALSE;
 #    (nullable; NULL is treated as False for backward compatibility)
 #
+# 5. Add membership tier + manual join date:
+#    ALTER TABLE users ADD COLUMN IF NOT EXISTS member_category VARCHAR(40);
+#    ALTER TABLE users ADD COLUMN IF NOT EXISTS member_since    DATE;
+#    (both nullable; existing records keep NULL and are unaffected)
+#
 # Until these are applied: only existing role values work; email remains required;
 # address and can_collect are silently ignored on write. Existing records are never touched.
 
@@ -80,6 +85,11 @@ class User(db.Model):
     # Collection capability: False for admin (always), True for collector role (always),
     # and explicitly set for other roles. NULL treated as False for old records.
     can_collect   = db.Column(db.Boolean, default=False, nullable=True)
+    # Membership tier — independent of `role` (which drives permissions).
+    # One of: lifetime_executive, premium_executive, executive, general. NULL for staff/legacy records.
+    member_category = db.Column(db.String(40), nullable=True)
+    # Manually-set membership start date; display falls back to created_at when NULL.
+    member_since    = db.Column(db.Date, nullable=True)
     created_at    = db.Column(db.DateTime, server_default=db.func.now())
     created_by    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
@@ -127,5 +137,7 @@ class User(db.Model):
             "isActive":    self.is_active,
             "orgId":       self.org_id,
             "canCollect":  self._effective_can_collect(),
+            "memberCategory": self.member_category,
+            "memberSince":    self.member_since.isoformat() if self.member_since else None,
             "createdAt":   self.created_at.isoformat() if self.created_at else None,
         }
