@@ -8,7 +8,7 @@ from sqlalchemy.orm import contains_eager, joinedload
 from ...extensions import db
 from ...models.donor import Donor
 from ...models.payment import Payment, MethodEnum, StatusEnum, COMPLETED_STATUSES
-from ...models.pledge import Pledge, PledgeStatusEnum
+from ...models.contribution_slip import ContributionSlip, SlipStatusEnum
 from ...models.user import User
 
 
@@ -38,15 +38,15 @@ def get_grand_summary(event_id: int | None = None, org_id: int | None = None) ->
     donors_q = base.with_entities(func.count(func.distinct(Payment.donor_id)))
     total_donors = donors_q.scalar()
 
-    pledge_q = Pledge.query.join(User, Pledge.collector_id == User.id)
+    pledge_q = ContributionSlip.query.join(User, ContributionSlip.collector_id == User.id)
     if org_id is not None:
         pledge_q = pledge_q.filter(User.org_id == org_id)
     if event_id:
-        pledge_q = pledge_q.filter(Pledge.event_id == event_id)
+        pledge_q = pledge_q.filter(ContributionSlip.event_id == event_id)
 
-    total_pledged = pledge_q.with_entities(func.coalesce(func.sum(Pledge.total_amount), 0)).scalar()
-    total_pledge_paid = pledge_q.with_entities(func.coalesce(func.sum(Pledge.paid_amount), 0)).scalar()
-    open_pledge_count = pledge_q.filter(Pledge.status == PledgeStatusEnum.open).count()
+    total_pledged = pledge_q.with_entities(func.coalesce(func.sum(ContributionSlip.total_amount), 0)).scalar()
+    total_pledge_paid = pledge_q.with_entities(func.coalesce(func.sum(ContributionSlip.paid_amount), 0)).scalar()
+    open_pledge_count = pledge_q.filter(ContributionSlip.status == SlipStatusEnum.open).count()
 
     grand = Decimal(str(cash_total)) + Decimal(str(upi_total)) + Decimal(str(cheque_total))
 
@@ -57,10 +57,10 @@ def get_grand_summary(event_id: int | None = None, org_id: int | None = None) ->
         "grandTotal": _fmt(grand),
         "totalConfirmed": total_confirmed,
         "totalDonors": total_donors,
-        "totalPledged": _fmt(total_pledged),
-        "totalPledgePaid": _fmt(total_pledge_paid),
-        "totalPledgeOutstanding": _fmt(Decimal(str(total_pledged)) - Decimal(str(total_pledge_paid))),
-        "openPledgeCount": open_pledge_count,
+        "totalContributionSlipd": _fmt(total_pledged),
+        "totalContributionSlipPaid": _fmt(total_pledge_paid),
+        "totalContributionSlipOutstanding": _fmt(Decimal(str(total_pledged)) - Decimal(str(total_pledge_paid))),
+        "openContributionSlipCount": open_pledge_count,
     }
 
 
@@ -281,30 +281,30 @@ def get_events_with_stats(org_id: int | None = None) -> list[dict]:
         .filter(
             Payment.status.in_(COMPLETED_STATUSES),
             Payment.event_id.in_(event_ids),
-            Payment.pledge_id.is_(None),
+            Payment.slip_id.is_(None),
         )
         .group_by(Payment.event_id)
         .all()
     )
 
-    # Pledge aggregations: total, active (non-cancelled) for Donation Charge, and open outstanding for Pending
+    # ContributionSlip aggregations: total, active (non-cancelled) for Donation Charge, and open outstanding for Pending
     active_pledged_case = sa_case(
-        (Pledge.status != PledgeStatusEnum.cancelled, Pledge.total_amount),
+        (ContributionSlip.status != SlipStatusEnum.cancelled, ContributionSlip.total_amount),
         else_=0,
     )
     open_outstanding_case = sa_case(
-        (Pledge.status == PledgeStatusEnum.open, Pledge.total_amount - Pledge.paid_amount),
+        (ContributionSlip.status == SlipStatusEnum.open, ContributionSlip.total_amount - ContributionSlip.paid_amount),
         else_=0,
     )
     pledge_rows = (
         db.session.query(
-            Pledge.event_id,
-            func.coalesce(func.sum(Pledge.total_amount), 0).label("pledged"),
+            ContributionSlip.event_id,
+            func.coalesce(func.sum(ContributionSlip.total_amount), 0).label("pledged"),
             func.coalesce(func.sum(active_pledged_case), 0).label("active_pledged"),
             func.coalesce(func.sum(open_outstanding_case), 0).label("open_outstanding"),
         )
-        .filter(Pledge.event_id.in_(event_ids))
-        .group_by(Pledge.event_id)
+        .filter(ContributionSlip.event_id.in_(event_ids))
+        .group_by(ContributionSlip.event_id)
         .all()
     )
 
@@ -371,7 +371,7 @@ def get_events_with_stats(org_id: int | None = None) -> list[dict]:
             "totalReceived":     _fmt(pm["total"]),
             "paymentCount":      pm["count"],
             "pending":           _fmt(pl["open_outstanding"]),
-            "totalPledged":      _fmt(pl["pledged"]),
+            "totalContributionSlipd":      _fmt(pl["pledged"]),
             "pledgeOutstanding": _fmt(pl["open_outstanding"]),
             "expensesPaid":      _fmt(exp_tot),
             "balanceInHand":     _fmt(balance),
@@ -433,41 +433,41 @@ def get_event_report(event_id: int, org_id: int | None = None) -> dict:
         .filter(
             Payment.event_id == event_id,
             Payment.status.in_(COMPLETED_STATUSES),
-            Payment.pledge_id.is_(None),
+            Payment.slip_id.is_(None),
         )
         .scalar()
     ))
 
-    # ── Pledge aggregations ───────────────────────────────────────────────────
-    pledge_q = Pledge.query.filter(Pledge.event_id == event_id)
+    # ── ContributionSlip aggregations ───────────────────────────────────────────────────
+    pledge_q = ContributionSlip.query.filter(ContributionSlip.event_id == event_id)
     total_pledged = Decimal(str(
-        pledge_q.with_entities(func.coalesce(func.sum(Pledge.total_amount), 0)).scalar()
+        pledge_q.with_entities(func.coalesce(func.sum(ContributionSlip.total_amount), 0)).scalar()
     ))
     total_pledge_paid = Decimal(str(
-        pledge_q.with_entities(func.coalesce(func.sum(Pledge.paid_amount), 0)).scalar()
+        pledge_q.with_entities(func.coalesce(func.sum(ContributionSlip.paid_amount), 0)).scalar()
     ))
-    open_pledge_count = pledge_q.filter(Pledge.status == PledgeStatusEnum.open).count()
+    open_pledge_count = pledge_q.filter(ContributionSlip.status == SlipStatusEnum.open).count()
 
     # Non-cancelled pledge total (for donationCharge)
     non_cancelled_pledged = Decimal(str(
-        pledge_q.filter(Pledge.status != PledgeStatusEnum.cancelled)
-        .with_entities(func.coalesce(func.sum(Pledge.total_amount), 0))
+        pledge_q.filter(ContributionSlip.status != SlipStatusEnum.cancelled)
+        .with_entities(func.coalesce(func.sum(ContributionSlip.total_amount), 0))
         .scalar()
     ))
     # Open pledge outstanding (for pending — unpaid active pledge portions only)
     open_pledge_outstanding = Decimal(str(
-        pledge_q.filter(Pledge.status == PledgeStatusEnum.open)
-        .with_entities(func.coalesce(func.sum(Pledge.total_amount - Pledge.paid_amount), 0))
+        pledge_q.filter(ContributionSlip.status == SlipStatusEnum.open)
+        .with_entities(func.coalesce(func.sum(ContributionSlip.total_amount - ContributionSlip.paid_amount), 0))
         .scalar()
     ))
     # donationCharge = direct completed payments + all non-cancelled pledge commitments
     donation_charge = direct_received + non_cancelled_pledged
 
-    # ── Pledge-based collection summary ──────────────────────────────────────
-    full_cond     = Pledge.paid_amount >= Pledge.total_amount
-    part_cond     = and_(Pledge.paid_amount > 0, Pledge.paid_amount < Pledge.total_amount)
-    pending_cond  = and_(Pledge.paid_amount == 0, Pledge.status == PledgeStatusEnum.open)
-    cancelled_cond = Pledge.status == PledgeStatusEnum.cancelled
+    # ── ContributionSlip-based collection summary ──────────────────────────────────────
+    full_cond     = ContributionSlip.paid_amount >= ContributionSlip.total_amount
+    part_cond     = and_(ContributionSlip.paid_amount > 0, ContributionSlip.paid_amount < ContributionSlip.total_amount)
+    pending_cond  = and_(ContributionSlip.paid_amount == 0, ContributionSlip.status == SlipStatusEnum.open)
+    cancelled_cond = ContributionSlip.status == SlipStatusEnum.cancelled
 
     pl_agg = (
         db.session.query(
@@ -475,12 +475,12 @@ def get_event_report(event_id: int, org_id: int | None = None) -> dict:
             func.count(sa_case((part_cond, 1))).label("part_count"),
             func.count(sa_case((pending_cond, 1))).label("pending_count"),
             func.count(sa_case((cancelled_cond, 1))).label("cancelled_count"),
-            func.coalesce(func.sum(sa_case((full_cond, Pledge.paid_amount), else_=0)), 0).label("full_amount"),
-            func.coalesce(func.sum(sa_case((part_cond, Pledge.paid_amount), else_=0)), 0).label("part_amount"),
-            func.coalesce(func.sum(sa_case((pending_cond, Pledge.total_amount), else_=0)), 0).label("pending_amount"),
-            func.coalesce(func.sum(sa_case((cancelled_cond, Pledge.total_amount), else_=0)), 0).label("cancelled_amount"),
+            func.coalesce(func.sum(sa_case((full_cond, ContributionSlip.paid_amount), else_=0)), 0).label("full_amount"),
+            func.coalesce(func.sum(sa_case((part_cond, ContributionSlip.paid_amount), else_=0)), 0).label("part_amount"),
+            func.coalesce(func.sum(sa_case((pending_cond, ContributionSlip.total_amount), else_=0)), 0).label("pending_amount"),
+            func.coalesce(func.sum(sa_case((cancelled_cond, ContributionSlip.total_amount), else_=0)), 0).label("cancelled_amount"),
         )
-        .filter(Pledge.event_id == event_id)
+        .filter(ContributionSlip.event_id == event_id)
         .one()
     )
 
@@ -572,12 +572,12 @@ def get_event_report(event_id: int, org_id: int | None = None) -> dict:
     pledge_coll_rows = (
         db.session.query(
             Payment.collector_id,
-            Pledge.id.label("pledge_id"),
-            Pledge.paid_amount,
-            Pledge.total_amount,
-            Pledge.status,
+            ContributionSlip.id.label("pledge_id"),
+            ContributionSlip.paid_amount,
+            ContributionSlip.total_amount,
+            ContributionSlip.status,
         )
-        .join(Pledge, Payment.pledge_id == Pledge.id)
+        .join(ContributionSlip, Payment.slip_id == ContributionSlip.id)
         .filter(
             Payment.event_id == event_id,
             Payment.status.in_(COMPLETED_STATUSES),
@@ -591,7 +591,7 @@ def get_event_report(event_id: int, org_id: int | None = None) -> dict:
         if row.pledge_id in cm["_seen"]:
             continue
         cm["_seen"].add(row.pledge_id)
-        if row.status == PledgeStatusEnum.cancelled:
+        if row.status == SlipStatusEnum.cancelled:
             cm["cancelled"] += 1
         elif Decimal(str(row.paid_amount)) >= Decimal(str(row.total_amount)):
             cm["full"] += 1
@@ -619,7 +619,7 @@ def get_event_report(event_id: int, org_id: int | None = None) -> dict:
         "summary": {
             "donorCount":       donor_count,
             "donationCharge":   _fmt(donation_charge),
-            "totalPledged":     _fmt(total_pledged),
+            "totalContributionSlipd":     _fmt(total_pledged),
             "totalReceived":    _fmt(total_received),
             "pending":          _fmt(open_pledge_outstanding),
             "cancelledAmount":  _fmt(cancelled_total),
@@ -629,7 +629,7 @@ def get_event_report(event_id: int, org_id: int | None = None) -> dict:
             "budgetRemaining":  _fmt(budget_remaining) if budget_remaining is not None else None,
             "overBudget":       over_budget,
             "completedCount":   completed_count,
-            "openPledgeCount":  open_pledge_count,
+            "openContributionSlipCount":  open_pledge_count,
             "pledgeOutstanding": _fmt(open_pledge_outstanding),
             "pledgePaid":       _fmt(total_pledge_paid),
         },
@@ -644,7 +644,7 @@ def get_event_report(event_id: int, org_id: int | None = None) -> dict:
         "paymentStatusBreakdown": status_breakdown,
         "collectorBreakdown":     collector_data,
         "pledgeSummary": {
-            "totalPledged": _fmt(total_pledged),
+            "totalContributionSlipd": _fmt(total_pledged),
             "paid":         _fmt(total_pledge_paid),
             "outstanding":  _fmt(total_pledged - total_pledge_paid),
             "openCount":    open_pledge_count,

@@ -36,9 +36,9 @@ def initiate():
         "paymentId": payment.id,
         "method": method,
         "amount": str(payment.amount),
-        "donorName": payment.donor.name,
+        "donorName": payment.donor.name if payment.donor else None,
         "status": payment.status.value,
-        "pledgeId": payment.pledge_id,
+        "slipId": payment.slip_id,
         "eventId": payment.event_id,
         "nextUrl": next_url,
     }, code=201)

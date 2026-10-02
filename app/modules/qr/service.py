@@ -9,7 +9,7 @@ from qrcode.image.pil import PilImage
 
 from ...extensions import db
 from ...models.payment import Payment, StatusEnum, COMPLETED_STATUSES
-from ...models.pledge import Pledge, PledgeStatusEnum
+from ...models.contribution_slip import ContributionSlip
 
 QR_WINDOW_MINUTES = 10
 
@@ -44,26 +44,17 @@ def open_qr_page(payment: Payment) -> int:
     return int(expiry.timestamp())
 
 
-# ── Pledge sync ────────────────────────────────────────────────────────────
+# ── Slip sync ──────────────────────────────────────────────────────────────
 
 def _sync_pledge(payment: Payment) -> None:
-    """Recalculate pledge paid_amount and flip status to complete if fully paid."""
-    if not payment.pledge_id:
+    """Recalculate the slip's paid_amount and auto-close it when fully paid."""
+    if not payment.slip_id:
         return
-    pledge = Pledge.query.get(payment.pledge_id)
-    if not pledge:
+    slip = ContributionSlip.query.get(payment.slip_id)
+    if not slip:
         return
-
-    confirmed_total = db.session.query(
-        db.func.coalesce(db.func.sum(Payment.amount), 0)
-    ).filter(
-        Payment.pledge_id == pledge.id,
-        Payment.status.in_(COMPLETED_STATUSES),
-    ).scalar()
-
-    pledge.paid_amount = Decimal(str(confirmed_total))
-    if pledge.paid_amount >= Decimal(str(pledge.total_amount)):
-        pledge.status = PledgeStatusEnum.complete
+    from ..slip.service import recalc_slip
+    recalc_slip(slip)
 
 
 # ── Payment confirm ────────────────────────────────────────────────────────

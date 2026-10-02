@@ -77,7 +77,7 @@ def get_budget_report(event_id: int, org_id: int | None = None) -> dict | None:
     from ...models.expense import Expense
     from ...models.event import Event
     from ...models.payment import Payment, COMPLETED_STATUSES
-    from ...models.pledge import Pledge, PledgeStatusEnum
+    from ...models.contribution_slip import ContributionSlip, SlipStatusEnum
 
     if org_id is not None:
         event = Event.query.get(event_id)
@@ -98,10 +98,10 @@ def get_budget_report(event_id: int, org_id: int | None = None) -> dict | None:
         .scalar()
     ))
 
-    # Pledged (committed) amount for this event — excludes cancelled pledges
+    # ContributionSlipd (committed) amount for this event — excludes cancelled pledges
     total_pledged = Decimal(str(
-        db.session.query(func.coalesce(func.sum(Pledge.total_amount), 0))
-        .filter(Pledge.event_id == event_id, Pledge.status != PledgeStatusEnum.cancelled)
+        db.session.query(func.coalesce(func.sum(ContributionSlip.total_amount), 0))
+        .filter(ContributionSlip.event_id == event_id, ContributionSlip.status != SlipStatusEnum.cancelled)
         .scalar()
     ))
 
@@ -111,7 +111,7 @@ def get_budget_report(event_id: int, org_id: int | None = None) -> dict | None:
         .filter(
             Payment.event_id == event_id,
             Payment.status.in_(COMPLETED_STATUSES),
-            Payment.pledge_id.is_(None),
+            Payment.slip_id.is_(None),
         )
         .scalar()
     ))
@@ -192,7 +192,7 @@ def get_all_events_budget_summary(org_id: int | None = None) -> list:
     from ...models.expense import Expense
     from ...models.payment import Payment, COMPLETED_STATUSES
     from ...models.event import Event
-    from ...models.pledge import Pledge, PledgeStatusEnum
+    from ...models.contribution_slip import ContributionSlip, SlipStatusEnum
 
     # planned per event
     planned_rows = (
@@ -231,11 +231,11 @@ def get_all_events_budget_summary(org_id: int | None = None) -> list:
     # pledged (committed) per event — excludes cancelled
     pledged_rows = (
         db.session.query(
-            Pledge.event_id,
-            func.coalesce(func.sum(Pledge.total_amount), 0).label("total"),
+            ContributionSlip.event_id,
+            func.coalesce(func.sum(ContributionSlip.total_amount), 0).label("total"),
         )
-        .filter(Pledge.status != PledgeStatusEnum.cancelled)
-        .group_by(Pledge.event_id)
+        .filter(ContributionSlip.status != SlipStatusEnum.cancelled)
+        .group_by(ContributionSlip.event_id)
         .all()
     )
     pledged_map = {r.event_id: Decimal(str(r.total)) for r in pledged_rows}
@@ -246,7 +246,7 @@ def get_all_events_budget_summary(org_id: int | None = None) -> list:
             Payment.event_id,
             func.coalesce(func.sum(Payment.amount), 0).label("total"),
         )
-        .filter(Payment.status.in_(COMPLETED_STATUSES), Payment.pledge_id.is_(None))
+        .filter(Payment.status.in_(COMPLETED_STATUSES), Payment.slip_id.is_(None))
         .group_by(Payment.event_id)
         .all()
     )

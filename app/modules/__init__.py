@@ -35,8 +35,8 @@ def register_all(app: Flask) -> None:
     from .donor.routes import bp as donor_bp
     app.register_blueprint(donor_bp, url_prefix="/api/donor")
 
-    from .pledge.routes import bp as pledge_bp
-    app.register_blueprint(pledge_bp, url_prefix="/api/pledge")
+    from .slip.routes import bp as slip_bp
+    app.register_blueprint(slip_bp, url_prefix="/api/slip")
 
     from .event.routes import bp as event_bp
     app.register_blueprint(event_bp, url_prefix="/api/events")

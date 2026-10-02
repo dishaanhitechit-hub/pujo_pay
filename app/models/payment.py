@@ -30,7 +30,9 @@ class Payment(db.Model):
     __tablename__ = "payments"
 
     id = db.Column(db.Integer, primary_key=True)
-    donor_id     = db.Column(db.Integer, db.ForeignKey("donors.id"), nullable=False, index=True)
+    # Every payment belongs to a contribution slip; donor/event are derived from the slip.
+    slip_id      = db.Column(db.Integer, db.ForeignKey("contribution_slips.id", ondelete="CASCADE"), nullable=True, index=True)
+    donor_id     = db.Column(db.Integer, db.ForeignKey("donors.id"), nullable=True, index=True)
     collector_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     amount       = db.Column(db.Numeric(10, 2), nullable=False)
     method       = db.Column(db.Enum(MethodEnum, native_enum=False), nullable=False)
@@ -40,7 +42,8 @@ class Payment(db.Model):
     cheque_number = db.Column(db.String(50))
     bank_name    = db.Column(db.String(100))
     cheque_date  = db.Column(db.Date)
-    pledge_id    = db.Column(db.Integer, db.ForeignKey("pledges.id"), nullable=True)
+    # Manually-entered payments carry the date the money was actually received.
+    received_date = db.Column(db.Date)
     event_id     = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=True, index=True)
     whatsapp_sent = db.Column(db.Boolean, default=False, nullable=False)
     # set when the QR page is first opened; used to enforce 10-min window
@@ -52,7 +55,7 @@ class Payment(db.Model):
 
     donor = db.relationship("Donor", back_populates="payments")
     collector = db.relationship("User", foreign_keys=[collector_id])
-    pledge = db.relationship("Pledge", back_populates="payments", foreign_keys=[pledge_id])
+    slip = db.relationship("ContributionSlip", back_populates="payments", foreign_keys=[slip_id])
     event = db.relationship("Event", foreign_keys=[event_id])
 
     def assign_receipt_no(self) -> None:
@@ -74,7 +77,9 @@ class Payment(db.Model):
             "chequeNumber": self.cheque_number,
             "bankName": self.bank_name,
             "chequeDate": self.cheque_date.isoformat() if self.cheque_date else None,
-            "pledgeId": self.pledge_id,
+            "receivedDate": self.received_date.isoformat() if self.received_date else None,
+            "slipId": self.slip_id,
+            "slipNumber": self.slip.slip_number if self.slip else None,
             "event": {"id": self.event.id, "name": self.event.name} if self.event else None,
             "status": "completed" if self.status.value == "confirmed" else self.status.value,
             "whatsappSent": self.whatsapp_sent,

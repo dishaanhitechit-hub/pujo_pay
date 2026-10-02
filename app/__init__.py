@@ -41,7 +41,7 @@ def create_app():
     from .models.organisation import Organisation  # noqa: F401
     from .models import User, Donor, Payment, RolePermission, AppConfig  # noqa: F401
     from .models.token import Token  # noqa: F401
-    from .models.pledge import Pledge  # noqa: F401
+    from .models.contribution_slip import ContributionSlip  # noqa: F401
     from .models.event import Event  # noqa: F401
     from .models.event_day import EventDay  # noqa: F401
     from .models.announcement import Announcement  # noqa: F401

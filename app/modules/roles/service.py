@@ -176,18 +176,27 @@ def clear_year_assignment(org_id, club_year_id, user_id) -> tuple[bool, str | No
 # ── Event role assignments ───────────────────────────────────────────────────
 
 def _sync_user_can_collect(user_id: int) -> None:
-    """TEMPORARY bridge: mirror the user's collect capability from their event assignments.
+    """TEMPORARY bridge: mirror collect capability from a member's event assignments.
 
-    The sidebar (userCanCollect) and backend (require_collect_capable) both read
-    User.can_collect, so keeping it in sync lets members assigned 'can collect' on any
-    event see and use the collection pages. Replaced by the per-event permission resolver later.
+    Collection endpoints are gated two ways: some by User.can_collect (require_collect_capable),
+    others by the permission role (e.g. /events/active needs 'payment.initiate'). So while a member
+    has 'can collect' on any event we make them a functional collector — set the flag AND switch the
+    permission role to `collector` (which carries the collection permissions). When they no longer
+    have any collect assignment, revert to the member default role. Replaced by the per-event
+    permission resolver in the full restructure.
     """
     has_collect = db.session.query(
         EventRoleAssignment.query.filter_by(user_id=user_id, can_collect=True).exists()
     ).scalar()
     user = User.query.get(user_id)
-    if user and user.role not in (RoleEnum.admin, RoleEnum.super_admin):
-        user.can_collect = bool(has_collect)
+    if not user or user.role in (RoleEnum.admin, RoleEnum.super_admin):
+        return
+    user.can_collect = bool(has_collect)
+    if has_collect:
+        user.role = RoleEnum.collector
+    elif user.role == RoleEnum.collector:
+        # revert to the member baseline only if we were the ones who set collector
+        user.role = RoleEnum.executive
 
 
 def _event_in_org(org_id, event_id):
