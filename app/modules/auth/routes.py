@@ -7,9 +7,16 @@ from flask_jwt_extended import (
 )
 from ...extensions import add_to_blocklist
 from ...utils.helpers import res
+from ...middleware.perm_resolver import effective_permissions
 from .service import get_user_by_credentials, get_super_admin_by_credentials, get_active_user, first_setup, orgs_for_email
 
 bp = Blueprint("auth", __name__)
+
+
+def _user_data(user) -> dict:
+    """User payload including their resolved effective permissions."""
+    role = user.role.value if hasattr(user.role, "value") else user.role
+    return {**user.to_dict(), "permissions": sorted(effective_permissions(user.id, role))}
 
 
 @bp.route("/orgs-by-email", methods=["GET"])
@@ -54,7 +61,7 @@ def login():
         identity=str(user.id),
         additional_claims={"role": user.role.value, "org_id": user.org_id},
     )
-    return res("login successful", data={"accessToken": token, "user": user.to_dict()})
+    return res("login successful", data={"accessToken": token, "user": _user_data(user)})
 
 
 @bp.route("/first-setup", methods=["POST"])
@@ -83,7 +90,7 @@ def first_setup_route():
         identity=str(user.id),
         additional_claims={"role": user.role.value, "org_id": user.org_id},
     )
-    return res("account activated", data={"accessToken": token, "user": user.to_dict()})
+    return res("account activated", data={"accessToken": token, "user": _user_data(user)})
 
 
 @bp.route("/logout", methods=["POST"])
@@ -100,4 +107,4 @@ def me():
     user = get_active_user(int(get_jwt_identity()))
     if not user:
         return res("user not found", code=404)
-    return res(data=user.to_dict())
+    return res(data=_user_data(user))

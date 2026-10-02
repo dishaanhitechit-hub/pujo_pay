@@ -2,7 +2,7 @@ from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from marshmallow import ValidationError
 
-from ...middleware.permissions import require_collect_capable, has_permission
+from ...middleware.permissions import require_collect_capable, current_user_has_permission
 from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from flask_jwt_extended import get_jwt
@@ -16,8 +16,7 @@ bp = Blueprint("slip", __name__)
 
 
 def _can_view_all() -> bool:
-    role = get_jwt().get("role")
-    return bool(role) and (has_permission(role, "payment.view_receipt") or has_permission(role, "dashboard.view"))
+    return current_user_has_permission("payment.view_receipt")
 
 
 @bp.route("/", methods=["POST"])

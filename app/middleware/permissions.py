@@ -85,20 +85,34 @@ def require_super_admin():
     return decorator
 
 
+def current_user_has_permission(permission_key: str) -> bool:
+    """Whether the JWT's user has a permission, via the effective-permission resolver."""
+    from .perm_resolver import effective_permissions
+    claims = get_jwt()
+    role = claims.get("role")
+    try:
+        user_id = int(get_jwt_identity())
+    except (TypeError, ValueError):
+        return False
+    return permission_key in effective_permissions(user_id, role)
+
+
 def require_permission(permission_key: str):
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
             verify_jwt_in_request()
+            from .perm_resolver import effective_permissions
             claims = get_jwt()
             role = claims.get("role")
+            try:
+                user_id = int(get_jwt_identity())
+            except (TypeError, ValueError):
+                return res("invalid token", code=403)
 
-            if not role:
-                return res("no role assigned to this token", code=403)
-
-            if permission_key not in _grants_for_role(role):
+            if permission_key not in effective_permissions(user_id, role):
                 return res(
-                    f"access denied: '{permission_key}' not allowed for role '{role}'",
+                    f"access denied: '{permission_key}' not allowed",
                     code=403,
                 )
 
