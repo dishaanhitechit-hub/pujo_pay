@@ -22,8 +22,8 @@ BASELINE_PERMISSIONS = frozenset({"dashboard.view"})
 
 # Extra permissions granted by a committee role (year or event scope).
 COMMITTEE_ROLE_PERMISSIONS: dict[str, frozenset] = {
-    CommitteeRoleEnum.treasurer.value:  frozenset({"expense.manage", "handover.manage", "payment.view_receipt"}),
-    CommitteeRoleEnum.accountant.value: frozenset({"payment.view_receipt", "expense.manage"}),
+    CommitteeRoleEnum.treasurer.value:  frozenset({"expense.manage", "handover.manage", "payment.view_receipt", "payment.view_all"}),
+    CommitteeRoleEnum.accountant.value: frozenset({"payment.view_receipt", "payment.view_all", "expense.manage"}),
     # chairman / president / vice_president / secretary / junior_secretary /
     # advisory_member / member → baseline only
 }

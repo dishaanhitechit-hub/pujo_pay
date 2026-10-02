@@ -16,7 +16,7 @@ bp = Blueprint("slip", __name__)
 
 
 def _can_view_all() -> bool:
-    return current_user_has_permission("payment.view_receipt")
+    return current_user_has_permission("payment.view_all")
 
 
 @bp.route("/", methods=["POST"])

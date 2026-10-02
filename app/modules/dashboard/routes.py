@@ -15,7 +15,7 @@ def events_stats():
     are part of, as a high-level overview; finance roles/admin see all events."""
     from flask_jwt_extended import get_jwt_identity
     from ...middleware.permissions import current_user_has_permission
-    all_events = current_user_has_permission("payment.view_receipt")
+    all_events = current_user_has_permission("payment.view_all")
     return res(data=get_events_with_stats(
         org_id=get_current_org_id(),
         viewer_id=int(get_jwt_identity()),
@@ -24,7 +24,7 @@ def events_stats():
 
 
 @bp.route("/event-report/<int:event_id>", methods=["GET"])
-@require_permission("payment.view_receipt")
+@require_permission("payment.view_all")
 def event_report(event_id: int):
     """Comprehensive event report: summary, modes, collector breakdown, pledges, expenses."""
     org_id = get_current_org_id()
@@ -45,14 +45,14 @@ def summary():
 
 
 @bp.route("/collectors", methods=["GET"])
-@require_permission("payment.view_receipt")
+@require_permission("payment.view_all")
 def collectors():
     event_id = request.args.get("eventId", type=int)
     return res(data=get_collector_breakdown(event_id=event_id, org_id=get_current_org_id()))
 
 
 @bp.route("/payments", methods=["GET"])
-@require_permission("payment.view_receipt")
+@require_permission("payment.view_all")
 def payments():
     page = request.args.get("page", 1, type=int)
     per_page = min(request.args.get("perPage", 20, type=int), 100)
