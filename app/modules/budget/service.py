@@ -77,6 +77,7 @@ def get_budget_report(event_id: int, org_id: int | None = None) -> dict | None:
     from ...models.expense import Expense
     from ...models.event import Event
     from ...models.payment import Payment, COMPLETED_STATUSES
+    from ...models.pledge import Pledge, PledgeStatusEnum
 
     if org_id is not None:
         event = Event.query.get(event_id)
@@ -96,6 +97,27 @@ def get_budget_report(event_id: int, org_id: int | None = None) -> dict | None:
         .filter(Payment.event_id == event_id, Payment.status.in_(COMPLETED_STATUSES))
         .scalar()
     ))
+
+    # Pledged (committed) amount for this event — excludes cancelled pledges
+    total_pledged = Decimal(str(
+        db.session.query(func.coalesce(func.sum(Pledge.total_amount), 0))
+        .filter(Pledge.event_id == event_id, Pledge.status != PledgeStatusEnum.cancelled)
+        .scalar()
+    ))
+
+    # Direct (non-pledge) completed collections for this event
+    direct_collected = Decimal(str(
+        db.session.query(func.coalesce(func.sum(Payment.amount), 0))
+        .filter(
+            Payment.event_id == event_id,
+            Payment.status.in_(COMPLETED_STATUSES),
+            Payment.pledge_id.is_(None),
+        )
+        .scalar()
+    ))
+
+    # Contribution booked = full pledge commitments + direct collections already received
+    contribution_booked = total_pledged + direct_collected
 
     # One grouped query: actual expenses by budget_category_id for this event
     expense_rows = (
@@ -142,6 +164,8 @@ def get_budget_report(event_id: int, org_id: int | None = None) -> dict | None:
     total_actual = total_allocated_actual + unallocated["total"]
     total_remaining = total_planned - total_actual
     total_util = round(float(total_actual / total_planned * 100), 1) if total_planned > 0 else 0.0
+    expected_collection = contribution_booked - total_collected  # outstanding = unpaid pledge balance
+    fund_in_hand = total_collected - total_actual                 # collected money not yet spent
 
     return {
         "categories":   category_rows,
@@ -150,12 +174,15 @@ def get_budget_report(event_id: int, org_id: int | None = None) -> dict | None:
             "expenseCount":   unallocated["count"],
         },
         "totals": {
-            "totalPlanned":     _fmt(total_planned),
-            "totalCollected":   _fmt(total_collected),
-            "totalActual":      _fmt(total_actual),
-            "remaining":        _fmt(total_remaining),
-            "overBudget":       total_actual > total_planned,
-            "utilizationPct":   total_util,
+            "totalPlanned":       _fmt(total_planned),
+            "totalCollected":     _fmt(total_collected),
+            "totalActual":        _fmt(total_actual),
+            "remaining":          _fmt(total_remaining),
+            "contributionBooked": _fmt(contribution_booked),
+            "expectedCollection": _fmt(expected_collection),
+            "fundInHand":         _fmt(fund_in_hand),
+            "overBudget":         total_actual > total_planned,
+            "utilizationPct":     total_util,
         },
     }
 
@@ -165,6 +192,7 @@ def get_all_events_budget_summary(org_id: int | None = None) -> list:
     from ...models.expense import Expense
     from ...models.payment import Payment, COMPLETED_STATUSES
     from ...models.event import Event
+    from ...models.pledge import Pledge, PledgeStatusEnum
 
     # planned per event
     planned_rows = (
@@ -200,6 +228,30 @@ def get_all_events_budget_summary(org_id: int | None = None) -> list:
     )
     collected_map = {r.event_id: Decimal(str(r.total)) for r in collected_rows}
 
+    # pledged (committed) per event — excludes cancelled
+    pledged_rows = (
+        db.session.query(
+            Pledge.event_id,
+            func.coalesce(func.sum(Pledge.total_amount), 0).label("total"),
+        )
+        .filter(Pledge.status != PledgeStatusEnum.cancelled)
+        .group_by(Pledge.event_id)
+        .all()
+    )
+    pledged_map = {r.event_id: Decimal(str(r.total)) for r in pledged_rows}
+
+    # direct (non-pledge) completed collections per event
+    direct_rows = (
+        db.session.query(
+            Payment.event_id,
+            func.coalesce(func.sum(Payment.amount), 0).label("total"),
+        )
+        .filter(Payment.status.in_(COMPLETED_STATUSES), Payment.pledge_id.is_(None))
+        .group_by(Payment.event_id)
+        .all()
+    )
+    direct_map = {r.event_id: Decimal(str(r.total)) for r in direct_rows}
+
     # events that have at least one budget category
     event_ids = list(planned_map.keys())
     if not event_ids:
@@ -215,18 +267,24 @@ def get_all_events_budget_summary(org_id: int | None = None) -> list:
         planned   = planned_map.get(ev.id, Decimal("0"))
         spent     = spent_map.get(ev.id, Decimal("0"))
         collected = collected_map.get(ev.id, Decimal("0"))
+        pledged   = pledged_map.get(ev.id, Decimal("0"))
+        direct    = direct_map.get(ev.id, Decimal("0"))
+        booked    = pledged + direct
         remaining = planned - spent
         util      = round(float(spent / planned * 100), 1) if planned > 0 else 0.0
         result.append({
-            "eventId":        ev.id,
-            "eventName":      ev.name,
-            "eventYear":      ev.year,
-            "totalPlanned":   _fmt(planned),
-            "totalCollected": _fmt(collected),
-            "totalSpent":     _fmt(spent),
-            "remaining":      _fmt(remaining),
-            "overBudget":     spent > planned,
-            "utilizationPct": util,
+            "eventId":            ev.id,
+            "eventName":          ev.name,
+            "eventYear":          ev.year,
+            "totalPlanned":       _fmt(planned),
+            "totalCollected":     _fmt(collected),
+            "totalSpent":         _fmt(spent),
+            "remaining":          _fmt(remaining),
+            "contributionBooked": _fmt(booked),
+            "expectedCollection": _fmt(booked - collected),
+            "fundInHand":         _fmt(collected - spent),
+            "overBudget":         spent > planned,
+            "utilizationPct":     util,
         })
     return result
 
