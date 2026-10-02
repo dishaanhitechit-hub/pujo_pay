@@ -98,26 +98,19 @@ def get_budget_report(event_id: int, org_id: int | None = None) -> dict | None:
         .scalar()
     ))
 
-    # ContributionSlipd (committed) amount for this event — excludes cancelled pledges
-    total_pledged = Decimal(str(
-        db.session.query(func.coalesce(func.sum(ContributionSlip.total_amount), 0))
+    # Contribution booked: open slips count their full committed total; closed slips are
+    # finalised so they count only what was actually paid (early-closed remainder is written
+    # off); cancelled slips are excluded entirely.
+    from sqlalchemy import case as sa_case
+    booked_expr = sa_case(
+        (ContributionSlip.status == SlipStatusEnum.open, ContributionSlip.total_amount),
+        else_=ContributionSlip.paid_amount,
+    )
+    contribution_booked = Decimal(str(
+        db.session.query(func.coalesce(func.sum(booked_expr), 0))
         .filter(ContributionSlip.event_id == event_id, ContributionSlip.status != SlipStatusEnum.cancelled)
         .scalar()
     ))
-
-    # Direct (non-pledge) completed collections for this event
-    direct_collected = Decimal(str(
-        db.session.query(func.coalesce(func.sum(Payment.amount), 0))
-        .filter(
-            Payment.event_id == event_id,
-            Payment.status.in_(COMPLETED_STATUSES),
-            Payment.slip_id.is_(None),
-        )
-        .scalar()
-    ))
-
-    # Contribution booked = full pledge commitments + direct collections already received
-    contribution_booked = total_pledged + direct_collected
 
     # One grouped query: actual expenses by budget_category_id for this event
     expense_rows = (
@@ -228,29 +221,23 @@ def get_all_events_budget_summary(org_id: int | None = None) -> list:
     )
     collected_map = {r.event_id: Decimal(str(r.total)) for r in collected_rows}
 
-    # pledged (committed) per event — excludes cancelled
+    # Contribution booked per event — open slips count full total, closed slips count
+    # only what was paid (early-closed remainder written off); cancelled excluded.
+    from sqlalchemy import case as sa_case
+    booked_expr = sa_case(
+        (ContributionSlip.status == SlipStatusEnum.open, ContributionSlip.total_amount),
+        else_=ContributionSlip.paid_amount,
+    )
     pledged_rows = (
         db.session.query(
             ContributionSlip.event_id,
-            func.coalesce(func.sum(ContributionSlip.total_amount), 0).label("total"),
+            func.coalesce(func.sum(booked_expr), 0).label("total"),
         )
         .filter(ContributionSlip.status != SlipStatusEnum.cancelled)
         .group_by(ContributionSlip.event_id)
         .all()
     )
-    pledged_map = {r.event_id: Decimal(str(r.total)) for r in pledged_rows}
-
-    # direct (non-pledge) completed collections per event
-    direct_rows = (
-        db.session.query(
-            Payment.event_id,
-            func.coalesce(func.sum(Payment.amount), 0).label("total"),
-        )
-        .filter(Payment.status.in_(COMPLETED_STATUSES), Payment.slip_id.is_(None))
-        .group_by(Payment.event_id)
-        .all()
-    )
-    direct_map = {r.event_id: Decimal(str(r.total)) for r in direct_rows}
+    booked_map = {r.event_id: Decimal(str(r.total)) for r in pledged_rows}
 
     # events that have at least one budget category
     event_ids = list(planned_map.keys())
@@ -267,9 +254,7 @@ def get_all_events_budget_summary(org_id: int | None = None) -> list:
         planned   = planned_map.get(ev.id, Decimal("0"))
         spent     = spent_map.get(ev.id, Decimal("0"))
         collected = collected_map.get(ev.id, Decimal("0"))
-        pledged   = pledged_map.get(ev.id, Decimal("0"))
-        direct    = direct_map.get(ev.id, Decimal("0"))
-        booked    = pledged + direct
+        booked    = booked_map.get(ev.id, Decimal("0"))
         remaining = planned - spent
         util      = round(float(spent / planned * 100), 1) if planned > 0 else 0.0
         result.append({

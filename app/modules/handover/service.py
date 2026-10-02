@@ -22,6 +22,18 @@ def _cash_collected(collector_id: int, event_id: int) -> Decimal:
     return Decimal(str(total))
 
 
+def _collected_by_method(collector_id: int, event_id: int) -> tuple[Decimal, Decimal]:
+    """Return (total_collected_all_methods, online_collected) for a collector+event."""
+    total = db.session.query(func.coalesce(func.sum(Payment.amount), 0)).filter(
+        Payment.collector_id == collector_id,
+        Payment.event_id == event_id,
+        Payment.status.in_(COMPLETED_STATUSES),
+    ).scalar()
+    total = Decimal(str(total))
+    cash = _cash_collected(collector_id, event_id)
+    return total, total - cash
+
+
 def _handover_sums(collector_id: int, event_id: int) -> tuple[Decimal, Decimal]:
     """Return (accepted_total, pending_total) for a collector+event."""
     rows = db.session.query(
@@ -41,13 +53,16 @@ def _handover_sums(collector_id: int, event_id: int) -> tuple[Decimal, Decimal]:
 
 def _event_summary(collector_id: int, event: Event) -> dict:
     collected = _cash_collected(collector_id, event.id)
+    total_all, online = _collected_by_method(collector_id, event.id)
     accepted, pending = _handover_sums(collector_id, event.id)
     in_hand = collected - accepted            # still held (incl. amounts in pending handovers)
     available = collected - accepted - pending  # free to hand over now
     return {
         "eventId":    event.id,
         "eventName":  event.name,
-        "cashCollected": str(collected),
+        "totalCollected": str(total_all),   # all methods
+        "onlineCollected": str(online),     # UPI/cheque — already in the account
+        "cashCollected": str(collected),    # physical cash the collector holds
         "handedOver":    str(accepted),
         "pending":       str(pending),
         "inHand":        str(in_hand),
