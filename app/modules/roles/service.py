@@ -12,6 +12,36 @@ def _valid_role(role: str) -> bool:
     return role in VALID_ROLES
 
 
+def get_my_roles(org_id: int | None, user_id: int) -> dict:
+    """The logged-in member's own committee roles — current club year + per-event."""
+    current_year = ClubYear.query.filter_by(org_id=org_id, is_current=True).first()
+    year_role = None
+    if current_year:
+        a = YearRoleAssignment.query.filter_by(club_year_id=current_year.id, user_id=user_id).first()
+        if a:
+            year_role = {
+                "yearLabel": current_year.label,
+                "role": a.role.value if isinstance(a.role, CommitteeRoleEnum) else a.role,
+            }
+
+    from ...models.event import Event
+    event_rows = (
+        db.session.query(EventRoleAssignment, Event)
+        .join(Event, EventRoleAssignment.event_id == Event.id)
+        .filter(EventRoleAssignment.user_id == user_id)
+        .order_by(Event.year.desc().nulls_last(), Event.id.desc())
+        .all()
+    )
+    event_roles = [{
+        "eventId":   ev.id,
+        "eventName": ev.name,
+        "role":      a.role.value if isinstance(a.role, CommitteeRoleEnum) else a.role,
+        "canCollect": a.can_collect,
+    } for a, ev in event_rows]
+
+    return {"yearRole": year_role, "eventRoles": event_roles}
+
+
 def _non_admin_members(org_id: int | None):
     """Active members of the org, excluding admin/super_admin accounts, ordered by name."""
     return (
@@ -145,6 +175,21 @@ def clear_year_assignment(org_id, club_year_id, user_id) -> tuple[bool, str | No
 
 # ── Event role assignments ───────────────────────────────────────────────────
 
+def _sync_user_can_collect(user_id: int) -> None:
+    """TEMPORARY bridge: mirror the user's collect capability from their event assignments.
+
+    The sidebar (userCanCollect) and backend (require_collect_capable) both read
+    User.can_collect, so keeping it in sync lets members assigned 'can collect' on any
+    event see and use the collection pages. Replaced by the per-event permission resolver later.
+    """
+    has_collect = db.session.query(
+        EventRoleAssignment.query.filter_by(user_id=user_id, can_collect=True).exists()
+    ).scalar()
+    user = User.query.get(user_id)
+    if user and user.role not in (RoleEnum.admin, RoleEnum.super_admin):
+        user.can_collect = bool(has_collect)
+
+
 def _event_in_org(org_id, event_id):
     from ...models.event import Event
     return Event.query.filter_by(id=event_id, org_id=org_id).first() if org_id is not None \
@@ -198,6 +243,8 @@ def set_event_assignment(org_id, event_id, user_id, role, can_collect=False, is_
             role=CommitteeRoleEnum(role), can_collect=bool(can_collect), is_public=bool(is_public),
         )
         db.session.add(a)
+    db.session.flush()
+    _sync_user_can_collect(user_id)
     db.session.commit()
     return a.to_dict(), None
 
@@ -209,5 +256,7 @@ def clear_event_assignment(org_id, event_id, user_id) -> tuple[bool, str | None]
     a = EventRoleAssignment.query.filter_by(event_id=event_id, user_id=user_id).first()
     if a:
         db.session.delete(a)
+        db.session.flush()
+        _sync_user_can_collect(user_id)
         db.session.commit()
     return True, None

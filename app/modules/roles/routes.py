@@ -1,4 +1,5 @@
 from flask import Blueprint, request
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ...middleware.permissions import require_permission
 from ...middleware.tenant import get_current_org_id
@@ -7,7 +8,7 @@ from .service import (
     list_club_years, create_club_year, set_current_year,
     list_year_assignments, set_year_assignment, clear_year_assignment,
     list_event_assignments, set_event_assignment, clear_event_assignment,
-    VALID_ROLES,
+    get_my_roles, VALID_ROLES,
 )
 
 bp = Blueprint("roles", __name__)
@@ -20,6 +21,24 @@ PERM = "content.manage"
 @require_permission(PERM)
 def roles_list():
     return res(data={"roles": VALID_ROLES})
+
+
+@bp.route("/my-roles", methods=["GET"])
+@jwt_required()
+def my_roles():
+    return res(data=get_my_roles(get_current_org_id(), int(get_jwt_identity())))
+
+
+@bp.route("/my-profile", methods=["GET"])
+@jwt_required()
+def my_profile():
+    """Bundled profile extras — committee roles + contribution stats in one round trip."""
+    from ..contribution.service import get_my_stats
+    user_id = int(get_jwt_identity())
+    return res(data={
+        "roles": get_my_roles(get_current_org_id(), user_id),
+        "contributionStats": get_my_stats(user_id),
+    })
 
 
 # ── Club years ───────────────────────────────────────────────────────────────
