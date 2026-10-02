@@ -236,13 +236,36 @@ def _get_expense_total(event_ids: list[int]) -> dict[int, Decimal]:
         return {}
 
 
-def get_events_with_stats(org_id: int | None = None) -> list[dict]:
-    """All events with per-event aggregated collection/pledge/expense stats."""
+def _member_event_ids(viewer_id: int) -> set[int]:
+    """Events a member is part of: committee role (current year or event) or has collected for."""
+    from ...models.committee_role import ClubYear, YearRoleAssignment, EventRoleAssignment
+    ids: set[int] = set()
+    for (eid,) in db.session.query(EventRoleAssignment.event_id).filter_by(user_id=viewer_id).all():
+        ids.add(eid)
+    for (eid,) in db.session.query(Payment.event_id).filter(
+        Payment.collector_id == viewer_id, Payment.event_id.isnot(None)
+    ).distinct().all():
+        ids.add(eid)
+    # year committee role → all events of the current year's context aren't event-scoped,
+    # so a year role alone doesn't limit to specific events; those members simply see their
+    # collected/assigned events (handled above).
+    return ids
+
+
+def get_events_with_stats(org_id: int | None = None, viewer_id: int | None = None,
+                          all_events: bool = True) -> list[dict]:
+    """Per-event aggregated collection/expense stats. When all_events is False, limited to the
+    events the viewer is part of (member overview)."""
     from ...models.event import Event
 
     q = Event.query
     if org_id is not None:
         q = q.filter(Event.org_id == org_id)
+    if not all_events and viewer_id is not None:
+        member_ids = _member_event_ids(viewer_id)
+        if not member_ids:
+            return []
+        q = q.filter(Event.id.in_(member_ids))
     events = (
         q.order_by(
             Event.year.desc().nullslast(),

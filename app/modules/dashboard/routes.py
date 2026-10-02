@@ -11,12 +11,20 @@ bp = Blueprint("dashboard", __name__)
 @bp.route("/events", methods=["GET"])
 @require_permission("dashboard.view")
 def events_stats():
-    """All events with per-event aggregated stats (includes budget/expense when available)."""
-    return res(data=get_events_with_stats(org_id=get_current_org_id()))
+    """Per-event aggregated stats. Members (no payment.view_receipt) see only the events they
+    are part of, as a high-level overview; finance roles/admin see all events."""
+    from flask_jwt_extended import get_jwt_identity
+    from ...middleware.permissions import current_user_has_permission
+    all_events = current_user_has_permission("payment.view_receipt")
+    return res(data=get_events_with_stats(
+        org_id=get_current_org_id(),
+        viewer_id=int(get_jwt_identity()),
+        all_events=all_events,
+    ))
 
 
 @bp.route("/event-report/<int:event_id>", methods=["GET"])
-@require_permission("dashboard.view")
+@require_permission("payment.view_receipt")
 def event_report(event_id: int):
     """Comprehensive event report: summary, modes, collector breakdown, pledges, expenses."""
     org_id = get_current_org_id()
@@ -37,14 +45,14 @@ def summary():
 
 
 @bp.route("/collectors", methods=["GET"])
-@require_permission("dashboard.view")
+@require_permission("payment.view_receipt")
 def collectors():
     event_id = request.args.get("eventId", type=int)
     return res(data=get_collector_breakdown(event_id=event_id, org_id=get_current_org_id()))
 
 
 @bp.route("/payments", methods=["GET"])
-@require_permission("dashboard.view")
+@require_permission("payment.view_receipt")
 def payments():
     page = request.args.get("page", 1, type=int)
     per_page = min(request.args.get("perPage", 20, type=int), 100)
