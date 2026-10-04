@@ -1,3 +1,5 @@
+from sqlalchemy.orm import joinedload
+
 from ...extensions import db
 from ...models.user import User, RoleEnum
 from ...models.committee_role import (

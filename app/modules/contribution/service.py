@@ -153,27 +153,77 @@ def submit_contribution(
 
 # ── Member: my list ────────────────────────────────────────────────────────
 
+def _collected_entries_for_member(user_id: int) -> list[dict]:
+    """Contributions collected from this member via slips (donor = member)."""
+    from ...models.payment import Payment, COMPLETED_STATUSES
+    from ...models.contribution_slip import ContributionSlip
+
+    rows = (
+        db.session.query(Payment, ContributionSlip)
+        .join(ContributionSlip, Payment.slip_id == ContributionSlip.id)
+        .options(joinedload(Payment.collector), joinedload(Payment.event))
+        .filter(
+            ContributionSlip.member_user_id == user_id,
+            Payment.status.in_(COMPLETED_STATUSES),
+        )
+        .all()
+    )
+    entries = []
+    for p, slip in rows:
+        entries.append({
+            "id":            p.id,
+            "source":        "collected",
+            "amount":        float(p.amount),
+            "paymentMethod": p.method.value if p.method else None,
+            "paymentDate":   (p.received_date.isoformat() if p.received_date
+                              else (p.created_at.date().isoformat() if p.created_at else None)),
+            "status":        "received",
+            "note":          None,
+            "hasScreenshot": False,
+            "slipNumber":    slip.slip_number,
+            "receiptNo":     p.receipt_no,
+            "event":         {"id": p.event.id, "name": p.event.name} if p.event else None,
+            "collector":     {"id": p.collector.id, "name": p.collector.name} if p.collector else None,
+            "createdAt":     p.created_at.isoformat() if p.created_at else None,
+        })
+    return entries
+
+
 def list_my_contributions(user_id: int, page: int = 1, per_page: int = 10) -> dict:
     per_page = min(per_page, 50)
-    query = (
-        SelfContribution.query
-        .filter_by(user_id=user_id)
-        .options(joinedload(SelfContribution.event), joinedload(SelfContribution.reviewer))
-        .order_by(SelfContribution.created_at.desc())
-    )
-    pag = db.paginate(query, page=page, per_page=per_page, error_out=False)
+
+    self_items = [
+        {**c.to_dict(include_screenshot_url=True), "source": "self"}
+        for c in (
+            SelfContribution.query
+            .filter_by(user_id=user_id)
+            .options(joinedload(SelfContribution.event), joinedload(SelfContribution.reviewer))
+            .all()
+        )
+    ]
+    collected_items = _collected_entries_for_member(user_id)
+
+    merged = self_items + collected_items
+    merged.sort(key=lambda x: x.get("createdAt") or "", reverse=True)
+
+    total = len(merged)
+    start = (page - 1) * per_page
+    items = merged[start:start + per_page]
     return {
-        "contributions": [c.to_dict(include_screenshot_url=True) for c in pag.items],
-        "page":    pag.page,
-        "pages":   pag.pages,
-        "total":   pag.total,
-        "perPage": pag.per_page,
+        "contributions": items,
+        "page":    page,
+        "pages":   max(1, (total + per_page - 1) // per_page),
+        "total":   total,
+        "perPage": per_page,
     }
 
 
 # ── Member: my stats ──────────────────────────────────────────────────────
 
 def get_my_stats(user_id: int) -> dict:
+    from ...models.payment import Payment, COMPLETED_STATUSES
+    from ...models.contribution_slip import ContributionSlip
+
     row = (
         db.session.query(
             func.coalesce(func.sum(SelfContribution.amount), 0).label("total"),
@@ -190,10 +240,30 @@ def get_my_stats(user_id: int) -> dict:
         .filter_by(user_id=user_id, status=ContributionStatusEnum.pending)
         .count()
     )
+
+    # Contributions collected from this member via slips (already received money).
+    collected = (
+        db.session.query(
+            func.coalesce(func.sum(Payment.amount), 0).label("total"),
+            func.count(Payment.id).label("count"),
+        )
+        .join(ContributionSlip, Payment.slip_id == ContributionSlip.id)
+        .filter(
+            ContributionSlip.member_user_id == user_id,
+            Payment.status.in_(COMPLETED_STATUSES),
+        )
+        .one()
+    )
+
+    self_approved = float(row.total)
+    collected_total = float(collected.total)
     return {
-        "totalApproved":  float(row.total),
-        "approvedCount":  row.count,
+        "totalApproved":  self_approved + collected_total,   # total received (self-approved + collected)
+        "approvedCount":  int(row.count) + int(collected.count),
         "pendingCount":   pending_count,
+        "selfApproved":   self_approved,
+        "collectedTotal": collected_total,
+        "collectedCount": int(collected.count),
     }
 
 
