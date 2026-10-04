@@ -9,6 +9,7 @@ from .service import (
     list_year_assignments, set_year_assignment, clear_year_assignment,
     list_event_assignments, set_event_assignment, clear_event_assignment,
     get_my_roles, VALID_ROLES,
+    list_committee_years, list_year_committee, list_committee_events, list_event_committee,
 )
 
 bp = Blueprint("roles", __name__)
@@ -27,6 +28,38 @@ def roles_list():
 @jwt_required()
 def my_roles():
     return res(data=get_my_roles(get_current_org_id(), int(get_jwt_identity())))
+
+
+# ── Member read-only committee view (no phone numbers) ───────────────────────
+
+@bp.route("/committee/years", methods=["GET"])
+@jwt_required()
+def committee_years():
+    return res(data=list_committee_years(get_current_org_id()))
+
+
+@bp.route("/committee/years/<int:year_id>", methods=["GET"])
+@jwt_required()
+def committee_year(year_id):
+    data, err = list_year_committee(get_current_org_id(), year_id)
+    if err:
+        return res(err, code=404)
+    return res(data=data)
+
+
+@bp.route("/committee/events", methods=["GET"])
+@jwt_required()
+def committee_events():
+    return res(data=list_committee_events(get_current_org_id()))
+
+
+@bp.route("/committee/events/<int:event_id>", methods=["GET"])
+@jwt_required()
+def committee_event(event_id):
+    data, err = list_event_committee(get_current_org_id(), event_id)
+    if err:
+        return res(err, code=404)
+    return res(data=data)
 
 
 @bp.route("/my-profile", methods=["GET"])

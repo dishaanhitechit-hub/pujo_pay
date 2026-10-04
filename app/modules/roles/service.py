@@ -12,6 +12,74 @@ def _valid_role(role: str) -> bool:
     return role in VALID_ROLES
 
 
+def _committee_member_dict(a) -> dict:
+    """Read-only committee entry — NO phone number is included."""
+    role = a.role.value if isinstance(a.role, CommitteeRoleEnum) else a.role
+    return {
+        "userId":         a.user_id,
+        "name":           a.user.name if a.user else "—",
+        "memberId":       a.user.member_id if a.user else None,
+        "memberCategory": a.user.member_category if a.user else None,
+        "role":           role,
+    }
+
+
+def list_committee_years(org_id: int | None) -> list[dict]:
+    """Years that have committee assignments (for the member read-only view)."""
+    years = (
+        ClubYear.query.filter_by(org_id=org_id)
+        .order_by(ClubYear.is_current.desc(), ClubYear.created_at.desc(), ClubYear.id.desc())
+        .all()
+    )
+    return [y.to_dict() for y in years]
+
+
+def list_year_committee(org_id: int | None, club_year_id: int) -> tuple[dict | None, str | None]:
+    year = ClubYear.query.filter_by(id=club_year_id, org_id=org_id).first()
+    if not year:
+        return None, "year not found"
+    rows = (
+        YearRoleAssignment.query.filter_by(club_year_id=club_year_id)
+        .options(joinedload(YearRoleAssignment.user))
+        .all()
+    )
+    members = [_committee_member_dict(a) for a in rows if a.user]
+    members.sort(key=lambda m: (COMMITTEE_ROLE_ORDER.get(m["role"], 99), m["name"].lower()))
+    return {"year": year.to_dict(), "members": members}, None
+
+
+def list_committee_events(org_id: int | None) -> list[dict]:
+    """Events that have committee assignments."""
+    from ...models.event import Event
+    event_ids = [
+        r[0] for r in db.session.query(EventRoleAssignment.event_id)
+        .filter(EventRoleAssignment.org_id == org_id).distinct().all()
+    ]
+    if not event_ids:
+        return []
+    events = Event.query.filter(Event.id.in_(event_ids)).order_by(
+        Event.year.desc().nulls_last(), Event.id.desc()
+    ).all()
+    return [{"id": e.id, "name": e.name, "year": e.year} for e in events]
+
+
+def list_event_committee(org_id: int | None, event_id: int) -> tuple[dict | None, str | None]:
+    event = _event_in_org(org_id, event_id)
+    if not event:
+        return None, "event not found"
+    rows = (
+        EventRoleAssignment.query.filter_by(event_id=event_id)
+        .options(joinedload(EventRoleAssignment.user))
+        .all()
+    )
+    members = [_committee_member_dict(a) for a in rows if a.user]
+    members.sort(key=lambda m: (COMMITTEE_ROLE_ORDER.get(m["role"], 99), m["name"].lower()))
+    return {
+        "event": {"id": event.id, "name": event.name, "year": event.year},
+        "members": members,
+    }, None
+
+
 def get_my_roles(org_id: int | None, user_id: int) -> dict:
     """The logged-in member's own committee roles — current club year + per-event."""
     current_year = ClubYear.query.filter_by(org_id=org_id, is_current=True).first()
