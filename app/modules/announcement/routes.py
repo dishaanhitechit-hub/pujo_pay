@@ -1,5 +1,5 @@
 from flask import Blueprint, request
-from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import get_jwt_identity, jwt_required
 from marshmallow import ValidationError
 
 from ...middleware.permissions import require_permission
@@ -18,6 +18,15 @@ bp = Blueprint("announcement", __name__)
 @require_permission("content.manage")
 def index():
     return res(data=list_announcements(org_id=get_current_org_id()))
+
+
+@bp.route("/member", methods=["GET"])
+@jwt_required()
+def member_list():
+    """Published announcements for the member's org — baseline (all members)."""
+    from ..public.service import list_public_announcements
+    event_id = request.args.get("eventId", type=int)
+    return res(data=list_public_announcements(org_id=get_current_org_id(), event_id=event_id))
 
 
 @bp.route("/", methods=["POST"])
