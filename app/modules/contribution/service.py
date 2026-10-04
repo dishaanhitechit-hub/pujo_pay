@@ -190,7 +190,7 @@ def _collected_entries_for_member(user_id: int) -> list[dict]:
 
 
 def list_my_contributions(user_id: int, page: int = 1, per_page: int = 10) -> dict:
-    per_page = min(per_page, 50)
+    per_page = min(per_page, 200)
 
     self_items = [
         {**c.to_dict(include_screenshot_url=True), "source": "self"}
@@ -273,34 +273,25 @@ def admin_list_contributions(
     status: str | None = None,
     user_id: int | None = None,
     event_id: int | None = None,
+    search: str | None = None,
     page: int = 1,
     per_page: int = 20,
     org_id: int | None = None,
 ) -> dict:
+    from ...models.user import User
     per_page = min(per_page, 100)
+    query = (
+        SelfContribution.query
+        .join(User, SelfContribution.user_id == User.id)
+        .options(
+            contains_eager(SelfContribution.user),
+            joinedload(SelfContribution.event),
+            joinedload(SelfContribution.reviewer),
+        )
+        .order_by(SelfContribution.created_at.desc())
+    )
     if org_id is not None:
-        from ...models.user import User
-        query = (
-            SelfContribution.query
-            .join(User, SelfContribution.user_id == User.id)
-            .filter(User.org_id == org_id)
-            .options(
-                contains_eager(SelfContribution.user),
-                joinedload(SelfContribution.event),
-                joinedload(SelfContribution.reviewer),
-            )
-            .order_by(SelfContribution.created_at.desc())
-        )
-    else:
-        query = (
-            SelfContribution.query
-            .options(
-                joinedload(SelfContribution.user),
-                joinedload(SelfContribution.event),
-                joinedload(SelfContribution.reviewer),
-            )
-            .order_by(SelfContribution.created_at.desc())
-        )
+        query = query.filter(User.org_id == org_id)
     if status:
         try:
             query = query.filter(SelfContribution.status == ContributionStatusEnum(status))
@@ -310,6 +301,9 @@ def admin_list_contributions(
         query = query.filter(SelfContribution.user_id == user_id)
     if event_id:
         query = query.filter(SelfContribution.event_id == event_id)
+    if search:
+        like = f"%{search.strip()}%"
+        query = query.filter(db.or_(User.name.ilike(like), SelfContribution.note.ilike(like)))
 
     pag = db.paginate(query, page=page, per_page=per_page, error_out=False)
     return {
