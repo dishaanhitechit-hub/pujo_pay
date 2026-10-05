@@ -38,6 +38,9 @@ class SelfContribution(db.Model):
     reviewed_by     = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     reviewed_at     = db.Column(db.DateTime, nullable=True)
 
+    # Linked slip when auto-generated on submission
+    slip_id         = db.Column(db.Integer, db.ForeignKey("contribution_slips.id"), nullable=True, index=True)
+
     created_at      = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
     updated_at      = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())
 
@@ -45,6 +48,7 @@ class SelfContribution(db.Model):
     user     = db.relationship("User", foreign_keys=[user_id])
     event    = db.relationship("Event", foreign_keys=[event_id])
     reviewer = db.relationship("User", foreign_keys=[reviewed_by])
+    slip     = db.relationship("ContributionSlip", foreign_keys=[slip_id])
 
     def to_dict(self, include_screenshot_url: bool = False) -> dict:
         d = {
