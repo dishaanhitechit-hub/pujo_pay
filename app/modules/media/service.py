@@ -278,6 +278,40 @@ def get_event_gallery(event_id: int) -> list[dict]:
     return [m.to_dict() for m in items]
 
 
+# ── Admin config images ────────────────────────────────────────────────────
+
+def upload_config_media(
+    org_id: int, fileobj, mime_type: str, original_filename: str,
+    uploaded_by: int,
+) -> tuple[dict | None, str | None]:
+    if not allowed_mime(mime_type):
+        return None, f"unsupported file type '{mime_type}' — allowed: {list(ALLOWED_MIMES)}"
+
+    root = _media_root()
+    rel_dir = f"config/{org_id}"
+    ext = _ext_for_mime(mime_type)
+    try:
+        rel_path, filename, file_size = _save_file(fileobj, rel_dir, ext, root)
+    except Exception as exc:
+        return None, f"file save failed: {exc}"
+
+    media = MediaFile(
+        path=rel_path,
+        org_id=org_id,
+        category=MediaCategoryEnum.public,
+        filename=filename,
+        original_filename=original_filename or None,
+        mime_type=mime_type,
+        file_size=file_size,
+        alt_text=None,
+        sort_order=0,
+        uploaded_by=uploaded_by,
+    )
+    db.session.add(media)
+    db.session.commit()
+    return {"url": f"/media/{rel_path}", "id": media.id}, None
+
+
 # ── Serve helper ───────────────────────────────────────────────────────────
 
 def resolve_media_path(relative: str) -> str | None:

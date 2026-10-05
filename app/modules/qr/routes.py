@@ -26,12 +26,13 @@ def qr_page(payment_id):
         return render_template("pay/error.html",
                                message=f"This payment has already been {payment.status.value}.")
 
-    upi_id = AppConfig.get("upi_id")
+    event_org_id = payment.event.org_id if payment.event else None
+    upi_id = AppConfig.get("upi_id", org_id=event_org_id)
     if not upi_id:
         return render_template("pay/error.html",
                                message="UPI ID not configured. Ask admin to set it via POST /api/admin/config.")
 
-    org_name = AppConfig.get("org_name", "Pujo Committee")
+    org_name = AppConfig.get("org_name", org_id=event_org_id, default="Pujo Committee")
     expiry_ts = open_qr_page(payment)
     qr_b64 = generate_upi_qr_base64(upi_id, org_name, str(payment.amount))
 
@@ -49,8 +50,9 @@ def qr_confirm(payment_id):
 
     ok, msg = confirm_upi_payment(payment, utr)
     if not ok:
-        upi_id = AppConfig.get("upi_id", "")
-        org_name = AppConfig.get("org_name", "Pujo Committee")
+        event_org_id = payment.event.org_id if payment.event else None
+        upi_id = AppConfig.get("upi_id", org_id=event_org_id, default="")
+        org_name = AppConfig.get("org_name", org_id=event_org_id, default="Pujo Committee")
         expiry_ts = (
             int(payment.payment_page_opened_at.timestamp()) + 600
             if payment.payment_page_opened_at else 0

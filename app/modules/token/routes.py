@@ -21,7 +21,7 @@ bp = Blueprint("token", __name__)
 @bp.route("/api/admin/token-config", methods=["GET"])
 @require_permission("users.manage")
 def token_config_get():
-    return res(data={"config": get_token_config_dict()})
+    return res(data={"config": get_token_config_dict(org_id=get_current_org_id())})
 
 
 @bp.route("/api/admin/token-config", methods=["POST"])
@@ -30,7 +30,7 @@ def token_config_set():
     body = request.get_json(silent=True) or {}
     if not body:
         return res("request body is empty", code=400)
-    updated = set_token_config(body)
+    updated = set_token_config(body, org_id=get_current_org_id())
     return res("token config updated", data=updated)
 
 
@@ -39,7 +39,7 @@ def token_config_set():
 def token_counter_reset():
     if get_jwt().get("role") != "admin":
         return res("only admin can reset the token counter", code=403)
-    start = reset_token_counter()
+    start = reset_token_counter(org_id=get_current_org_id())
     return res("token counter reset", data={"nextTokenStartsAt": start})
 
 
@@ -55,7 +55,7 @@ def generate():
         return res("validation failed", data=e.messages, code=422)
 
     user_id = int(get_jwt_identity())
-    token = generate_token(data, user_id)
+    token = generate_token(data, user_id, org_id=get_current_org_id())
     return res("token generated", data=token.to_dict(), code=201)
 
 
@@ -69,7 +69,7 @@ def bulk():
         return res("validation failed", data=e.messages, code=422)
 
     user_id = int(get_jwt_identity())
-    tokens, batch_id = generate_bulk(data["count"], user_id)
+    tokens, batch_id = generate_bulk(data["count"], user_id, org_id=get_current_org_id())
     return res("bulk tokens generated", data={
         "batchId": batch_id,
         "count": len(tokens),

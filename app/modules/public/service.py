@@ -18,8 +18,6 @@ def _media_url(path: str | None) -> str | None:
 
 
 # ── Public-safe serializers ─────────────────────────────────────────────────
-# These never expose: filesystem paths, createdBy, internal DB metadata,
-# collection_enabled, or any admin-only fields.
 
 def _public_event_dict(
     event: Event,
@@ -85,6 +83,32 @@ def _public_committee_dict(member: CommitteeMember) -> dict:
     }
 
 
+_ROLE_LABELS = {
+    "chairman":        "Chairman",
+    "president":       "President",
+    "vice_president":  "Vice President",
+    "secretary":       "Secretary",
+    "junior_secretary":"Junior Secretary",
+    "treasurer":       "Treasurer",
+    "accountant":      "Accountant",
+    "advisory_member": "Advisory Member",
+    "member":          "Member",
+}
+
+
+def _year_role_dict(assignment) -> dict:
+    from ...models.committee_role import COMMITTEE_ROLE_ORDER
+    role = assignment.role.value if hasattr(assignment.role, "value") else assignment.role
+    return {
+        "id":        assignment.id,
+        "name":      assignment.user.name if assignment.user else "",
+        "roleTitle": _ROLE_LABELS.get(role, role.replace("_", " ").title()),
+        "phone":     assignment.user.phone if assignment.user else None,
+        "photoUrl":  None,
+        "sortOrder": COMMITTEE_ROLE_ORDER.get(role, 999),
+    }
+
+
 # ── Query functions ────────────────────────────────────────────────────────
 
 def list_public_events(org_id: int | None = None, page: int = 1, per_page: int = 12, include_days: bool = False) -> dict:
@@ -92,7 +116,6 @@ def list_public_events(org_id: int | None = None, page: int = 1, per_page: int =
     query = (
         Event.query
         .filter_by(status=EventStatusEnum.published, org_id=org_id)
-        # featured first, then newest by start_date
         .order_by(Event.is_featured.desc(), Event.start_date.desc(), Event.created_at.desc())
     )
     pagination = db.paginate(query, page=page, per_page=per_page, error_out=False)
@@ -124,7 +147,6 @@ def get_featured_event(org_id: int | None = None) -> dict | None:
 
 
 def list_public_announcements(org_id: int | None = None, event_id: int | None = None) -> list[dict]:
-    # joinedload avoids N+1 when serialising ann.event for each row
     query = (
         Announcement.query
         .filter_by(is_published=True, org_id=org_id)
@@ -137,6 +159,53 @@ def list_public_announcements(org_id: int | None = None, event_id: int | None = 
 
 
 def list_public_committee(org_id: int | None = None, event_id: int | None = None) -> list[dict]:
+    """Return committee members for the public Our Team page.
+
+    Checks the YearRoleAssignment system: current year first, then any year
+    with public assignments (most recent), then falls back to the legacy table.
+    """
+    from ...models.committee_role import ClubYear, YearRoleAssignment, COMMITTEE_ROLE_ORDER
+
+    def _sorted_assignments(assigns):
+        assigns.sort(
+            key=lambda a: COMMITTEE_ROLE_ORDER.get(
+                a.role.value if hasattr(a.role, "value") else a.role, 999
+            )
+        )
+        return [_year_role_dict(a) for a in assigns]
+
+    # 1. Try current year
+    current_year = ClubYear.query.filter_by(org_id=org_id, is_current=True).first()
+    if current_year:
+        assignments = (
+            YearRoleAssignment.query
+            .filter_by(club_year_id=current_year.id, is_public=True)
+            .options(joinedload(YearRoleAssignment.user))
+            .all()
+        )
+        if assignments:
+            return _sorted_assignments(assignments)
+
+    # 2. Any year with public assignments (most recently created first)
+    all_years = (
+        ClubYear.query
+        .filter_by(org_id=org_id)
+        .order_by(ClubYear.id.desc())
+        .all()
+    )
+    for year in all_years:
+        if current_year and year.id == current_year.id:
+            continue  # already checked above
+        assignments = (
+            YearRoleAssignment.query
+            .filter_by(club_year_id=year.id, is_public=True)
+            .options(joinedload(YearRoleAssignment.user))
+            .all()
+        )
+        if assignments:
+            return _sorted_assignments(assignments)
+
+    # 3. Fall back to legacy CommitteeMember table
     query = CommitteeMember.query.filter_by(is_active=True, org_id=org_id)
     if event_id:
         query = query.filter_by(event_id=event_id)
@@ -177,20 +246,22 @@ def list_all_gallery_images(org_id: int | None = None) -> dict:
     return {"images": images, "total": len(images)}
 
 
-def get_public_stats() -> dict:
-    """
-    Lightweight stats for the public community section.
-    All queries are simple aggregates — no table scans.
-    """
-    donor_count = db.session.query(func.count(Donor.id)).scalar() or 0
+def get_public_stats(org_id: int | None = None) -> dict:
+    """Lightweight stats for the public community section."""
+    donor_q = db.session.query(func.count(Donor.id))
+    if org_id is not None:
+        donor_q = donor_q.filter(Donor.org_id == org_id)
+    donor_count = donor_q.scalar() or 0
 
-    oldest_year = (
+    event_q = (
         db.session.query(func.min(Event.year))
         .filter(Event.status == EventStatusEnum.published, Event.year.isnot(None))
-        .scalar()
     )
+    if org_id is not None:
+        event_q = event_q.filter(Event.org_id == org_id)
+    oldest_year = event_q.scalar()
 
     return {
-        "donorCount":  donor_count,
-        "oldestYear":  oldest_year,   # None if no published events have a year set
+        "donorCount": donor_count,
+        "oldestYear": oldest_year,
     }

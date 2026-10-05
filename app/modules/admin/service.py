@@ -25,6 +25,20 @@ ALLOWED_KEYS = {
     # Member ID format
     "memberIdPrefix":              "Prefix for auto-generated member IDs (e.g. ABC)",
     "memberIdDigits":              "Number of digits in the member ID sequence (3-6, default 4)",
+    # Club identity (public website)
+    "clubNameVernacular":   "Club name in local language (e.g. শতদল)",
+    "clubNameEn":           "Club name in English (e.g. Shatadal)",
+    "clubTagline":          "Short location/tagline (e.g. Kolaghat)",
+    "clubDescription":      "One-line club description shown on the public site",
+    "clubCity":             "City / town (e.g. Kolaghat)",
+    "clubState":            "State (e.g. West Bengal)",
+    "clubFoundingYear":     "Year the club was founded (e.g. 1975)",
+    "clubLogoUrl":          "URL of the club logo image",
+    "clubHeroImageUrl":     "URL of the hero / banner image on the public home page",
+    "clubAboutText":        "Full about-us paragraph shown on the About page",
+    "clubSiteUrl":          "Canonical public website URL (used for OG tags)",
+    "clubMetaDescription":  "SEO meta description for the public site",
+    "clubOgImageUrl":       "Open Graph image URL for the public site",
 }
 
 # maps camelCase payload key → internal DB key
@@ -50,15 +64,29 @@ _KEY_MAP = {
     "platformRegistrationUpiId":   "platform.registration_upi_id",
     "memberIdPrefix":              "member_id.prefix",
     "memberIdDigits":              "member_id.digits",
+    # Club identity
+    "clubNameVernacular":   "club.name_vernacular",
+    "clubNameEn":           "club.name_en",
+    "clubTagline":          "club.tagline",
+    "clubDescription":      "club.description",
+    "clubCity":             "club.city",
+    "clubState":            "club.state",
+    "clubFoundingYear":     "club.founding_year",
+    "clubLogoUrl":          "club.logo_url",
+    "clubHeroImageUrl":     "club.hero_image_url",
+    "clubAboutText":        "club.about_text",
+    "clubSiteUrl":          "club.site_url",
+    "clubMetaDescription":  "club.meta_description",
+    "clubOgImageUrl":       "club.og_image_url",
 }
 
 
-def get_all() -> dict:
-    rows = AppConfig.query.all()
+def get_all(org_id: int | None = None) -> dict:
+    rows = AppConfig.query.filter_by(org_id=org_id).all()
     return {row.key: row.value for row in rows}
 
 
-def set_keys(payload: dict) -> tuple[dict, dict]:
+def set_keys(payload: dict, org_id: int | None = None) -> tuple[dict, dict]:
     """Set one or more config keys. Returns (updated, errors)."""
     updated, errors = {}, {}
     for key, value in payload.items():
@@ -66,6 +94,6 @@ def set_keys(payload: dict) -> tuple[dict, dict]:
             errors[key] = f"unknown key — allowed: {list(ALLOWED_KEYS)}"
             continue
         db_key = _KEY_MAP[key]
-        AppConfig.set(db_key, str(value).strip())
+        AppConfig.set(db_key, str(value).strip(), org_id=org_id)
         updated[key] = str(value).strip()
     return updated, errors

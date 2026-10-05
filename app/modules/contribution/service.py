@@ -19,19 +19,19 @@ from ...models.app_config import AppConfig
 
 # ── Payment info (UPI / bank) ──────────────────────────────────────────────
 
-def get_payment_info() -> dict:
+def get_payment_info(org_id: int | None = None) -> dict:
     """Return configured payment details for the contribution form."""
     return {
         "upi": {
-            "id":    AppConfig.get("contribution.upi_id"),
-            "qrUrl": _qr_url(AppConfig.get("contribution.upi_qr_path")),
+            "id":    AppConfig.get("contribution.upi_id", org_id=org_id),
+            "qrUrl": _qr_url(AppConfig.get("contribution.upi_qr_path", org_id=org_id)),
         },
         "bank": {
-            "bankName":      AppConfig.get("contribution.bank_name"),
-            "accountName":   AppConfig.get("contribution.account_name"),
-            "accountNumber": AppConfig.get("contribution.account_number"),
-            "ifsc":          AppConfig.get("contribution.ifsc"),
-            "branch":        AppConfig.get("contribution.bank_branch"),
+            "bankName":      AppConfig.get("contribution.bank_name", org_id=org_id),
+            "accountName":   AppConfig.get("contribution.account_name", org_id=org_id),
+            "accountNumber": AppConfig.get("contribution.account_number", org_id=org_id),
+            "ifsc":          AppConfig.get("contribution.ifsc", org_id=org_id),
+            "branch":        AppConfig.get("contribution.bank_branch", org_id=org_id),
         },
     }
 

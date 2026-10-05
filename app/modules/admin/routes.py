@@ -1,6 +1,8 @@
 from flask import Blueprint, request
+from flask_jwt_extended import get_jwt_identity
 
 from ...middleware.permissions import require_permission
+from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from .service import get_all, set_keys, ALLOWED_KEYS
 
@@ -11,7 +13,7 @@ bp = Blueprint("admin", __name__)
 @require_permission("users.manage")
 def get_config():
     return res(data={
-        "config": get_all(),
+        "config": get_all(org_id=get_current_org_id()),
         "allowedKeys": ALLOWED_KEYS,
     })
 
@@ -23,9 +25,32 @@ def update_config():
     if not body:
         return res("request body is empty", code=400)
 
-    updated, errors = set_keys(body)
+    updated, errors = set_keys(body, org_id=get_current_org_id())
 
     if errors:
         return res("some keys were rejected", data={"updated": updated, "errors": errors}, code=400)
 
     return res("config updated", data=updated)
+
+
+@bp.route("/config/media", methods=["POST"])
+@require_permission("users.manage")
+def upload_config_media():
+    from ..media.service import upload_config_media as _upload
+
+    if "file" not in request.files:
+        return res("no file in request", code=400)
+    fileobj = request.files["file"]
+    if not fileobj.filename:
+        return res("no file selected", code=400)
+
+    result, err = _upload(
+        org_id=get_current_org_id(),
+        fileobj=fileobj,
+        mime_type=fileobj.mimetype,
+        original_filename=fileobj.filename,
+        uploaded_by=int(get_jwt_identity()),
+    )
+    if err:
+        return res(err, code=400)
+    return res("uploaded", data=result, code=201)

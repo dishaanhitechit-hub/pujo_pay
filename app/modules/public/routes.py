@@ -25,26 +25,46 @@ def _resolve_org_id() -> int | None:
     return org.id if org else None
 
 
+def _cfg(key: str, org_id: int | None) -> str | None:
+    return AppConfig.get(key, org_id=org_id)
+
+
 @bp.route("/site-config", methods=["GET"])
 def site_config():
+    org_id = _resolve_org_id()
     data = {
-        "upiId":  AppConfig.get("upi_id"),
-        "orgName": AppConfig.get("org_name"),
+        "upiId":  _cfg("upi_id", org_id),
+        "orgName": _cfg("org_name", org_id),
         "contact": {
-            "phone":    AppConfig.get("contact.phone"),
-            "email":    AppConfig.get("contact.email"),
-            "whatsapp": AppConfig.get("contact.whatsapp"),
-            "address":  AppConfig.get("contact.address"),
+            "phone":    _cfg("contact.phone", org_id),
+            "email":    _cfg("contact.email", org_id),
+            "whatsapp": _cfg("contact.whatsapp", org_id),
+            "address":  _cfg("contact.address", org_id),
         },
         "support": {
-            "title":           AppConfig.get("support.title"),
-            "description":     AppConfig.get("support.description"),
-            "whatsappMessage": AppConfig.get("support.whatsapp_message"),
+            "title":           _cfg("support.title", org_id),
+            "description":     _cfg("support.description", org_id),
+            "whatsappMessage": _cfg("support.whatsapp_message", org_id),
         },
         "social": {
-            "facebook":  AppConfig.get("social.facebook"),
-            "instagram": AppConfig.get("social.instagram"),
-            "youtube":   AppConfig.get("social.youtube"),
+            "facebook":  _cfg("social.facebook", org_id),
+            "instagram": _cfg("social.instagram", org_id),
+            "youtube":   _cfg("social.youtube", org_id),
+        },
+        "club": {
+            "nameVernacular":  _cfg("club.name_vernacular", org_id),
+            "nameEn":          _cfg("club.name_en", org_id),
+            "tagline":         _cfg("club.tagline", org_id),
+            "description":     _cfg("club.description", org_id),
+            "city":            _cfg("club.city", org_id),
+            "state":           _cfg("club.state", org_id),
+            "foundingYear":    _cfg("club.founding_year", org_id),
+            "logoUrl":         _cfg("club.logo_url", org_id),
+            "heroImageUrl":    _cfg("club.hero_image_url", org_id),
+            "aboutText":       _cfg("club.about_text", org_id),
+            "siteUrl":         _cfg("club.site_url", org_id),
+            "metaDescription": _cfg("club.meta_description", org_id),
+            "ogImageUrl":      _cfg("club.og_image_url", org_id),
         },
     }
     return res(data=data)
@@ -81,7 +101,6 @@ def event_detail(slug: str):
 @bp.route("/featured-event", methods=["GET"])
 def featured_event():
     result = get_featured_event(org_id=_resolve_org_id())
-    # Return JSON null (not []) when no featured event is set.
     return jsonify({"message": "", "data": result}), 200
 
 
@@ -92,7 +111,7 @@ def gallery():
 
 @bp.route("/stats", methods=["GET"])
 def stats():
-    return res(data=get_public_stats())
+    return res(data=get_public_stats(org_id=_resolve_org_id()))
 
 
 @bp.route("/platform-upi", methods=["GET"])

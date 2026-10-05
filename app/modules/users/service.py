@@ -25,11 +25,11 @@ _MEMBER_ID_MIN_DIGITS = 3
 _MEMBER_ID_MAX_DIGITS = 6
 
 
-def _member_id_settings() -> tuple[str, int]:
+def _member_id_settings(org_id: int | None = None) -> tuple[str, int]:
     """Return (prefix, digits) for member-id generation, clamped to sane bounds."""
-    prefix = (AppConfig.get("member_id.prefix") or "").strip()
+    prefix = (AppConfig.get("member_id.prefix", org_id=org_id) or "").strip()
     try:
-        digits = int(AppConfig.get("member_id.digits") or _MEMBER_ID_DEFAULT_DIGITS)
+        digits = int(AppConfig.get("member_id.digits", org_id=org_id) or _MEMBER_ID_DEFAULT_DIGITS)
     except (TypeError, ValueError):
         digits = _MEMBER_ID_DEFAULT_DIGITS
     digits = max(_MEMBER_ID_MIN_DIGITS, min(_MEMBER_ID_MAX_DIGITS, digits))
@@ -38,7 +38,7 @@ def _member_id_settings() -> tuple[str, int]:
 
 def generate_next_member_id(org_id: int | None) -> str:
     """Suggest the next member id (e.g. ABC-0001) based on existing members in the org."""
-    prefix, digits = _member_id_settings()
+    prefix, digits = _member_id_settings(org_id)
     sep = "-" if prefix else ""
     head = f"{prefix}{sep}"
 

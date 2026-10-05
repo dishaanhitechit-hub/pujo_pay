@@ -43,14 +43,14 @@ bulk_schema = BulkTokenSchema()
 
 # ── Config helpers ─────────────────────────────────────────────────────────
 
-def get_token_config_dict() -> dict:
+def get_token_config_dict(org_id: int | None = None) -> dict:
     return {
-        "tokenPrefix":        AppConfig.get("token_prefix", ""),
-        "tokenSuffix":        AppConfig.get("token_suffix", ""),
-        "tokenPadWidth":      AppConfig.get("token_pad_width", "4"),
-        "tokenStartNumber":   AppConfig.get("token_start_number", "1"),
-        "tokenCurrentNumber": AppConfig.get("token_current_number"),
-        "tokenDefaultTopic":  AppConfig.get("token_default_topic", ""),
+        "tokenPrefix":        AppConfig.get("token_prefix", org_id=org_id, default=""),
+        "tokenSuffix":        AppConfig.get("token_suffix", org_id=org_id, default=""),
+        "tokenPadWidth":      AppConfig.get("token_pad_width", org_id=org_id, default="4"),
+        "tokenStartNumber":   AppConfig.get("token_start_number", org_id=org_id, default="1"),
+        "tokenCurrentNumber": AppConfig.get("token_current_number", org_id=org_id),
+        "tokenDefaultTopic":  AppConfig.get("token_default_topic", org_id=org_id, default=""),
     }
 
 
@@ -63,30 +63,33 @@ _TOKEN_CONFIG_MAP = {
 }
 
 
-def set_token_config(payload: dict) -> dict:
+def set_token_config(payload: dict, org_id: int | None = None) -> dict:
     updated = {}
     for camel, db_key in _TOKEN_CONFIG_MAP.items():
         if camel in payload:
-            AppConfig.set(db_key, str(payload[camel]).strip())
+            AppConfig.set(db_key, str(payload[camel]).strip(), org_id=org_id)
             updated[camel] = str(payload[camel]).strip()
     return updated
 
 
-def reset_token_counter() -> int:
-    db.session.execute(text("DELETE FROM app_config WHERE key = 'token_current_number'"))
-    db.session.commit()
-    return int(AppConfig.get("token_start_number", "1") or "1")
+def reset_token_counter(org_id: int | None = None) -> int:
+    from ...models.app_config import AppConfig as _AC
+    row = _AC.query.filter_by(org_id=org_id, key="token_current_number").first()
+    if row:
+        db.session.delete(row)
+        db.session.commit()
+    return int(AppConfig.get("token_start_number", org_id=org_id, default="1") or "1")
 
 
 # ── Internal helpers ───────────────────────────────────────────────────────
 
-def _cfg() -> dict:
+def _cfg(org_id: int | None = None) -> dict:
     return {
-        "prefix":        AppConfig.get("token_prefix", "") or "",
-        "suffix":        AppConfig.get("token_suffix", "") or "",
-        "pad_width":     int(AppConfig.get("token_pad_width", "4") or "4"),
-        "default_topic": AppConfig.get("token_default_topic", "") or "",
-        "org_name":      AppConfig.get("org_name", "Organisation") or "Organisation",
+        "prefix":        AppConfig.get("token_prefix", org_id=org_id, default="") or "",
+        "suffix":        AppConfig.get("token_suffix", org_id=org_id, default="") or "",
+        "pad_width":     int(AppConfig.get("token_pad_width", org_id=org_id, default="4") or "4"),
+        "default_topic": AppConfig.get("token_default_topic", org_id=org_id, default="") or "",
+        "org_name":      AppConfig.get("org_name", org_id=org_id, default="Organisation") or "Organisation",
     }
 
 
@@ -134,8 +137,8 @@ def make_qr_b64(url: str) -> str:
 
 # ── Token generation ───────────────────────────────────────────────────────
 
-def generate_token(data: dict, generated_by_id: int) -> Token:
-    cfg = _cfg()
+def generate_token(data: dict, generated_by_id: int, org_id: int | None = None) -> Token:
+    cfg = _cfg(org_id)
     serial = _next_serial()
     token_no = _build_token_no(serial, cfg)
     topic = data.get("topic") or cfg["default_topic"] or None
@@ -155,8 +158,8 @@ def generate_token(data: dict, generated_by_id: int) -> Token:
     return token
 
 
-def generate_bulk(count: int, generated_by_id: int) -> tuple[list, str]:
-    cfg = _cfg()
+def generate_bulk(count: int, generated_by_id: int, org_id: int | None = None) -> tuple[list, str]:
+    cfg = _cfg(org_id)
     batch_id = str(uuid.uuid4())
     tokens = []
     now = datetime.now(timezone.utc)

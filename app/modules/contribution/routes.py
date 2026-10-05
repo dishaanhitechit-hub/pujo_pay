@@ -32,7 +32,7 @@ def _auth():
 @bp.route("/payment-info", methods=["GET"])
 def payment_info():
     _auth()
-    return res(data=get_payment_info())
+    return res(data=get_payment_info(org_id=get_current_org_id()))
 
 
 # ── Member: submit ────────────────────────────────────────────────────────
