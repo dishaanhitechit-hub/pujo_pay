@@ -61,6 +61,7 @@ def submit():
             fileobj=fileobj,
             mime_type=mime,
             media_root=current_app.config["MEDIA_STORAGE_PATH"],
+            org_id=get_current_org_id(),
         )
     except Exception as exc:
         current_app.logger.error("submit_contribution crashed: %s", traceback.format_exc())
