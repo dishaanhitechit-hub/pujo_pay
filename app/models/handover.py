@@ -20,22 +20,26 @@ class Handover(db.Model):
     amount        = db.Column(db.Numeric(10, 2), nullable=False)
     handover_date = db.Column(db.Date, nullable=False)
     note          = db.Column(db.Text)
-    status        = db.Column(db.Enum(HandoverStatusEnum, native_enum=False), nullable=False,
-                              default=HandoverStatusEnum.pending, index=True)
-    reviewed_by   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
-    reviewed_at   = db.Column(db.DateTime)
-    reject_reason = db.Column(db.Text)
-    created_at    = db.Column(db.DateTime, server_default=db.func.now(), index=True)
+    status           = db.Column(db.Enum(HandoverStatusEnum, native_enum=False), nullable=False,
+                                 default=HandoverStatusEnum.pending, index=True)
+    reviewed_by      = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    reviewed_at      = db.Column(db.DateTime)
+    reject_reason    = db.Column(db.Text)
+    # The specific user this handover is directed to (cashier / treasurer)
+    handover_to_id   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    created_at       = db.Column(db.DateTime, server_default=db.func.now(), index=True)
 
-    event     = db.relationship("Event", foreign_keys=[event_id])
-    collector = db.relationship("User", foreign_keys=[collector_id])
-    reviewer  = db.relationship("User", foreign_keys=[reviewed_by])
+    event       = db.relationship("Event", foreign_keys=[event_id])
+    collector   = db.relationship("User", foreign_keys=[collector_id])
+    reviewer    = db.relationship("User", foreign_keys=[reviewed_by])
+    handover_to = db.relationship("User", foreign_keys=[handover_to_id])
 
     def to_dict(self) -> dict:
         return {
             "id":           self.id,
             "event":        {"id": self.event.id, "name": self.event.name} if self.event else None,
             "collector":    {"id": self.collector.id, "name": self.collector.name} if self.collector else None,
+            "handoverTo":   {"id": self.handover_to.id, "name": self.handover_to.name} if self.handover_to else None,
             "amount":       str(self.amount),
             "handoverDate": self.handover_date.isoformat() if self.handover_date else None,
             "note":         self.note,

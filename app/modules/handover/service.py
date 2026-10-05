@@ -1,7 +1,7 @@
 from decimal import Decimal
 from datetime import datetime, timezone, date
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import joinedload
 
 from ...extensions import db
@@ -9,6 +9,7 @@ from ...models.payment import Payment, MethodEnum, COMPLETED_STATUSES
 from ...models.event import Event
 from ...models.user import User
 from ...models.handover import Handover, HandoverStatusEnum
+from ...models.committee_role import YearRoleAssignment, EventRoleAssignment, CommitteeRoleEnum
 
 
 def _cash_collected(collector_id: int, event_id: int) -> Decimal:
@@ -89,7 +90,45 @@ def get_collector_summary(org_id: int | None, collector_id: int) -> list[dict]:
     return [_event_summary(collector_id, ev) for ev in events]
 
 
-def create_handover(org_id, collector_id, event_id, amount, handover_date, note) -> tuple[dict | None, str | None]:
+def get_handover_receivers(org_id: int | None) -> list[dict]:
+    """Users who can receive a handover: admin, cashier (role), or treasurer (committee role)."""
+    # Users with base role admin or cashier
+    q_role = db.session.query(User.id).filter(
+        User.role.in_(["admin", "cashier"]),
+        User.is_active == True,
+    )
+    if org_id is not None:
+        q_role = q_role.filter(User.org_id == org_id)
+
+    # Users with treasurer year role assignment
+    q_year = db.session.query(YearRoleAssignment.user_id).filter(
+        YearRoleAssignment.role == CommitteeRoleEnum.treasurer,
+    )
+    if org_id is not None:
+        q_year = q_year.filter(YearRoleAssignment.org_id == org_id)
+
+    # Users with treasurer event role assignment
+    q_event = db.session.query(EventRoleAssignment.user_id).filter(
+        EventRoleAssignment.role == CommitteeRoleEnum.treasurer,
+    )
+    if org_id is not None:
+        q_event = q_event.filter(EventRoleAssignment.org_id == org_id)
+
+    all_ids = (
+        {r[0] for r in q_role.all()}
+        | {r[0] for r in q_year.all()}
+        | {r[0] for r in q_event.all()}
+    )
+    if not all_ids:
+        return []
+
+    users = User.query.filter(User.id.in_(all_ids), User.is_active == True).order_by(User.name).all()
+    return [{"id": u.id, "name": u.name, "role": u.role.value if hasattr(u.role, "value") else u.role} for u in users]
+
+
+def create_handover(
+    org_id, collector_id, event_id, amount, handover_date, note, handover_to_id=None
+) -> tuple[dict | None, str | None]:
     event = Event.query.get(event_id)
     if not event or (org_id is not None and event.org_id != org_id):
         return None, "event not found"
@@ -100,19 +139,30 @@ def create_handover(org_id, collector_id, event_id, amount, handover_date, note)
     available = Decimal(summary["available"])
     if amount > available:
         return None, f"amount exceeds cash available to hand over (₹{available})"
+    if handover_to_id is not None:
+        receiver = User.query.get(handover_to_id)
+        if not receiver:
+            return None, "handover recipient not found"
     h = Handover(
         org_id=org_id, event_id=event_id, collector_id=collector_id,
         amount=amount, handover_date=handover_date or date.today(), note=note,
         status=HandoverStatusEnum.pending,
+        handover_to_id=handover_to_id,
     )
     db.session.add(h)
     db.session.commit()
     return h.to_dict(), None
 
 
-def list_handovers(org_id, collector_id=None, status=None, event_id=None) -> list[dict]:
+def list_handovers(
+    org_id, collector_id=None, status=None, event_id=None,
+    recipient_id=None, is_admin=False,
+) -> list[dict]:
     q = Handover.query.options(
-        joinedload(Handover.event), joinedload(Handover.collector), joinedload(Handover.reviewer),
+        joinedload(Handover.event),
+        joinedload(Handover.collector),
+        joinedload(Handover.reviewer),
+        joinedload(Handover.handover_to),
     ).filter(Handover.org_id == org_id)
     if collector_id is not None:
         q = q.filter(Handover.collector_id == collector_id)
@@ -120,16 +170,25 @@ def list_handovers(org_id, collector_id=None, status=None, event_id=None) -> lis
         q = q.filter(Handover.status == HandoverStatusEnum(status))
     if event_id:
         q = q.filter(Handover.event_id == event_id)
+    # Non-admin recipients only see handovers directed to them
+    if not is_admin and recipient_id is not None:
+        q = q.filter(Handover.handover_to_id == recipient_id)
     q = q.order_by(Handover.created_at.desc())
     return [h.to_dict() for h in q.all()]
 
 
-def _review(org_id, handover_id, reviewer_id, new_status, reason=None) -> tuple[dict | None, str | None]:
+def _review(
+    org_id, handover_id, reviewer_id, new_status, reason=None, is_admin=False
+) -> tuple[dict | None, str | None]:
     h = Handover.query.filter_by(id=handover_id, org_id=org_id).first()
     if not h:
         return None, "handover not found"
     if h.status != HandoverStatusEnum.pending:
         return None, f"handover already {h.status.value}"
+    # Only the designated recipient (or admin) can approve/reject
+    if h.handover_to_id is not None and not is_admin:
+        if h.handover_to_id != reviewer_id:
+            return None, "only the designated recipient can review this handover"
     h.status = new_status
     h.reviewed_by = reviewer_id
     h.reviewed_at = datetime.now(timezone.utc)
@@ -139,9 +198,9 @@ def _review(org_id, handover_id, reviewer_id, new_status, reason=None) -> tuple[
     return h.to_dict(), None
 
 
-def accept_handover(org_id, handover_id, reviewer_id):
-    return _review(org_id, handover_id, reviewer_id, HandoverStatusEnum.accepted)
+def accept_handover(org_id, handover_id, reviewer_id, is_admin=False):
+    return _review(org_id, handover_id, reviewer_id, HandoverStatusEnum.accepted, is_admin=is_admin)
 
 
-def reject_handover(org_id, handover_id, reviewer_id, reason):
-    return _review(org_id, handover_id, reviewer_id, HandoverStatusEnum.rejected, reason=reason or None)
+def reject_handover(org_id, handover_id, reviewer_id, reason, is_admin=False):
+    return _review(org_id, handover_id, reviewer_id, HandoverStatusEnum.rejected, reason=reason or None, is_admin=is_admin)
