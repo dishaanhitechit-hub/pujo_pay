@@ -100,16 +100,16 @@ def get_handover_receivers(org_id: int | None) -> list[dict]:
     if org_id is not None:
         q_role = q_role.filter(User.org_id == org_id)
 
-    # Users with treasurer year role assignment
+    # Users with treasurer or accountant year role assignment
     q_year = db.session.query(YearRoleAssignment.user_id).filter(
-        YearRoleAssignment.role == CommitteeRoleEnum.treasurer,
+        YearRoleAssignment.role.in_([CommitteeRoleEnum.treasurer, CommitteeRoleEnum.accountant]),
     )
     if org_id is not None:
         q_year = q_year.filter(YearRoleAssignment.org_id == org_id)
 
-    # Users with treasurer event role assignment
+    # Users with treasurer or accountant event role assignment
     q_event = db.session.query(EventRoleAssignment.user_id).filter(
-        EventRoleAssignment.role == CommitteeRoleEnum.treasurer,
+        EventRoleAssignment.role.in_([CommitteeRoleEnum.treasurer, CommitteeRoleEnum.accountant]),
     )
     if org_id is not None:
         q_event = q_event.filter(EventRoleAssignment.org_id == org_id)
