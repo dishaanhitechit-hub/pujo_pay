@@ -24,7 +24,7 @@ class ContributionSlip(db.Model):
 
     id           = db.Column(db.Integer, primary_key=True)
     org_id       = db.Column(db.Integer, db.ForeignKey("organisations.id"), nullable=True, index=True)
-    event_id     = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False, index=True)
+    event_id     = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=True, index=True)
     collector_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     slip_number  = db.Column(db.String(40), nullable=False, index=True)
 

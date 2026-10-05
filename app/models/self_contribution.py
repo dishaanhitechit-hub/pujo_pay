@@ -77,6 +77,7 @@ class SelfContribution(db.Model):
             } if self.reviewer else None,
             "reviewedAt": self.reviewed_at.isoformat() if self.reviewed_at else None,
             "createdAt":  self.created_at.isoformat() if self.created_at else None,
+            "slipNumber": self.slip.slip_number if self.slip else None,
         }
         if include_screenshot_url and self.screenshot_path:
             d["screenshotUrl"] = f"/api/contributions/screenshot/{self.id}"

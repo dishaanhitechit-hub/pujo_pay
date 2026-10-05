@@ -145,15 +145,15 @@ def submit_contribution(
     db.session.add(contrib)
     db.session.commit()
 
-    # Auto-create a contribution slip + pending payment when an event is selected
+    # Auto-create a contribution slip + pending payment for all submissions (event or general)
     slip_number = None
-    if event_obj and org_id is not None:
+    if org_id is not None:
         from ..slip.service import _next_slip_number
         from ...models.contribution_slip import ContributionSlip, DonorKindEnum, SlipStatusEnum
         from ...models.payment import Payment, MethodEnum, StatusEnum
         slip = ContributionSlip(
             org_id=org_id,
-            event_id=event_obj.id,
+            event_id=event_obj.id if event_obj else None,
             collector_id=user_id,
             slip_number=_next_slip_number(org_id, event_obj),
             donor_kind=DonorKindEnum.member,
@@ -176,7 +176,7 @@ def submit_contribution(
             amount=amt,
             method=payment_method_enum,
             status=StatusEnum.pending,
-            event_id=event_obj.id,
+            event_id=event_obj.id if event_obj else None,
             received_date=pdate,
         )
         db.session.add(pending_payment)
@@ -189,7 +189,11 @@ def submit_contribution(
     # Reload with relationships for response
     contrib = (
         SelfContribution.query
-        .options(joinedload(SelfContribution.user), joinedload(SelfContribution.event))
+        .options(
+            joinedload(SelfContribution.user),
+            joinedload(SelfContribution.event),
+            joinedload(SelfContribution.slip),
+        )
         .get(contrib.id)
     )
     result = contrib.to_dict(include_screenshot_url=True)
@@ -244,7 +248,11 @@ def list_my_contributions(user_id: int, page: int = 1, per_page: int = 10) -> di
         for c in (
             SelfContribution.query
             .filter_by(user_id=user_id)
-            .options(joinedload(SelfContribution.event), joinedload(SelfContribution.reviewer))
+            .options(
+                joinedload(SelfContribution.event),
+                joinedload(SelfContribution.reviewer),
+                joinedload(SelfContribution.slip),
+            )
             .all()
         )
     ]
@@ -337,8 +345,12 @@ def admin_list_contributions(
     self_q = (
         SelfContribution.query
         .join(User, SelfContribution.user_id == User.id)
-        .options(contains_eager(SelfContribution.user),
-                 joinedload(SelfContribution.event), joinedload(SelfContribution.reviewer))
+        .options(
+            contains_eager(SelfContribution.user),
+            joinedload(SelfContribution.event),
+            joinedload(SelfContribution.reviewer),
+            joinedload(SelfContribution.slip),
+        )
     )
     if org_id is not None:
         self_q = self_q.filter(User.org_id == org_id)

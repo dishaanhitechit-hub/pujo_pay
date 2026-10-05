@@ -77,7 +77,6 @@ def _public_committee_dict(member: CommitteeMember) -> dict:
         "id":        member.id,
         "name":      member.name,
         "roleTitle": member.role_title,
-        "phone":     member.phone,
         "photoUrl":  _media_url(member.photo_path),
         "sortOrder": member.sort_order,
     }
@@ -103,7 +102,6 @@ def _year_role_dict(assignment) -> dict:
         "id":        assignment.id,
         "name":      assignment.user.name if assignment.user else "",
         "roleTitle": _ROLE_LABELS.get(role, role.replace("_", " ").title()),
-        "phone":     assignment.user.phone if assignment.user else None,
         "photoUrl":  None,
         "sortOrder": COMMITTEE_ROLE_ORDER.get(role, 999),
     }
@@ -116,7 +114,6 @@ def _event_role_dict(assignment) -> dict:
         "id":        assignment.id,
         "name":      assignment.user.name if assignment.user else "",
         "roleTitle": _ROLE_LABELS.get(role, role.replace("_", " ").title()),
-        "phone":     assignment.user.phone if assignment.user else None,
         "photoUrl":  None,
         "sortOrder": COMMITTEE_ROLE_ORDER.get(role, 999),
     }

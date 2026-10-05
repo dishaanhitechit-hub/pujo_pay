@@ -60,15 +60,24 @@ def _event_abbr(name: str) -> str:
     return (letters[:3] or "SLP")
 
 
-def _next_slip_number(org_id: int | None, event: Event) -> str:
-    abbr = _event_abbr(event.name)
-    year = event.year or datetime.now().year
-    head = f"{abbr}{year}-"
-    rows = (
-        db.session.query(ContributionSlip.slip_number)
-        .filter(ContributionSlip.event_id == event.id)
-        .all()
-    )
+def _next_slip_number(org_id: int | None, event: Event | None) -> str:
+    if event is None:
+        year = datetime.now().year
+        head = f"GEN{year}-"
+        rows = (
+            db.session.query(ContributionSlip.slip_number)
+            .filter(ContributionSlip.event_id.is_(None), ContributionSlip.org_id == org_id)
+            .all()
+        )
+    else:
+        abbr = _event_abbr(event.name)
+        year = event.year or datetime.now().year
+        head = f"{abbr}{year}-"
+        rows = (
+            db.session.query(ContributionSlip.slip_number)
+            .filter(ContributionSlip.event_id == event.id)
+            .all()
+        )
     max_n = 0
     for (num,) in rows:
         if num and num.startswith(head):
