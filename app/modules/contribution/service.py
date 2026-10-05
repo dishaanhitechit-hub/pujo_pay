@@ -17,7 +17,7 @@ from ...models.event import Event
 from ...models.app_config import AppConfig
 
 
-# ── Payment info (UPI / bank) ──────────────────────────────────────────────
+# ── Payment info (UPI / bank) ───────────────────────────────────────────────────────
 
 def get_payment_info(org_id: int | None = None) -> dict:
     """Return configured payment details for the contribution form."""
@@ -42,7 +42,7 @@ def _qr_url(path: str | None) -> str | None:
     return f"/media/{path}"
 
 
-# ── Screenshot helpers ─────────────────────────────────────────────────────
+# ── Screenshot helpers ───────────────────────────────────────────────────────────────────
 
 ALLOWED_SCREENSHOT_MIMES = {"image/jpeg", "image/png", "image/webp"}
 _MIME_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
@@ -82,7 +82,7 @@ def _delete_screenshot(rel_path: str | None, media_root: str) -> None:
         os.remove(abs_path)
 
 
-# ── Member: submit ─────────────────────────────────────────────────────────
+# ── Member: submit ──────────────────────────────────────────────────────────────────────
 
 def submit_contribution(
     user_id: int,
@@ -95,6 +95,7 @@ def submit_contribution(
     fileobj,
     mime_type: str | None,
     media_root: str,
+    org_id: int | None = None,
 ) -> tuple[dict | None, str | None]:
     # Validate method
     try:
@@ -117,8 +118,10 @@ def submit_contribution(
         return None, "payment_date must be YYYY-MM-DD"
 
     # Validate event if provided
+    event_obj = None
     if event_id:
-        if not Event.query.get(event_id):
+        event_obj = Event.query.get(event_id)
+        if not event_obj:
             return None, "event not found"
 
     # Save screenshot if provided
@@ -142,16 +145,60 @@ def submit_contribution(
     db.session.add(contrib)
     db.session.commit()
 
+    # Auto-create a contribution slip + pending payment when an event is selected
+    slip_number = None
+    if event_obj and org_id is not None:
+        from ..slip.service import _next_slip_number
+        from ...models.contribution_slip import ContributionSlip, DonorKindEnum, SlipStatusEnum
+        from ...models.payment import Payment, MethodEnum, StatusEnum
+        slip = ContributionSlip(
+            org_id=org_id,
+            event_id=event_obj.id,
+            collector_id=user_id,
+            slip_number=_next_slip_number(org_id, event_obj),
+            donor_kind=DonorKindEnum.member,
+            member_user_id=user_id,
+            total_amount=amt,
+            paid_amount=0,
+            status=SlipStatusEnum.open,
+            notes=note.strip() if note else None,
+        )
+        db.session.add(slip)
+        db.session.flush()
+
+        # Map contribution payment method to slip payment MethodEnum
+        _method_map = {"upi": MethodEnum.upi, "cash": MethodEnum.cash, "bank_transfer": MethodEnum.upi}
+        payment_method_enum = _method_map.get(payment_method, MethodEnum.cash)
+        pending_payment = Payment(
+            slip_id=slip.id,
+            donor_id=slip.donor_id,
+            collector_id=user_id,
+            amount=amt,
+            method=payment_method_enum,
+            status=StatusEnum.pending,
+            event_id=event_obj.id,
+            received_date=pdate,
+        )
+        db.session.add(pending_payment)
+
+        # Link slip back to the self-contribution
+        contrib.slip_id = slip.id
+        db.session.commit()
+        slip_number = slip.slip_number
+
     # Reload with relationships for response
     contrib = (
         SelfContribution.query
         .options(joinedload(SelfContribution.user), joinedload(SelfContribution.event))
         .get(contrib.id)
     )
-    return contrib.to_dict(include_screenshot_url=True), None
+    result = contrib.to_dict(include_screenshot_url=True)
+    if slip_number:
+        result["slipNumber"] = slip_number
+    return result, None
 
 
-# ── Member: my list ────────────────────────────────────────────────────────
+# ── Member: my list ──────────────────────────────────────────────────────────────────────
 
 def _collected_entries_for_member(user_id: int) -> list[dict]:
     """Contributions collected from this member via slips (donor = member)."""
@@ -218,7 +265,7 @@ def list_my_contributions(user_id: int, page: int = 1, per_page: int = 10) -> di
     }
 
 
-# ── Member: my stats ──────────────────────────────────────────────────────
+# ── Member: my stats ────────────────────────────────────────────────────────────────────────
 
 def get_my_stats(user_id: int) -> dict:
     from ...models.payment import Payment, COMPLETED_STATUSES
@@ -267,7 +314,7 @@ def get_my_stats(user_id: int) -> dict:
     }
 
 
-# ── Admin: list all ────────────────────────────────────────────────────────
+# ── Admin: list all ──────────────────────────────────────────────────────────────────────
 
 def admin_list_contributions(
     status: str | None = None,
@@ -354,7 +401,7 @@ def admin_list_contributions(
     }
 
 
-# ── Admin: approve / reject ────────────────────────────────────────────────
+# ── Admin: approve / reject ─────────────────────────────────────────────────────────────────
 
 def admin_review_contribution(
     contribution_id: int,
@@ -388,11 +435,33 @@ def admin_review_contribution(
     contrib.admin_note  = admin_note.strip() if admin_note else None
     contrib.reviewed_by = reviewer_id
     contrib.reviewed_at = datetime.utcnow()
+
+    # Complete or cancel the linked slip payment
+    if contrib.slip_id:
+        from ...models.payment import Payment, StatusEnum
+        from ...models.contribution_slip import SlipStatusEnum
+        from ..slip.service import recalc_slip
+        pending = (
+            Payment.query
+            .filter_by(slip_id=contrib.slip_id, status=StatusEnum.pending)
+            .first()
+        )
+        if pending:
+            if action == "approve":
+                pending.status = StatusEnum.completed
+                pending.assign_receipt_no()
+                from datetime import timezone
+                pending.confirmed_at = datetime.now(timezone.utc)
+                db.session.flush()
+                recalc_slip(pending.slip)
+            else:
+                pending.status = StatusEnum.cancelled
+
     db.session.commit()
     return contrib.to_dict(include_screenshot_url=True), None
 
 
-# ── Admin: screenshot path lookup ─────────────────────────────────────────
+# ── Admin: screenshot path lookup ─────────────────────────────────────────────────────────────
 
 def get_screenshot_path(contribution_id: int, requesting_user_id: int, is_admin: bool) -> tuple[str | None, str | None]:
     """Return (absolute_path, error). Only owner or admin may access."""
@@ -406,7 +475,7 @@ def get_screenshot_path(contribution_id: int, requesting_user_id: int, is_admin:
     return contrib.screenshot_path, None
 
 
-# ── Admin: aggregate stats ─────────────────────────────────────────────────
+# ── Admin: aggregate stats ────────────────────────────────────────────────────────────────────
 
 def admin_stats(org_id: int | None = None) -> dict:
     from ...models.user import User
