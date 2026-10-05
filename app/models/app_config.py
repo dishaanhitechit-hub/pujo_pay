@@ -15,7 +15,7 @@ class AppConfig(db.Model):
 
     id       = db.Column(db.Integer, primary_key=True)
     org_id   = db.Column(db.Integer, db.ForeignKey("organisations.id"), nullable=True, index=True)
-    key      = db.Column(db.String(120), nullable=False)
+    key      = db.Column(db.String(125), nullable=False)
     value    = db.Column(db.Text, nullable=False)
     updated_at = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())
 
