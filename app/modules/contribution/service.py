@@ -278,40 +278,79 @@ def admin_list_contributions(
     per_page: int = 20,
     org_id: int | None = None,
 ) -> dict:
+    """Member contributions for admins/finance — self-reported PLUS amounts collected from
+    members via slips (donor = member). Collected entries are read-only ('received')."""
     from ...models.user import User
+    from ...models.payment import Payment, COMPLETED_STATUSES
+    from ...models.contribution_slip import ContributionSlip
     per_page = min(per_page, 100)
-    query = (
+    like = f"%{search.strip()}%" if search else None
+
+    # ── self-reported ──
+    self_q = (
         SelfContribution.query
         .join(User, SelfContribution.user_id == User.id)
-        .options(
-            contains_eager(SelfContribution.user),
-            joinedload(SelfContribution.event),
-            joinedload(SelfContribution.reviewer),
-        )
-        .order_by(SelfContribution.created_at.desc())
+        .options(contains_eager(SelfContribution.user),
+                 joinedload(SelfContribution.event), joinedload(SelfContribution.reviewer))
     )
     if org_id is not None:
-        query = query.filter(User.org_id == org_id)
+        self_q = self_q.filter(User.org_id == org_id)
     if status:
         try:
-            query = query.filter(SelfContribution.status == ContributionStatusEnum(status))
+            self_q = self_q.filter(SelfContribution.status == ContributionStatusEnum(status))
         except ValueError:
             pass
     if user_id:
-        query = query.filter(SelfContribution.user_id == user_id)
+        self_q = self_q.filter(SelfContribution.user_id == user_id)
     if event_id:
-        query = query.filter(SelfContribution.event_id == event_id)
-    if search:
-        like = f"%{search.strip()}%"
-        query = query.filter(db.or_(User.name.ilike(like), SelfContribution.note.ilike(like)))
+        self_q = self_q.filter(SelfContribution.event_id == event_id)
+    if like:
+        self_q = self_q.filter(db.or_(User.name.ilike(like), SelfContribution.note.ilike(like)))
+    self_items = [{**c.to_dict(include_screenshot_url=True), "source": "self"} for c in self_q.all()]
 
-    pag = db.paginate(query, page=page, per_page=per_page, error_out=False)
+    # ── collected from members via slips (not pending/rejected buckets) ──
+    collected_items: list[dict] = []
+    if status in (None, "", "approved"):
+        cq = (
+            db.session.query(Payment, ContributionSlip, User)
+            .join(ContributionSlip, Payment.slip_id == ContributionSlip.id)
+            .join(User, ContributionSlip.member_user_id == User.id)
+            .options(joinedload(Payment.collector), joinedload(Payment.event))
+            .filter(ContributionSlip.member_user_id.isnot(None), Payment.status.in_(COMPLETED_STATUSES))
+        )
+        if org_id is not None:
+            cq = cq.filter(ContributionSlip.org_id == org_id)
+        if event_id:
+            cq = cq.filter(Payment.event_id == event_id)
+        if user_id:
+            cq = cq.filter(ContributionSlip.member_user_id == user_id)
+        if like:
+            cq = cq.filter(User.name.ilike(like))
+        for p, slip, member in cq.all():
+            collected_items.append({
+                "id": p.id, "source": "collected", "status": "received",
+                "amount": float(p.amount),
+                "paymentMethod": p.method.value if p.method else None,
+                "paymentDate": (p.received_date.isoformat() if p.received_date
+                                else (p.created_at.date().isoformat() if p.created_at else None)),
+                "hasScreenshot": False, "note": None,
+                "user": {"id": member.id, "name": member.name},
+                "event": {"id": p.event.id, "name": p.event.name} if p.event else None,
+                "slipNumber": slip.slip_number, "receiptNo": p.receipt_no,
+                "collector": {"id": p.collector.id, "name": p.collector.name} if p.collector else None,
+                "createdAt": p.created_at.isoformat() if p.created_at else None,
+            })
+
+    merged = self_items + collected_items
+    merged.sort(key=lambda x: x.get("createdAt") or "", reverse=True)
+    total = len(merged)
+    start = (page - 1) * per_page
     return {
-        "contributions": [c.to_dict(include_screenshot_url=True) for c in pag.items],
-        "page":    pag.page,
-        "pages":   pag.pages,
-        "total":   pag.total,
-        "perPage": pag.per_page,
+        "contributions": merged[start:start + per_page],
+        "page":    page,
+        "pages":   max(1, (total + per_page - 1) // per_page),
+        "total":   total,
+        "perPage": per_page,
     }
 
 
