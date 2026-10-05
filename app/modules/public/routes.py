@@ -10,6 +10,7 @@ from .service import (
     get_featured_event,
     list_public_announcements,
     list_public_committee,
+    list_full_committee,
     list_all_gallery_images,
     get_public_stats,
 )
@@ -80,6 +81,11 @@ def announcements():
 def committee():
     event_id = request.args.get("eventId", type=int)
     return res(data=list_public_committee(org_id=_resolve_org_id(), event_id=event_id))
+
+
+@bp.route("/committee/full", methods=["GET"])
+def committee_full():
+    return res(data=list_full_committee(org_id=_resolve_org_id()))
 
 
 @bp.route("/events", methods=["GET"])

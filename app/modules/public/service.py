@@ -109,6 +109,19 @@ def _year_role_dict(assignment) -> dict:
     }
 
 
+def _event_role_dict(assignment) -> dict:
+    from ...models.committee_role import COMMITTEE_ROLE_ORDER
+    role = assignment.role.value if hasattr(assignment.role, "value") else assignment.role
+    return {
+        "id":        assignment.id,
+        "name":      assignment.user.name if assignment.user else "",
+        "roleTitle": _ROLE_LABELS.get(role, role.replace("_", " ").title()),
+        "phone":     assignment.user.phone if assignment.user else None,
+        "photoUrl":  None,
+        "sortOrder": COMMITTEE_ROLE_ORDER.get(role, 999),
+    }
+
+
 # ── Query functions ────────────────────────────────────────────────────────
 
 def list_public_events(org_id: int | None = None, page: int = 1, per_page: int = 12, include_days: bool = False) -> dict:
@@ -211,6 +224,83 @@ def list_public_committee(org_id: int | None = None, event_id: int | None = None
         query = query.filter_by(event_id=event_id)
     items = query.order_by(CommitteeMember.sort_order, CommitteeMember.name).all()
     return [_public_committee_dict(m) for m in items]
+
+
+def list_full_committee(org_id: int | None = None) -> dict:
+    """Return year-based and event-based public committees separately.
+
+    Used by the public Our Team page to show distinct sections per year/event.
+    """
+    from ...models.committee_role import ClubYear, YearRoleAssignment, EventRoleAssignment, COMMITTEE_ROLE_ORDER
+
+    def _role_key(a):
+        role = a.role.value if hasattr(a.role, "value") else a.role
+        return COMMITTEE_ROLE_ORDER.get(role, 999)
+
+    # ── Year committee ─────────────────────────────────────────────────────
+    year_committee = None
+    all_years = (
+        ClubYear.query
+        .filter_by(org_id=org_id)
+        .order_by(ClubYear.is_current.desc(), ClubYear.id.desc())
+        .all()
+    )
+    for year in all_years:
+        assigns = (
+            YearRoleAssignment.query
+            .filter_by(club_year_id=year.id, is_public=True)
+            .options(joinedload(YearRoleAssignment.user))
+            .all()
+        )
+        if assigns:
+            assigns.sort(key=_role_key)
+            year_committee = {
+                "yearId":    year.id,
+                "yearLabel": year.label,
+                "members":   [_year_role_dict(a) for a in assigns],
+            }
+            break
+
+    # ── Event committees ──────────────────────────────────────────────────
+    events = (
+        Event.query
+        .filter_by(status=EventStatusEnum.published, org_id=org_id)
+        .order_by(Event.start_date.desc().nullslast(), Event.id.desc())
+        .all()
+    )
+    event_committees = []
+    for event in events:
+        assigns = (
+            EventRoleAssignment.query
+            .filter_by(event_id=event.id, is_public=True)
+            .options(joinedload(EventRoleAssignment.user))
+            .all()
+        )
+        if assigns:
+            assigns.sort(key=_role_key)
+            event_committees.append({
+                "eventId":   event.id,
+                "eventName": event.name,
+                "eventYear": event.year,
+                "members":   [_event_role_dict(a) for a in assigns],
+            })
+
+    # ── Legacy fallback (if nothing from new system) ─────────────────────
+    legacy_members = []
+    if not year_committee and not event_committees:
+        items = (
+            CommitteeMember.query
+            .filter_by(is_active=True, org_id=org_id)
+            .order_by(CommitteeMember.sort_order, CommitteeMember.name)
+            .all()
+        )
+        legacy_members = [_public_committee_dict(m) for m in items]
+
+    return {
+        "yearCommittee":   year_committee,
+        "eventCommittees": event_committees,
+        "legacyMembers":   legacy_members,
+    }
 
 
 def list_all_gallery_images(org_id: int | None = None) -> dict:
