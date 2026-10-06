@@ -3,9 +3,12 @@ from datetime import date as date_type
 from flask import Blueprint, request
 from flask_jwt_extended import verify_jwt_in_request, get_jwt, get_jwt_identity
 
+from ...extensions import db
+from ...models.action_plan import ActionPlan
+from ...models.user import User
 from ...utils.helpers import res
 from ...middleware.permissions import require_permission
-from ...middleware.tenant import get_current_org_id
+from ...middleware.tenant import get_current_org_id, require_same_org
 from .service import (
     list_action_plans, create_action_plan, get_action_plan,
     update_action_plan, delete_action_plan,
@@ -14,6 +17,18 @@ from .service import (
 )
 
 bp = Blueprint("action_plans", __name__)
+
+
+def _plan_org(plan_id, **_):
+    return (
+        db.session.query(User.org_id)
+        .join(ActionPlan, ActionPlan.created_by == User.id)
+        .filter(ActionPlan.id == plan_id)
+        .first()
+    )
+
+
+_plan_in_org = require_same_org(_plan_org, "action plan not found")
 
 
 def _auth():
@@ -80,6 +95,7 @@ def admin_create():
 
 @bp.route("/<int:plan_id>", methods=["GET"])
 @require_permission("meeting.manage")
+@_plan_in_org
 def admin_detail(plan_id):
     result = get_action_plan(plan_id)
     if not result:
@@ -89,6 +105,7 @@ def admin_detail(plan_id):
 
 @bp.route("/<int:plan_id>", methods=["PATCH"])
 @require_permission("meeting.manage")
+@_plan_in_org
 def admin_update(plan_id):
     body = request.get_json(silent=True) or {}
     data = {}
@@ -112,6 +129,7 @@ def admin_update(plan_id):
 
 @bp.route("/<int:plan_id>", methods=["DELETE"])
 @require_permission("meeting.manage")
+@_plan_in_org
 def admin_delete(plan_id):
     err = delete_action_plan(plan_id)
     if err:
@@ -123,6 +141,7 @@ def admin_delete(plan_id):
 
 @bp.route("/<int:plan_id>/assignees", methods=["POST"])
 @require_permission("meeting.manage")
+@_plan_in_org
 def admin_add_assignees(plan_id):
     body = request.get_json(silent=True) or {}
     user_ids = body.get("userIds", [])
@@ -132,7 +151,7 @@ def admin_add_assignees(plan_id):
     verify_jwt_in_request()
     assigned_by = int(get_jwt_identity())
 
-    result, err = add_assignees(plan_id, user_ids, assigned_by)
+    result, err = add_assignees(plan_id, user_ids, assigned_by, org_id=get_current_org_id())
     if err == "action plan not found":
         return res(err, code=404)
     if err:
@@ -142,6 +161,7 @@ def admin_add_assignees(plan_id):
 
 @bp.route("/<int:plan_id>/assignees/<int:user_id>", methods=["DELETE"])
 @require_permission("meeting.manage")
+@_plan_in_org
 def admin_remove_assignee(plan_id, user_id):
     err = remove_assignee(plan_id, user_id)
     if err:
@@ -156,6 +176,7 @@ def member_list():
     user_id, _ = _auth()
     return res(data=list_my_action_plans(
         user_id=user_id,
+        org_id=get_current_org_id(),
         status=request.args.get("status"),
         priority=request.args.get("priority"),
         event_id=request.args.get("eventId", type=int),

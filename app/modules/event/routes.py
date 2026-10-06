@@ -2,8 +2,10 @@ from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity
 from marshmallow import ValidationError
 
+from ...extensions import db
+from ...models.event import Event
 from ...middleware.permissions import require_permission
-from ...middleware.tenant import get_current_org_id
+from ...middleware.tenant import get_current_org_id, require_same_org
 from ...utils.helpers import res
 from .service import (
     create_event_schema, update_event_schema, event_days_list_schema,
@@ -13,6 +15,11 @@ from .service import (
 from ..media.service import upload_event_cover, upload_event_gallery, reorder_event_gallery, get_event_gallery
 
 bp = Blueprint("event", __name__)
+
+_event_in_org = require_same_org(
+    lambda event_id, **_: db.session.query(Event.org_id).filter(Event.id == event_id).first(),
+    "event not found",
+)
 
 
 @bp.route("/", methods=["GET"])
@@ -107,6 +114,7 @@ def create():
 
 @bp.route("/<int:event_id>", methods=["GET"])
 @require_permission("event.manage")
+@_event_in_org
 def detail(event_id):
     result = get_event(event_id)
     if not result:
@@ -116,6 +124,7 @@ def detail(event_id):
 
 @bp.route("/<int:event_id>", methods=["PATCH"])
 @require_permission("event.manage")
+@_event_in_org
 def update(event_id):
     body = request.get_json(silent=True) or {}
     try:
@@ -133,6 +142,7 @@ def update(event_id):
 
 @bp.route("/<int:event_id>/days", methods=["POST"])
 @require_permission("event.manage")
+@_event_in_org
 def set_days(event_id):
     body = request.get_json(silent=True)
     if not isinstance(body, list):
@@ -152,6 +162,7 @@ def set_days(event_id):
 
 @bp.route("/<int:event_id>/gallery/reorder", methods=["POST"])
 @require_permission("event.manage")
+@_event_in_org
 def reorder_gallery(event_id):
     from ...models.event import Event as EventModel
     if not EventModel.query.get(event_id):
@@ -168,6 +179,7 @@ def reorder_gallery(event_id):
 
 @bp.route("/<int:event_id>/cover", methods=["POST"])
 @require_permission("event.manage")
+@_event_in_org
 def upload_cover(event_id):
     if "file" not in request.files:
         return res("no file in request", code=400)
@@ -194,6 +206,7 @@ def upload_cover(event_id):
 
 @bp.route("/<int:event_id>/gallery", methods=["POST"])
 @require_permission("event.manage")
+@_event_in_org
 def upload_gallery(event_id):
     if "file" not in request.files:
         return res("no file in request", code=400)
@@ -220,6 +233,7 @@ def upload_gallery(event_id):
 
 @bp.route("/<int:event_id>/summary", methods=["GET"])
 @require_permission("event.manage")
+@_event_in_org
 def event_summary(event_id):
     from ...models.event import Event as EventModel
     ev = EventModel.query.get(event_id)

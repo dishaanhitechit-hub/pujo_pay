@@ -2,8 +2,10 @@ from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from marshmallow import ValidationError
 
+from ...extensions import db
+from ...models.announcement import Announcement
 from ...middleware.permissions import require_permission
-from ...middleware.tenant import get_current_org_id
+from ...middleware.tenant import get_current_org_id, require_same_org
 from ...utils.helpers import res
 from .service import (
     create_announcement_schema, update_announcement_schema,
@@ -12,6 +14,12 @@ from .service import (
 )
 
 bp = Blueprint("announcement", __name__)
+
+_announcement_in_org = require_same_org(
+    lambda announcement_id, **_: db.session.query(Announcement.org_id)
+    .filter(Announcement.id == announcement_id).first(),
+    "announcement not found",
+)
 
 
 @bp.route("/", methods=["GET"])
@@ -47,6 +55,7 @@ def create():
 
 @bp.route("/<int:announcement_id>", methods=["GET"])
 @require_permission("content.manage")
+@_announcement_in_org
 def detail(announcement_id):
     result = get_announcement(announcement_id)
     if not result:
@@ -56,6 +65,7 @@ def detail(announcement_id):
 
 @bp.route("/<int:announcement_id>", methods=["PATCH"])
 @require_permission("content.manage")
+@_announcement_in_org
 def update(announcement_id):
     body = request.get_json(silent=True) or {}
     try:
@@ -73,6 +83,7 @@ def update(announcement_id):
 
 @bp.route("/<int:announcement_id>", methods=["DELETE"])
 @require_permission("content.manage")
+@_announcement_in_org
 def delete(announcement_id):
     err = delete_announcement(announcement_id)
     if err == "announcement not found":

@@ -15,6 +15,7 @@ from ...extensions import db
 from ...models.self_contribution import SelfContribution, ContributionStatusEnum, PaymentMethodEnum
 from ...models.event import Event
 from ...models.app_config import AppConfig
+from ...utils.pay_token import make_receipt_token
 
 
 # ── Payment info (UPI / bank) ───────────────────────────────────────────────────────
@@ -396,6 +397,7 @@ def admin_list_contributions(
                 "user": {"id": member.id, "name": member.name},
                 "event": {"id": p.event.id, "name": p.event.name} if p.event else None,
                 "slipNumber": slip.slip_number, "receiptNo": p.receipt_no,
+                "receiptToken": make_receipt_token(p.id),
                 "collector": {"id": p.collector.id, "name": p.collector.name} if p.collector else None,
                 "createdAt": p.created_at.isoformat() if p.created_at else None,
             })

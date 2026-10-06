@@ -1,6 +1,7 @@
 import enum
 import uuid
 from ..extensions import db
+from ..utils.pay_token import make_receipt_token
 
 
 class MethodEnum(str, enum.Enum):
@@ -89,5 +90,6 @@ class Payment(db.Model):
             "confirmedAt": self.confirmed_at.isoformat() if self.confirmed_at else None,
             "cancelledAt": self.cancelled_at.isoformat() if self.cancelled_at else None,
             "receiptPdfPath": self.receipt_pdf_path,
+            "receiptToken": make_receipt_token(self.id),
             "createdAt": self.created_at.isoformat() if self.created_at else None,
         }

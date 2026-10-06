@@ -5,8 +5,8 @@ from ...extensions import db
 from ...models.user import User, RoleEnum
 from ...models.app_config import AppConfig
 
-# All selectable role values (new + backward-compat legacy)
-_ALL_ROLES = [r.value for r in RoleEnum]
+# Roles an org admin may assign (new + backward-compat legacy). super_admin is platform-only.
+_ALL_ROLES = [r.value for r in RoleEnum if r is not RoleEnum.super_admin]
 
 # Membership tiers — independent of `role` (which drives permissions).
 MEMBER_CATEGORIES = ["lifetime_executive", "premium_executive", "executive", "general"]

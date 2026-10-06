@@ -58,11 +58,11 @@
     <span class="value">Cash</span>
   </div>
 
-  <form method="POST" action="/pay/cash/{{ payment.id }}/confirm">
+  <form method="POST" action="/pay/cash/{{ payment.id }}/confirm?t={{ t }}">
     <button type="submit" class="btn">✓ Confirm Cash Received</button>
   </form>
 
-  <form method="POST" action="/pay/cash/{{ payment.id }}/cancel"
+  <form method="POST" action="/pay/cash/{{ payment.id }}/cancel?t={{ t }}"
         onsubmit="return confirm('Cancel this payment? This cannot be undone.')">
     <button type="submit" class="btn btn-cancel">✕ Cancel Payment</button>
   </form>

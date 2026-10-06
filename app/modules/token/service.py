@@ -4,7 +4,7 @@ import base64
 from datetime import datetime, timezone
 
 from marshmallow import Schema, fields, validate, ValidationError  # noqa: F401
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import joinedload
 
 import qrcode
@@ -185,7 +185,7 @@ def generate_bulk(count: int, generated_by_id: int, org_id: int | None = None) -
 # ── Queries ────────────────────────────────────────────────────────────────
 
 def get_token(token_no: str) -> Token | None:
-    return Token.query.filter(Token.token_no.ilike(token_no)).first()
+    return Token.query.filter(func.lower(Token.token_no) == token_no.lower()).first()
 
 
 def get_token_list(

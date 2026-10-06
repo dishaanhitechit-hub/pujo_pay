@@ -3,9 +3,14 @@ from datetime import date as date_type
 from flask import Blueprint, request
 from flask_jwt_extended import verify_jwt_in_request, get_jwt, get_jwt_identity
 
+from ...extensions import db
+from ...models.meeting import Meeting
+from ...models.meeting_agenda_item import MeetingAgendaItem
+from ...models.meeting_discussion import MeetingDiscussion
+from ...models.user import User
 from ...utils.helpers import res
 from ...middleware.permissions import require_permission
-from ...middleware.tenant import get_current_org_id
+from ...middleware.tenant import get_current_org_id, require_same_org
 from .service import (
     list_meetings, create_meeting, get_meeting_admin, update_meeting, delete_meeting,
     list_invitees, add_invitees, remove_invitee,
@@ -16,6 +21,40 @@ from .service import (
 )
 
 bp = Blueprint("meetings", __name__)
+
+
+def _meeting_org(meeting_id, **_):
+    return (
+        db.session.query(User.org_id)
+        .join(Meeting, Meeting.created_by == User.id)
+        .filter(Meeting.id == meeting_id)
+        .first()
+    )
+
+
+def _agenda_item_org(item_id, **_):
+    return (
+        db.session.query(User.org_id)
+        .join(Meeting, Meeting.created_by == User.id)
+        .join(MeetingAgendaItem, MeetingAgendaItem.meeting_id == Meeting.id)
+        .filter(MeetingAgendaItem.id == item_id)
+        .first()
+    )
+
+
+def _discussion_org(disc_id, **_):
+    return (
+        db.session.query(User.org_id)
+        .join(Meeting, Meeting.created_by == User.id)
+        .join(MeetingDiscussion, MeetingDiscussion.meeting_id == Meeting.id)
+        .filter(MeetingDiscussion.id == disc_id)
+        .first()
+    )
+
+
+_meeting_in_org    = require_same_org(_meeting_org, "meeting not found")
+_agenda_in_org     = require_same_org(_agenda_item_org, "agenda item not found")
+_discussion_in_org = require_same_org(_discussion_org, "discussion not found")
 
 
 def _auth():
@@ -86,6 +125,7 @@ def admin_create():
 
 @bp.route("/<int:meeting_id>", methods=["GET"])
 @require_permission("meeting.manage")
+@_meeting_in_org
 def admin_detail(meeting_id):
     result = get_meeting_admin(meeting_id)
     if not result:
@@ -95,6 +135,7 @@ def admin_detail(meeting_id):
 
 @bp.route("/<int:meeting_id>", methods=["PATCH"])
 @require_permission("meeting.manage")
+@_meeting_in_org
 def admin_update(meeting_id):
     body = request.get_json(silent=True) or {}
     data = {}
@@ -122,6 +163,7 @@ def admin_update(meeting_id):
 
 @bp.route("/<int:meeting_id>", methods=["DELETE"])
 @require_permission("meeting.manage")
+@_meeting_in_org
 def admin_delete(meeting_id):
     err = delete_meeting(meeting_id)
     if err:
@@ -133,6 +175,7 @@ def admin_delete(meeting_id):
 
 @bp.route("/<int:meeting_id>/invitees", methods=["GET"])
 @require_permission("meeting.manage")
+@_meeting_in_org
 def admin_invitees_list(meeting_id):
     result = list_invitees(meeting_id)
     if result is None:
@@ -142,6 +185,7 @@ def admin_invitees_list(meeting_id):
 
 @bp.route("/<int:meeting_id>/invitees", methods=["POST"])
 @require_permission("meeting.manage")
+@_meeting_in_org
 def admin_invitees_add(meeting_id):
     body = request.get_json(silent=True) or {}
     payload = {
@@ -149,7 +193,7 @@ def admin_invitees_add(meeting_id):
         "roles":      body.get("roles", []),
         "invite_all": body.get("inviteAll", False),
     }
-    result, err = add_invitees(meeting_id, payload)
+    result, err = add_invitees(meeting_id, payload, org_id=get_current_org_id())
     if err == "meeting not found":
         return res(err, code=404)
     if err:
@@ -159,6 +203,7 @@ def admin_invitees_add(meeting_id):
 
 @bp.route("/<int:meeting_id>/invitees/<int:user_id>", methods=["DELETE"])
 @require_permission("meeting.manage")
+@_meeting_in_org
 def admin_invitee_remove(meeting_id, user_id):
     err = remove_invitee(meeting_id, user_id)
     if err:
@@ -170,6 +215,7 @@ def admin_invitee_remove(meeting_id, user_id):
 
 @bp.route("/<int:meeting_id>/attendance", methods=["GET"])
 @require_permission("meeting.manage")
+@_meeting_in_org
 def admin_attendance_list(meeting_id):
     result = list_attendance(meeting_id)
     if result is None:
@@ -181,6 +227,7 @@ def admin_attendance_list(meeting_id):
 
 @bp.route("/<int:meeting_id>/agenda", methods=["GET"])
 @require_permission("meeting.manage")
+@_meeting_in_org
 def admin_agenda_list(meeting_id):
     result = list_agenda(meeting_id)
     if result is None:
@@ -190,6 +237,7 @@ def admin_agenda_list(meeting_id):
 
 @bp.route("/<int:meeting_id>/agenda", methods=["POST"])
 @require_permission("meeting.manage")
+@_meeting_in_org
 def admin_agenda_create(meeting_id):
     body = request.get_json(silent=True) or {}
     if not body.get("title"):
@@ -209,6 +257,7 @@ def admin_agenda_create(meeting_id):
 
 @bp.route("/agenda/<int:item_id>", methods=["PATCH"])
 @require_permission("meeting.manage")
+@_agenda_in_org
 def admin_agenda_update(item_id):
     body = request.get_json(silent=True) or {}
     data = {}
@@ -225,6 +274,7 @@ def admin_agenda_update(item_id):
 
 @bp.route("/agenda/<int:item_id>", methods=["DELETE"])
 @require_permission("meeting.manage")
+@_agenda_in_org
 def admin_agenda_delete(item_id):
     err = delete_agenda_item(item_id)
     if err:
@@ -236,6 +286,7 @@ def admin_agenda_delete(item_id):
 
 @bp.route("/<int:meeting_id>/discussions", methods=["GET"])
 @require_permission("meeting.manage")
+@_meeting_in_org
 def admin_discussions_list(meeting_id):
     result = list_discussions(meeting_id, member_only=False)
     if result is None:
@@ -245,6 +296,7 @@ def admin_discussions_list(meeting_id):
 
 @bp.route("/<int:meeting_id>/discussions", methods=["POST"])
 @require_permission("meeting.manage")
+@_meeting_in_org
 def admin_discussions_create(meeting_id):
     body = request.get_json(silent=True) or {}
     if not body.get("content"):
@@ -266,6 +318,7 @@ def admin_discussions_create(meeting_id):
 
 @bp.route("/discussions/<int:disc_id>", methods=["PATCH"])
 @require_permission("meeting.manage")
+@_discussion_in_org
 def admin_discussions_update(disc_id):
     body = request.get_json(silent=True) or {}
     data = {}
@@ -280,6 +333,7 @@ def admin_discussions_update(disc_id):
 
 @bp.route("/discussions/<int:disc_id>", methods=["DELETE"])
 @require_permission("meeting.manage")
+@_discussion_in_org
 def admin_discussions_delete(disc_id):
     err = delete_discussion(disc_id)
     if err:
@@ -292,10 +346,11 @@ def admin_discussions_delete(disc_id):
 @bp.route("/me", methods=["GET"])
 def member_list():
     user_id, _ = _auth()
-    return res(data=list_member_meetings(user_id))
+    return res(data=list_member_meetings(user_id, org_id=get_current_org_id()))
 
 
 @bp.route("/me/<int:meeting_id>", methods=["GET"])
+@_meeting_in_org
 def member_detail(meeting_id):
     user_id, _ = _auth()
     result = get_meeting_member(meeting_id, user_id)
@@ -307,6 +362,7 @@ def member_detail(meeting_id):
 # ── Member: Agenda (read-only) ─────────────────────────────────────────────
 
 @bp.route("/me/<int:meeting_id>/agenda", methods=["GET"])
+@_meeting_in_org
 def member_agenda(meeting_id):
     user_id, _ = _auth()
     if not get_meeting_member(meeting_id, user_id):
@@ -320,6 +376,7 @@ def member_agenda(meeting_id):
 # ── Member: Discussions (read-only, visible only) ──────────────────────────
 
 @bp.route("/me/<int:meeting_id>/discussions", methods=["GET"])
+@_meeting_in_org
 def member_discussions(meeting_id):
     user_id, _ = _auth()
     if not get_meeting_member(meeting_id, user_id):
@@ -333,6 +390,7 @@ def member_discussions(meeting_id):
 # ── Member: Attendance ─────────────────────────────────────────────────────
 
 @bp.route("/me/<int:meeting_id>/attendance/status", methods=["GET"])
+@_meeting_in_org
 def member_attendance_status(meeting_id):
     user_id, _ = _auth()
     result = get_attendance_status(meeting_id, user_id)
@@ -342,6 +400,7 @@ def member_attendance_status(meeting_id):
 
 
 @bp.route("/me/<int:meeting_id>/attendance", methods=["POST"])
+@_meeting_in_org
 def member_mark_attendance(meeting_id):
     user_id, _ = _auth()
     body = request.get_json(silent=True) or {}

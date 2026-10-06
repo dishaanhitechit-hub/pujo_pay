@@ -338,11 +338,12 @@ Frontend reads `nextUrl` from response and **redirects the browser** to it.
     "amount": "500.00",
     "donorName": "Suresh Mondal",
     "status": "pending",
-    "nextUrl": "/pay/qr/42"
+    "nextUrl": "/pay/qr/42?t=<signed-token>"
   }
 }
 ```
-> For cash: `nextUrl` will be `/pay/cash/42`
+> For cash: `nextUrl` will be `/pay/cash/42?t=<signed-token>`
+> The `t` token is required by every `/pay/*` page and expires after 24 hours. Receipt links use the `receiptToken` field returned on each payment (`/pay/receipt/<id>?t=<receiptToken>`).
 > **Frontend must redirect browser to `nextUrl` immediately after this response.**
 
 ---

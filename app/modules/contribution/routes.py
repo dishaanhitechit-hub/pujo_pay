@@ -3,9 +3,12 @@ import traceback
 from flask import Blueprint, request, send_file, current_app
 from flask_jwt_extended import verify_jwt_in_request, get_jwt, get_jwt_identity
 
+from ...extensions import db
+from ...models.self_contribution import SelfContribution
+from ...models.user import User
 from ...utils.helpers import res
 from ...middleware.permissions import require_permission
-from ...middleware.tenant import get_current_org_id
+from ...middleware.tenant import get_current_org_id, require_same_org
 from .service import (
     get_payment_info,
     submit_contribution,
@@ -18,6 +21,13 @@ from .service import (
 )
 
 bp = Blueprint("contribution", __name__)
+
+_contribution_in_org = require_same_org(
+    lambda contribution_id, **_: db.session.query(User.org_id)
+    .join(SelfContribution, SelfContribution.user_id == User.id)
+    .filter(SelfContribution.id == contribution_id).first(),
+    "contribution not found",
+)
 
 
 def _auth():
@@ -93,6 +103,7 @@ def my_stats():
 # ── Screenshot (owner or admin) ───────────────────────────────────────────
 
 @bp.route("/screenshot/<int:contribution_id>", methods=["GET"])
+@_contribution_in_org
 def screenshot(contribution_id: int):
     user_id, role = _auth()
     is_admin = role == "admin"
@@ -138,6 +149,7 @@ def admin_list():
 
 @bp.route("/admin/<int:contribution_id>/review", methods=["PATCH"])
 @require_permission("contribution.manage")
+@_contribution_in_org
 def admin_review(contribution_id: int):
     body = request.get_json(silent=True) or {}
     action     = body.get("action")     # "approve" | "reject"

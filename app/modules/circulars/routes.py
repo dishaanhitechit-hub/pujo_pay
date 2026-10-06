@@ -2,8 +2,11 @@ from flask import Blueprint, request
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 from marshmallow import ValidationError
 
+from ...extensions import db
+from ...models.circular import Circular
+from ...models.user import User
 from ...middleware.permissions import require_permission
-from ...middleware.tenant import get_current_org_id
+from ...middleware.tenant import get_current_org_id, require_same_org
 from ...utils.helpers import res
 from .service import (
     create_circular_schema, update_circular_schema,
@@ -13,6 +16,13 @@ from .service import (
 )
 
 bp = Blueprint("circulars", __name__)
+
+_circular_in_org = require_same_org(
+    lambda circular_id, **_: db.session.query(User.org_id)
+    .join(Circular, Circular.created_by == User.id)
+    .filter(Circular.id == circular_id).first(),
+    "circular not found",
+)
 
 
 # ── Admin: full management ─────────────────────────────────────────────────
@@ -43,6 +53,7 @@ def admin_create():
 
 @bp.route("/<int:circular_id>", methods=["GET"])
 @require_permission("content.manage")
+@_circular_in_org
 def admin_detail(circular_id: int):
     result = get_circular(circular_id)
     if not result:
@@ -52,6 +63,7 @@ def admin_detail(circular_id: int):
 
 @bp.route("/<int:circular_id>", methods=["PATCH"])
 @require_permission("content.manage")
+@_circular_in_org
 def admin_update(circular_id: int):
     body = request.get_json(silent=True) or {}
     try:
@@ -69,6 +81,7 @@ def admin_update(circular_id: int):
 
 @bp.route("/<int:circular_id>", methods=["DELETE"])
 @require_permission("content.manage")
+@_circular_in_org
 def admin_delete(circular_id: int):
     err = delete_circular(circular_id)
     if err:
@@ -93,6 +106,7 @@ def member_list():
 
 
 @bp.route("/published/<int:circular_id>", methods=["GET"])
+@_circular_in_org
 def member_detail(circular_id: int):
     verify_jwt_in_request()
     from ...models.circular import Circular

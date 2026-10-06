@@ -6,9 +6,10 @@ from marshmallow import ValidationError
 
 from flask_jwt_extended import get_jwt
 
+from ...extensions import db
 from ...models.user import User
 from ...middleware.permissions import require_permission
-from ...middleware.tenant import get_current_org_id
+from ...middleware.tenant import get_current_org_id, require_same_org
 from ...utils.helpers import res
 from .service import (
     create_schema, update_schema, create_user, update_user,
@@ -16,6 +17,11 @@ from .service import (
 )
 
 bp = Blueprint("users", __name__)
+
+_user_in_org = require_same_org(
+    lambda user_id, **_: db.session.query(User.org_id).filter(User.id == user_id).first(),
+    "user not found",
+)
 
 
 @bp.route("/", methods=["GET"])
@@ -106,6 +112,7 @@ def deactivate_user(user_id):
 
 @bp.route("/<int:user_id>/login-qr", methods=["GET"])
 @require_permission("users.manage")
+@_user_in_org
 def login_qr(user_id):
     user = User.query.get(user_id)
     if not user:

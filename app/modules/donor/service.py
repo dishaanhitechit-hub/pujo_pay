@@ -7,6 +7,7 @@ from sqlalchemy.orm import joinedload
 from ...extensions import db
 from ...models.donor import Donor
 from ...models.payment import Payment, COMPLETED_STATUSES
+from ...utils.pay_token import make_receipt_token
 
 
 def _aggregate_subquery():
@@ -185,6 +186,7 @@ def get_donor_detail(donor_id: int) -> dict | None:
             } if p.event else None,
             "confirmedAt": p.confirmed_at.isoformat() if p.confirmed_at else None,
             "createdAt": p.created_at.isoformat() if p.created_at else None,
+            "receiptToken": make_receipt_token(p.id),
         }
         for p in payments
     ]

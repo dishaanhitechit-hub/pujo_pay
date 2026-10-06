@@ -5,6 +5,7 @@ from marshmallow import ValidationError
 from ...middleware.permissions import require_permission, require_collect_capable
 from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
+from ...utils.pay_token import make_action_token
 from .service import initiate_schema, initiate_payment, get_payment, get_payment_by_receipt_no
 
 bp = Blueprint("payment", __name__)
@@ -25,12 +26,8 @@ def initiate():
         return res(err, code=400)
 
     method = payment.method.value
-    if method == "upi":
-        next_url = f"/pay/qr/{payment.id}"
-    elif method == "cheque":
-        next_url = f"/pay/cheque/{payment.id}"
-    else:
-        next_url = f"/pay/cash/{payment.id}"
+    page = {"upi": "qr", "cheque": "cheque"}.get(method, "cash")
+    next_url = f"/pay/{page}/{payment.id}?t={make_action_token(payment.id)}"
 
     return res("payment initiated", data={
         "paymentId": payment.id,

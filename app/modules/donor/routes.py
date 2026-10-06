@@ -3,12 +3,19 @@ from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, request
 
+from ...extensions import db
+from ...models.donor import Donor
 from ...middleware.permissions import require_permission
-from ...middleware.tenant import get_current_org_id
+from ...middleware.tenant import get_current_org_id, require_same_org
 from ...utils.helpers import res
 from .service import get_donor_list, get_donor_detail
 
 bp = Blueprint("donor", __name__)
+
+_donor_in_org = require_same_org(
+    lambda donor_id, **_: db.session.query(Donor.org_id).filter(Donor.id == donor_id).first(),
+    "donor not found",
+)
 
 
 def _parse_date(value: str | None) -> date | None:
@@ -57,6 +64,7 @@ def list_donors():
 
 @bp.route("/<int:donor_id>", methods=["GET"])
 @require_permission("dashboard.view")
+@_donor_in_org
 def donor_detail(donor_id):
     result = get_donor_detail(donor_id)
     if not result:

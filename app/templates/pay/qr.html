@@ -60,7 +60,7 @@
   </div>
   <div class="expired-msg" id="expiredMsg">⛔ Session expired. Please start a new payment.</div>
 
-  <form method="POST" action="/pay/qr/{{ payment.id }}/confirm" id="confirmForm">
+  <form method="POST" action="/pay/qr/{{ payment.id }}/confirm?t={{ t }}" id="confirmForm">
     <div class="field">
       <label for="utr_number">UTR / Transaction Number <em style="font-weight:400;color:#999">(optional)</em></label>
       <input type="text" id="utr_number" name="utr_number" placeholder="e.g. 426112345678">
@@ -69,7 +69,7 @@
     <button type="submit" class="btn btn-primary" id="confirmBtn">✓ Payment Done</button>
   </form>
 
-  <form method="POST" action="/pay/qr/{{ payment.id }}/cancel"
+  <form method="POST" action="/pay/qr/{{ payment.id }}/cancel?t={{ t }}"
         onsubmit="return confirm('Cancel this payment? This cannot be undone.')">
     <button type="submit" class="btn btn-cancel" id="cancelBtn">✕ Cancel Payment</button>
   </form>
