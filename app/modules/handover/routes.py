@@ -4,6 +4,7 @@ from flask_jwt_extended import get_jwt_identity, get_jwt
 
 from ...middleware.permissions import require_collect_capable, require_permission
 from ...middleware.tenant import get_current_org_id
+from ...middleware.event_scope import event_in_scope
 from ...utils.helpers import res
 from .service import (
     get_collector_summary, get_handover_receivers, create_handover,
@@ -52,6 +53,8 @@ def create():
     amount = body.get("amount")
     if not event_id or amount is None:
         return res("eventId and amount are required", code=400)
+    if not event_in_scope("collect", event_id):
+        return res("access denied: not a collector for this event", code=403)
     hd = body.get("handoverDate")
     try:
         hd_date = date.fromisoformat(hd) if hd else date.today()

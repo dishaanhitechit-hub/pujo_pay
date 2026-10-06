@@ -172,6 +172,7 @@ def event_assignment_set(event_id):
     data, err = set_event_assignment(
         get_current_org_id(), event_id, user_id, role,
         body.get("canCollect", False), body.get("isPublic", True),
+        can_cashier=body.get("canCashier", False),
     )
     if err:
         code = 404 if "not found" in err else 400

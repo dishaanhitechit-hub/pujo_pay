@@ -23,12 +23,15 @@ class InitiatePaymentSchema(Schema):
 initiate_schema = InitiatePaymentSchema()
 
 
-def initiate_payment(data: dict, collector_id: int, org_id: int) -> tuple[Payment | None, str | None]:
+def initiate_payment(data: dict, collector_id: int, org_id: int,
+                     allowed_event_ids: set[int] | None = None) -> tuple[Payment | None, str | None]:
     """Create a pending payment under a slip; the QR/confirm pages complete it."""
     slip = ContributionSlip.query.filter_by(id=data["slip_id"], org_id=org_id).first()
     if not slip:
         return None, "slip not found"
     if slip.collector_id != collector_id:
+        return None, "forbidden"
+    if allowed_event_ids is not None and slip.event_id not in allowed_event_ids:
         return None, "forbidden"
     if slip.status == SlipStatusEnum.cancelled:
         return None, "slip is cancelled"

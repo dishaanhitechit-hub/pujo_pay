@@ -349,6 +349,7 @@ def list_event_assignments(org_id: int | None, event_id: int) -> tuple[dict | No
             **_member_dict(u),
             "role":       (a.role.value if a and isinstance(a.role, CommitteeRoleEnum) else (a.role if a else None)),
             "canCollect": a.can_collect if a else False,
+            "canCashier": a.can_cashier if a else False,
             "isPublic":   a.is_public if a else True,
         })
     omap = _order_map(org_id, ORDER_SCOPE_EVENT, event_id)
@@ -362,7 +363,7 @@ def list_event_assignments(org_id: int | None, event_id: int) -> tuple[dict | No
     }, None
 
 
-def set_event_assignment(org_id, event_id, user_id, role, can_collect=False, is_public=True) -> tuple[dict | None, str | None]:
+def set_event_assignment(org_id, event_id, user_id, role, can_collect=False, is_public=True, can_cashier=False) -> tuple[dict | None, str | None]:
     event = _event_in_org(org_id, event_id)
     if not event:
         return None, "event not found"
@@ -376,12 +377,14 @@ def set_event_assignment(org_id, event_id, user_id, role, can_collect=False, is_
     if a:
         a.role = CommitteeRoleEnum(role)
         a.can_collect = bool(can_collect)
+        a.can_cashier = bool(can_cashier)
         if is_public is not None:
             a.is_public = bool(is_public)
     else:
         a = EventRoleAssignment(
             org_id=org_id, event_id=event_id, user_id=user_id,
-            role=CommitteeRoleEnum(role), can_collect=bool(can_collect), is_public=bool(is_public),
+            role=CommitteeRoleEnum(role), can_collect=bool(can_collect),
+            can_cashier=bool(can_cashier), is_public=bool(is_public),
         )
         db.session.add(a)
     db.session.flush()

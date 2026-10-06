@@ -180,27 +180,37 @@ def list_donor_types(org_id: int | None) -> list[str]:
     return sorted({r[0] for r in rows if r[0] and r[0] != "Member"})
 
 
-def _slip_in_scope(slip_id, collector_id, can_view_all, org_id):
+def _slip_in_scope(slip_id, collector_id, can_view_all, org_id, scope_event_ids=None):
+    """Resolve a slip the caller may act on.
+
+    - The owning collector may always act on their own slip.
+    - A viewer with ``can_view_all`` (admin or cashier) may act on it too, but a
+      cashier (``scope_event_ids`` is a set) only within their cashier events.
+    """
     q = ContributionSlip.query.filter_by(id=slip_id)
     if org_id is not None:
         q = q.filter(ContributionSlip.org_id == org_id)
     slip = q.first()
     if not slip:
         return None, "not_found"
-    if not can_view_all and slip.collector_id != collector_id:
+    if slip.collector_id == collector_id:
+        return slip, None
+    if not can_view_all:
+        return None, "forbidden"
+    if scope_event_ids is not None and slip.event_id not in scope_event_ids:
         return None, "forbidden"
     return slip, None
 
 
-def get_slip(slip_id, viewer_id, can_view_all, org_id=None):
-    slip, err = _slip_in_scope(slip_id, viewer_id, can_view_all, org_id)
+def get_slip(slip_id, viewer_id, can_view_all, org_id=None, scope_event_ids=None):
+    slip, err = _slip_in_scope(slip_id, viewer_id, can_view_all, org_id, scope_event_ids)
     if err:
         return None, err
     return slip.to_dict(with_payments=True), None
 
 
 def list_slips(org_id, collector_id=None, event_id=None, status=None, search=None,
-               page=1, per_page=20):
+               page=1, per_page=20, scope_event_ids=None):
     q = ContributionSlip.query.options(
         joinedload(ContributionSlip.donor),
         joinedload(ContributionSlip.collector),
@@ -208,6 +218,8 @@ def list_slips(org_id, collector_id=None, event_id=None, status=None, search=Non
     ).filter(ContributionSlip.org_id == org_id)
     if collector_id is not None:
         q = q.filter(ContributionSlip.collector_id == collector_id)
+    if scope_event_ids is not None:
+        q = q.filter(ContributionSlip.event_id.in_(scope_event_ids))
     if event_id:
         q = q.filter(ContributionSlip.event_id == event_id)
     if status:
@@ -262,8 +274,8 @@ def lock_slip_outstanding(slip_id: int) -> tuple[ContributionSlip | None, Decima
     return slip, Decimal(str(slip.total_amount)) - Decimal(str(paid))
 
 
-def add_manual_payment(slip_id, data, collector_id, can_view_all, org_id):
-    slip, err = _slip_in_scope(slip_id, collector_id, can_view_all, org_id)
+def add_manual_payment(slip_id, data, collector_id, can_view_all, org_id, scope_event_ids=None):
+    slip, err = _slip_in_scope(slip_id, collector_id, can_view_all, org_id, scope_event_ids)
     if err:
         return None, err
     slip, outstanding = lock_slip_outstanding(slip.id)
@@ -289,8 +301,8 @@ def add_manual_payment(slip_id, data, collector_id, can_view_all, org_id):
     return p.to_dict(), None
 
 
-def close_slip(slip_id, collector_id, can_view_all, org_id):
-    slip, err = _slip_in_scope(slip_id, collector_id, can_view_all, org_id)
+def close_slip(slip_id, collector_id, can_view_all, org_id, scope_event_ids=None):
+    slip, err = _slip_in_scope(slip_id, collector_id, can_view_all, org_id, scope_event_ids)
     if err:
         return None, err
     if slip.status == SlipStatusEnum.cancelled:
@@ -301,8 +313,8 @@ def close_slip(slip_id, collector_id, can_view_all, org_id):
     return slip.to_dict(), None
 
 
-def reopen_slip(slip_id, collector_id, can_view_all, org_id):
-    slip, err = _slip_in_scope(slip_id, collector_id, can_view_all, org_id)
+def reopen_slip(slip_id, collector_id, can_view_all, org_id, scope_event_ids=None):
+    slip, err = _slip_in_scope(slip_id, collector_id, can_view_all, org_id, scope_event_ids)
     if err:
         return None, err
     if slip.status == SlipStatusEnum.cancelled:
@@ -315,8 +327,8 @@ def reopen_slip(slip_id, collector_id, can_view_all, org_id):
     return slip.to_dict(), None
 
 
-def cancel_slip(slip_id, collector_id, can_view_all, org_id):
-    slip, err = _slip_in_scope(slip_id, collector_id, can_view_all, org_id)
+def cancel_slip(slip_id, collector_id, can_view_all, org_id, scope_event_ids=None):
+    slip, err = _slip_in_scope(slip_id, collector_id, can_view_all, org_id, scope_event_ids)
     if err:
         return None, err
     slip.status = SlipStatusEnum.cancelled

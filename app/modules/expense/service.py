@@ -47,6 +47,7 @@ def get_expense_summary(
     date_from: str | None = None,
     date_to: str | None = None,
     org_id: int | None = None,
+    scope_event_ids: set[int] | None = None,
 ) -> dict:
     """Aggregate summary respecting current filters (event + category + date)."""
     from ...models.event import Event
@@ -56,6 +57,8 @@ def get_expense_summary(
 
     if event_id:
         base = base.filter(Expense.event_id == event_id)
+    if scope_event_ids is not None:
+        base = base.filter(Expense.event_id.in_(scope_event_ids))
     if budget_category_id is not None:
         if budget_category_id == 0:
             base = base.filter(Expense.budget_category_id.is_(None))
@@ -136,6 +139,7 @@ def get_expenses(
     min_amount: str | None = None,
     max_amount: str | None = None,
     org_id: int | None = None,
+    scope_event_ids: set[int] | None = None,
 ) -> dict:
     from ...models.event import Event
     query = Expense.query.options(
@@ -147,6 +151,8 @@ def get_expenses(
 
     if event_id:
         query = query.filter(Expense.event_id == event_id)
+    if scope_event_ids is not None:
+        query = query.filter(Expense.event_id.in_(scope_event_ids))
 
     if budget_category_id is not None:
         if budget_category_id == 0:
@@ -220,9 +226,11 @@ def create_expense(data: dict, created_by: int, org_id: int | None = None) -> tu
     return expense, None
 
 
-def update_expense(expense_id: int, data: dict) -> tuple:
+def update_expense(expense_id: int, data: dict, allowed_event_ids: set[int] | None = None) -> tuple:
     expense = Expense.query.get(expense_id)
     if not expense:
+        return None, "expense not found"
+    if allowed_event_ids is not None and expense.event_id not in allowed_event_ids:
         return None, "expense not found"
 
     if "budget_category_id" in data:
@@ -242,9 +250,11 @@ def update_expense(expense_id: int, data: dict) -> tuple:
     return expense, None
 
 
-def delete_expense(expense_id: int) -> bool:
+def delete_expense(expense_id: int, allowed_event_ids: set[int] | None = None) -> bool:
     expense = Expense.query.get(expense_id)
     if not expense:
+        return False
+    if allowed_event_ids is not None and expense.event_id not in allowed_event_ids:
         return False
     db.session.delete(expense)
     db.session.commit()

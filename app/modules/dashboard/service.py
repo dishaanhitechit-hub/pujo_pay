@@ -12,7 +12,15 @@ from ...models.contribution_slip import ContributionSlip, SlipStatusEnum
 from ...models.user import User
 
 
-def get_grand_summary(event_id: int | None = None, org_id: int | None = None) -> dict:
+def _scoped(query, column, scope_event_ids):
+    """Restrict a query to a set of event ids (cashier scope). None = unrestricted."""
+    if scope_event_ids is not None:
+        query = query.filter(column.in_(scope_event_ids))
+    return query
+
+
+def get_grand_summary(event_id: int | None = None, org_id: int | None = None,
+                      scope_event_ids: set[int] | None = None) -> dict:
     base = Payment.query.join(User, Payment.collector_id == User.id).filter(
         Payment.status.in_(COMPLETED_STATUSES)
     )
@@ -20,6 +28,7 @@ def get_grand_summary(event_id: int | None = None, org_id: int | None = None) ->
         base = base.filter(User.org_id == org_id)
     if event_id:
         base = base.filter(Payment.event_id == event_id)
+    base = _scoped(base, Payment.event_id, scope_event_ids)
 
     cash_total = base.filter(Payment.method == MethodEnum.cash).with_entities(
         func.coalesce(func.sum(Payment.amount), 0)
@@ -43,6 +52,7 @@ def get_grand_summary(event_id: int | None = None, org_id: int | None = None) ->
         pledge_q = pledge_q.filter(User.org_id == org_id)
     if event_id:
         pledge_q = pledge_q.filter(ContributionSlip.event_id == event_id)
+    pledge_q = _scoped(pledge_q, ContributionSlip.event_id, scope_event_ids)
 
     total_pledged = pledge_q.with_entities(func.coalesce(func.sum(ContributionSlip.total_amount), 0)).scalar()
     total_pledge_paid = pledge_q.with_entities(func.coalesce(func.sum(ContributionSlip.paid_amount), 0)).scalar()
@@ -64,7 +74,8 @@ def get_grand_summary(event_id: int | None = None, org_id: int | None = None) ->
     }
 
 
-def get_collector_breakdown(event_id: int | None = None, org_id: int | None = None) -> list:
+def get_collector_breakdown(event_id: int | None = None, org_id: int | None = None,
+                            scope_event_ids: set[int] | None = None) -> list:
     coll_q = User.query.filter_by(is_active=True)
     if org_id is not None:
         coll_q = coll_q.filter(User.org_id == org_id)
@@ -79,6 +90,8 @@ def get_collector_breakdown(event_id: int | None = None, org_id: int | None = No
     ]
     if event_id:
         agg_filters.append(Payment.event_id == event_id)
+    if scope_event_ids is not None:
+        agg_filters.append(Payment.event_id.in_(scope_event_ids))
 
     agg_rows = (
         db.session.query(
@@ -132,6 +145,7 @@ def get_all_payments(
     max_amount: str | None = None,
     search: str | None = None,
     org_id: int | None = None,
+    scope_event_ids: set[int] | None = None,
 ) -> dict:
     query = (
         Payment.query
@@ -145,6 +159,7 @@ def get_all_payments(
     )
     if org_id is not None:
         query = query.filter(User.org_id == org_id)
+    query = _scoped(query, Payment.event_id, scope_event_ids)
 
     if method in ("cash", "upi", "cheque"):
         query = query.filter(Payment.method == MethodEnum(method))
@@ -253,15 +268,24 @@ def _member_event_ids(viewer_id: int) -> set[int]:
 
 
 def get_events_with_stats(org_id: int | None = None, viewer_id: int | None = None,
-                          all_events: bool = True) -> list[dict]:
-    """Per-event aggregated collection/expense stats. When all_events is False, limited to the
-    events the viewer is part of (member overview)."""
+                          all_events: bool = True,
+                          scope_event_ids: set[int] | None = None) -> list[dict]:
+    """Per-event aggregated collection/expense stats.
+
+    - all_events True (admin) → every org event.
+    - scope_event_ids given (cashier) → only those events.
+    - otherwise (plain member) → the events the viewer is part of (overview).
+    """
     from ...models.event import Event
 
     q = Event.query
     if org_id is not None:
         q = q.filter(Event.org_id == org_id)
-    if not all_events and viewer_id is not None:
+    if scope_event_ids is not None:
+        if not scope_event_ids:
+            return []
+        q = q.filter(Event.id.in_(scope_event_ids))
+    elif not all_events and viewer_id is not None:
         member_ids = _member_event_ids(viewer_id)
         if not member_ids:
             return []

@@ -111,15 +111,17 @@ def list_events(
     }
 
 
-def get_active_events(org_id: int | None = None) -> list[dict]:
-    """Events that collectors may currently collect against."""
-    events = (
+def get_active_events(org_id: int | None = None, scope_event_ids: set[int] | None = None) -> list[dict]:
+    """Events that collectors may currently collect against — limited to the
+    collector's own collect events (admin sees all open events)."""
+    q = (
         Event.query
         .filter_by(status=EventStatusEnum.published, collection_enabled=True, org_id=org_id)
         .options(joinedload(Event.creator))
-        .order_by(Event.start_date.desc())
-        .all()
     )
+    if scope_event_ids is not None:
+        q = q.filter(Event.id.in_(scope_event_ids))
+    events = q.order_by(Event.start_date.desc()).all()
     return [e.to_dict() for e in events]
 
 

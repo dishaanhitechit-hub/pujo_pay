@@ -9,7 +9,7 @@ from ...models.payment import Payment, MethodEnum, COMPLETED_STATUSES
 from ...models.event import Event
 from ...models.user import User
 from ...models.handover import Handover, HandoverStatusEnum
-from ...models.committee_role import YearRoleAssignment, EventRoleAssignment, CommitteeRoleEnum
+from ...models.committee_role import EventRoleAssignment
 
 
 def _cash_collected(collector_id: int, event_id: int) -> Decimal:
@@ -91,34 +91,24 @@ def get_collector_summary(org_id: int | None, collector_id: int) -> list[dict]:
 
 
 def get_handover_receivers(org_id: int | None) -> list[dict]:
-    """Users who can receive a handover: admin, cashier (role), or treasurer (committee role)."""
-    # Users with base role admin or cashier
-    q_role = db.session.query(User.id).filter(
-        User.role.in_(["admin", "cashier"]),
+    """Users who can receive a handover: admins, or anyone holding the cashier
+    capability on any event (the cash is handed to a cashier/treasurer)."""
+    # Admins / super_admins
+    q_admin = db.session.query(User.id).filter(
+        User.role.in_(["admin", "super_admin"]),
         User.is_active == True,
     )
     if org_id is not None:
-        q_role = q_role.filter(User.org_id == org_id)
+        q_admin = q_admin.filter(User.org_id == org_id)
 
-    # Users with treasurer or accountant year role assignment
-    q_year = db.session.query(YearRoleAssignment.user_id).filter(
-        YearRoleAssignment.role.in_([CommitteeRoleEnum.treasurer, CommitteeRoleEnum.accountant]),
+    # Anyone with the cashier capability on any event
+    q_cashier = db.session.query(EventRoleAssignment.user_id).filter(
+        EventRoleAssignment.can_cashier.is_(True),
     )
     if org_id is not None:
-        q_year = q_year.filter(YearRoleAssignment.org_id == org_id)
+        q_cashier = q_cashier.filter(EventRoleAssignment.org_id == org_id)
 
-    # Users with treasurer or accountant event role assignment
-    q_event = db.session.query(EventRoleAssignment.user_id).filter(
-        EventRoleAssignment.role.in_([CommitteeRoleEnum.treasurer, CommitteeRoleEnum.accountant]),
-    )
-    if org_id is not None:
-        q_event = q_event.filter(EventRoleAssignment.org_id == org_id)
-
-    all_ids = (
-        {r[0] for r in q_role.all()}
-        | {r[0] for r in q_year.all()}
-        | {r[0] for r in q_event.all()}
-    )
+    all_ids = {r[0] for r in q_admin.all()} | {r[0] for r in q_cashier.all()}
     if not all_ids:
         return []
 

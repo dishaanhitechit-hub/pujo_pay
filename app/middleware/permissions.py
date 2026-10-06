@@ -37,11 +37,12 @@ def has_permission(role: str, permission_key: str) -> bool:
 
 
 def require_collect_capable():
-    """Enforce per-user collection capability.
+    """Enforce collection capability.
 
-    - admin role     → always denied (403)
-    - collector role → always allowed
-    - other roles    → allowed only if user.can_collect= True in the database
+    - admin / super_admin → always denied (403) — admins don't collect
+    - everyone else       → allowed only if they hold ``can_collect`` on at
+                            least one event. The per-event data scoping limits
+                            what they can act on to exactly those events.
     """
     def decorator(fn):
         @wraps(fn)
@@ -50,19 +51,17 @@ def require_collect_capable():
             claims = get_jwt()
             role = claims.get("role")
 
-            if role == "admin":
+            if role in ("admin", "super_admin"):
                 return res("admin accounts cannot access collection features", code=403)
 
-            if role == "collector":
-                return fn(*args, **kwargs)
-
-            # For all other roles: check the per-user flag in the database
             from ..models.user import User
+            from .event_scope import capability_event_ids
             user_id = int(get_jwt_identity())
             user = User.query.get(user_id)
             if not user or not user.is_active:
                 return res("user not found or inactive", code=403)
-            if not user.can_collect:
+
+            if not capability_event_ids("collect"):
                 return res("collection capability is not enabled for this account", code=403)
 
             return fn(*args, **kwargs)

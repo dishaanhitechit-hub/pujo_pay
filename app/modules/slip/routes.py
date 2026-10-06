@@ -4,6 +4,7 @@ from marshmallow import ValidationError
 
 from ...middleware.permissions import require_collect_capable, current_user_has_permission
 from ...middleware.tenant import get_current_org_id
+from ...middleware.event_scope import capability_event_ids, event_in_scope
 from ...utils.helpers import res
 from flask_jwt_extended import get_jwt
 from .service import (
@@ -19,6 +20,11 @@ def _can_view_all() -> bool:
     return current_user_has_permission("payment.view_all")
 
 
+def _cashier_scope():
+    """Cashier event scope for the current user: None (admin) or a set of event ids."""
+    return capability_event_ids("cashier")
+
+
 @bp.route("/", methods=["POST"])
 @require_collect_capable()
 def create():
@@ -27,6 +33,8 @@ def create():
         data = create_slip_schema.load(body)
     except ValidationError as e:
         return res("validation failed", data=e.messages, code=422)
+    if not event_in_scope("collect", data.get("event_id")):
+        return res("access denied: not a collector for this event", code=403)
     slip, err = create_slip(data, int(get_jwt_identity()), org_id=get_current_org_id())
     if err:
         return res(err, code=400)
@@ -42,6 +50,9 @@ def index():
     # a collector viewing their own; "mine" param forces own view for admins too
     if request.args.get("mine") == "true":
         collector_id = viewer_id
+    # When viewing everyone's slips (collector_id is None), a cashier is limited
+    # to their events; admin is unrestricted. Own-view needs no event scope.
+    scope = _cashier_scope() if collector_id is None else None
     return res(data=list_slips(
         org_id,
         collector_id=collector_id,
@@ -50,6 +61,7 @@ def index():
         search=request.args.get("search") or None,
         page=request.args.get("page", default=1, type=int),
         per_page=min(request.args.get("perPage", default=20, type=int), 100),
+        scope_event_ids=scope,
     ))
 
 
@@ -68,7 +80,7 @@ def members():
 @bp.route("/<int:slip_id>", methods=["GET"])
 @jwt_required()
 def detail(slip_id):
-    data, err = get_slip(slip_id, int(get_jwt_identity()), _can_view_all(), org_id=get_current_org_id())
+    data, err = get_slip(slip_id, int(get_jwt_identity()), _can_view_all(), org_id=get_current_org_id(), scope_event_ids=_cashier_scope())
     if err == "not_found":
         return res("slip not found", code=404)
     if err == "forbidden":
@@ -84,7 +96,7 @@ def add_payment(slip_id):
         data = manual_payment_schema.load(body)
     except ValidationError as e:
         return res("validation failed", data=e.messages, code=422)
-    result, err = add_manual_payment(slip_id, data, int(get_jwt_identity()), _can_view_all(), get_current_org_id())
+    result, err = add_manual_payment(slip_id, data, int(get_jwt_identity()), _can_view_all(), get_current_org_id(), scope_event_ids=_cashier_scope())
     if err == "not_found":
         return res("slip not found", code=404)
     if err == "forbidden":
@@ -97,7 +109,7 @@ def add_payment(slip_id):
 @bp.route("/<int:slip_id>/close", methods=["POST"])
 @require_collect_capable()
 def close(slip_id):
-    data, err = close_slip(slip_id, int(get_jwt_identity()), _can_view_all(), get_current_org_id())
+    data, err = close_slip(slip_id, int(get_jwt_identity()), _can_view_all(), get_current_org_id(), scope_event_ids=_cashier_scope())
     if err == "not_found":
         return res("slip not found", code=404)
     if err == "forbidden":
@@ -110,7 +122,7 @@ def close(slip_id):
 @bp.route("/<int:slip_id>/reopen", methods=["POST"])
 @require_collect_capable()
 def reopen(slip_id):
-    data, err = reopen_slip(slip_id, int(get_jwt_identity()), _can_view_all(), get_current_org_id())
+    data, err = reopen_slip(slip_id, int(get_jwt_identity()), _can_view_all(), get_current_org_id(), scope_event_ids=_cashier_scope())
     if err == "not_found":
         return res("slip not found", code=404)
     if err == "forbidden":
@@ -123,7 +135,7 @@ def reopen(slip_id):
 @bp.route("/<int:slip_id>/cancel", methods=["POST"])
 @require_collect_capable()
 def cancel(slip_id):
-    data, err = cancel_slip(slip_id, int(get_jwt_identity()), _can_view_all(), get_current_org_id())
+    data, err = cancel_slip(slip_id, int(get_jwt_identity()), _can_view_all(), get_current_org_id(), scope_event_ids=_cashier_scope())
     if err == "not_found":
         return res("slip not found", code=404)
     if err == "forbidden":

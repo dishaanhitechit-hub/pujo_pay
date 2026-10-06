@@ -127,13 +127,9 @@ def screenshot(contribution_id: int):
 # ── Admin: list all ───────────────────────────────────────────────────────
 
 @bp.route("/admin", methods=["GET"])
-@require_permission("payment.view_all")
+@require_permission("contribution.manage")
 def admin_list():
-    from ...middleware.permissions import current_user_has_permission
     status = request.args.get("status")
-    # Finance roles that cannot review only ever see approved contributions.
-    if not current_user_has_permission("contribution.manage"):
-        status = "approved"
     return res(data=admin_list_contributions(
         status=status,
         user_id=request.args.get("userId", type=int),
@@ -167,6 +163,6 @@ def admin_review(contribution_id: int):
 # ── Admin: aggregate stats ────────────────────────────────────────────────
 
 @bp.route("/admin/stats", methods=["GET"])
-@require_permission("payment.view_all")
+@require_permission("contribution.manage")
 def admin_aggregate():
     return res(data=admin_stats(org_id=get_current_org_id()))

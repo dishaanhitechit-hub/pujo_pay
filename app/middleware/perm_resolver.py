@@ -1,58 +1,42 @@
 """Effective-permission resolver.
 
-Permissions are derived from, in union (additive — never removes access):
-  1. a BASELINE every authenticated member gets,
-  2. the member's legacy `role` grants (keeps all existing behaviour working),
-  3. their committee role(s) — current club year + any event role,
-  4. collection capability (event `can_collect`, mirrored to User.can_collect),
-  5. admin / super_admin get everything.
+Model (post committee-capability restructure):
+  * admin / super_admin           → every permission.
+  * every other authenticated user → a fixed BASELINE, plus capability grants
+    derived purely from their per-event flags:
+      - can_collect on any event  → COLLECT_PERMISSIONS
+      - can_cashier on any event  → CASHIER_PERMISSIONS
 
-Event role perms take priority conceptually; since this is a union they simply add.
+Committee roles (chairman … treasurer … member) and the legacy ``User.role``
+grants no longer confer any permission — roles are titles only. The *gate*
+(require_permission) opens the screen when the user holds a capability on at
+least one event; the per-event data scoping (see middleware/event_scope.py)
+then limits what they can see or act on to exactly those events.
 """
 from flask import g
 
 from ..models.role_permission import PERMISSION_KEYS
 from ..models.user import RoleEnum
-from ..models.committee_role import CommitteeRoleEnum
 
 ALL_PERMISSIONS = frozenset(PERMISSION_KEYS)
 
 # Every authenticated member gets these (member view pages are otherwise auth-only).
 BASELINE_PERMISSIONS = frozenset({"dashboard.view"})
 
-# Extra permissions granted by a committee role (year or event scope).
-COMMITTEE_ROLE_PERMISSIONS: dict[str, frozenset] = {
-    CommitteeRoleEnum.treasurer.value:  frozenset({"expense.manage", "handover.manage", "payment.view_receipt", "payment.view_all"}),
-    CommitteeRoleEnum.accountant.value: frozenset({"payment.view_receipt", "payment.view_all", "expense.manage"}),
-    # chairman / president / vice_president / secretary / junior_secretary /
-    # advisory_member / member → baseline only
-}
-
-# Granted to anyone with collection capability (event can_collect).
+# Granted to anyone with collection capability on at least one event.
 COLLECT_PERMISSIONS = frozenset({
     "payment.initiate", "payment.confirm", "payment.view_receipt",
     "collector.view_own", "token.generate",
 })
 
+# Granted to anyone with cashier capability on at least one event — the old
+# treasurer/cashier powers (approve + view payments, manage expenses/handovers).
+CASHIER_PERMISSIONS = frozenset({
+    "payment.view_all", "payment.view_receipt", "payment.confirm",
+    "expense.manage", "handover.manage",
+})
 
-def _committee_role_perms(user_id: int) -> frozenset:
-    from ..models.committee_role import ClubYear, YearRoleAssignment, EventRoleAssignment
-    perms: set[str] = set()
-
-    current_year = ClubYear.query.filter_by(is_current=True).first()
-    if current_year:
-        ya = YearRoleAssignment.query.filter_by(club_year_id=current_year.id, user_id=user_id).first()
-        if ya:
-            role = ya.role.value if isinstance(ya.role, CommitteeRoleEnum) else ya.role
-            perms |= COMMITTEE_ROLE_PERMISSIONS.get(role, frozenset())
-
-    for ea in EventRoleAssignment.query.filter_by(user_id=user_id).all():
-        role = ea.role.value if isinstance(ea.role, CommitteeRoleEnum) else ea.role
-        perms |= COMMITTEE_ROLE_PERMISSIONS.get(role, frozenset())
-        if ea.can_collect:
-            perms |= COLLECT_PERMISSIONS
-
-    return frozenset(perms)
+_ADMIN_ROLES = (RoleEnum.admin.value, RoleEnum.super_admin.value)
 
 
 def effective_permissions(user_id: int, role: str | None) -> frozenset:
@@ -64,21 +48,18 @@ def effective_permissions(user_id: int, role: str | None) -> frozenset:
     if user_id in cache:
         return cache[user_id]
 
-    if role in (RoleEnum.admin.value, RoleEnum.super_admin.value):
+    if role in _ADMIN_ROLES:
         cache[user_id] = ALL_PERMISSIONS
         return ALL_PERMISSIONS
 
-    from .permissions import _grants_for_role
-    from ..models.user import User
+    from .event_scope import _load_capabilities
 
     perms = set(BASELINE_PERMISSIONS)
-    if role:
-        perms |= _grants_for_role(role)          # legacy role grants (keeps existing working)
-    perms |= _committee_role_perms(user_id)      # committee role grants
-
-    user = User.query.get(user_id)
-    if user and user.can_collect:
+    caps = _load_capabilities(user_id)
+    if caps["collect"]:
         perms |= COLLECT_PERMISSIONS
+    if caps["cashier"]:
+        perms |= CASHIER_PERMISSIONS
 
     result = frozenset(perms)
     cache[user_id] = result

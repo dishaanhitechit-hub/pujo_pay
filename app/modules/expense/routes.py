@@ -7,6 +7,7 @@ from ...models.event import Event
 from ...models.expense import Expense
 from ...middleware.permissions import require_permission
 from ...middleware.tenant import get_current_org_id, require_same_org
+from ...middleware.event_scope import capability_event_ids, event_in_scope
 from ...utils.helpers import res
 from .service import (
     create_expense_schema, update_expense_schema,
@@ -39,6 +40,9 @@ def list_expenses():
     max_amt            = request.args.get("maxAmount", "").strip() or None
 
     org_id  = get_current_org_id()
+    scope   = capability_event_ids("cashier")  # None for admin
+    if event_id and not event_in_scope("cashier", event_id):
+        return res("access denied: not a cashier for this event", code=403)
     data    = get_expenses(
         event_id=event_id,
         budget_category_id=budget_category_id,
@@ -51,6 +55,7 @@ def list_expenses():
         min_amount=min_amt,
         max_amount=max_amt,
         org_id=org_id,
+        scope_event_ids=scope,
     )
     summary = get_expense_summary(
         event_id=event_id,
@@ -58,6 +63,7 @@ def list_expenses():
         date_from=date_from,
         date_to=date_to,
         org_id=org_id,
+        scope_event_ids=scope,
     )
     return res(data={**data, "summary": summary})
 
@@ -71,6 +77,8 @@ def create():
     except ValidationError as e:
         return res("validation failed", data=e.messages, code=422)
 
+    if not event_in_scope("cashier", data.get("event_id")):
+        return res("access denied: not a cashier for this event", code=403)
     created_by = int(get_jwt_identity())
     expense, err = create_expense(data, created_by, org_id=get_current_org_id())
     if err:
@@ -88,7 +96,7 @@ def update(expense_id: int):
     except ValidationError as e:
         return res("validation failed", data=e.messages, code=422)
 
-    expense, err = update_expense(expense_id, data)
+    expense, err = update_expense(expense_id, data, allowed_event_ids=capability_event_ids("cashier"))
     if err:
         return res(err, code=404)
     return res("expense updated", data=expense.to_dict())
@@ -98,7 +106,7 @@ def update(expense_id: int):
 @require_permission("expense.manage")
 @_expense_in_org
 def delete(expense_id: int):
-    found = delete_expense(expense_id)
+    found = delete_expense(expense_id, allowed_event_ids=capability_event_ids("cashier"))
     if not found:
         return res("expense not found", code=404)
     return res("expense deleted")

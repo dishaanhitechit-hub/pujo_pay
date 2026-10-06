@@ -4,6 +4,7 @@ from marshmallow import ValidationError
 
 from ...middleware.permissions import require_permission, require_collect_capable
 from ...middleware.tenant import get_current_org_id
+from ...middleware.event_scope import capability_event_ids
 from ...utils.helpers import res
 from ...utils.pay_token import make_action_token
 from .service import initiate_schema, initiate_payment, get_payment, get_payment_by_receipt_no
@@ -21,7 +22,10 @@ def initiate():
         return res("validation failed", data=e.messages, code=422)
 
     collector_id = int(get_jwt_identity())
-    payment, err = initiate_payment(data, collector_id, org_id=get_current_org_id())
+    payment, err = initiate_payment(
+        data, collector_id, org_id=get_current_org_id(),
+        allowed_event_ids=capability_event_ids("collect"),
+    )
     if err:
         return res(err, code=400)
 

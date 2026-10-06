@@ -107,6 +107,9 @@ class EventRoleAssignment(db.Model):
     user_id     = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     role        = db.Column(db.Enum(CommitteeRoleEnum, native_enum=False), nullable=False)
     can_collect = db.Column(db.Boolean, nullable=False, default=False)
+    # Cashier capability for this event: grants the old treasurer/cashier powers
+    # (view/approve payments, manage expenses & handovers) scoped to THIS event only.
+    can_cashier = db.Column(db.Boolean, nullable=False, default=False)
     is_public   = db.Column(db.Boolean, nullable=False, default=True)
     created_at  = db.Column(db.DateTime, server_default=db.func.now())
 
@@ -120,6 +123,7 @@ class EventRoleAssignment(db.Model):
             "userId":     self.user_id,
             "role":       role,
             "canCollect": self.can_collect,
+            "canCashier": self.can_cashier,
             "isPublic":   self.is_public,
             "user": {
                 "id":    self.user.id,

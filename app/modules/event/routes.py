@@ -6,6 +6,7 @@ from ...extensions import db
 from ...models.event import Event
 from ...middleware.permissions import require_permission
 from ...middleware.tenant import get_current_org_id, require_same_org
+from ...middleware.event_scope import capability_event_ids
 from ...utils.helpers import res
 from .service import (
     create_event_schema, update_event_schema, event_days_list_schema,
@@ -60,8 +61,12 @@ def index():
 @bp.route("/active", methods=["GET"])
 @require_permission("payment.initiate")
 def active():
-    """Events currently open for collection — used by collector dropdown."""
-    return res(data=get_active_events(org_id=get_current_org_id()))
+    """Events currently open for collection — used by collector dropdown.
+    Limited to the events the collector holds the collect capability for."""
+    return res(data=get_active_events(
+        org_id=get_current_org_id(),
+        scope_event_ids=capability_event_ids("collect"),
+    ))
 
 
 # ── Member-facing (authenticated, org-scoped) event browsing ─────────────────
