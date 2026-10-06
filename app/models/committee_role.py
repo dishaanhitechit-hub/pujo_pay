@@ -9,7 +9,7 @@ class CommitteeRoleEnum(str, enum.Enum):
     president        = "president"
     vice_president   = "vice_president"
     secretary        = "secretary"
-    junior_secretary = "junior_secretary"
+    joint_secretary  = "joint_secretary"
     treasurer        = "treasurer"
     accountant       = "accountant"
     advisory_member  = "advisory_member"

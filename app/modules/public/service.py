@@ -87,7 +87,7 @@ _ROLE_LABELS = {
     "president":       "President",
     "vice_president":  "Vice President",
     "secretary":       "Secretary",
-    "junior_secretary":"Junior Secretary",
+    "joint_secretary": "Joint Secretary",
     "treasurer":       "Treasurer",
     "accountant":      "Accountant",
     "advisory_member": "Advisory Member",
