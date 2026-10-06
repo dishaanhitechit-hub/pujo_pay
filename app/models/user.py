@@ -1,6 +1,7 @@
 import enum
 from werkzeug.security import generate_password_hash, check_password_hash
 from ..extensions import db
+from ..utils.helpers import utcnow
 
 # ── DB migration note ──────────────────────────────────────────────────────
 # Add first-setup OTP columns:
@@ -105,8 +106,12 @@ class User(db.Model):
     setup_otp_hash = db.Column(db.String(256), nullable=True)
     setup_otp_used  = db.Column(db.Boolean, default=False, nullable=True)
 
+    # UTC; JWTs issued before this moment are rejected (logs out every other session).
+    password_changed_at = db.Column(db.DateTime, nullable=True)
+
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
+        self.password_changed_at = utcnow()
 
     def check_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
