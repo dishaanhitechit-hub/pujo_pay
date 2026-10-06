@@ -2,9 +2,11 @@ from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity, get_jwt
 from marshmallow import ValidationError
 
-from ...middleware.permissions import require_permission, require_collect_capable
+from ...extensions import db
+from ...middleware.permissions import require_permission, require_collect_capable, current_user_has_permission
 from ...middleware.tenant import get_current_org_id
 from ...middleware.event_scope import capability_event_ids
+from ...models.payment import StatusEnum
 from ...utils.helpers import res
 from ...utils.pay_token import make_action_token
 from .service import initiate_schema, initiate_payment, get_payment, get_payment_by_receipt_no
@@ -63,3 +65,46 @@ def by_receipt_no(receipt_no):
     if not payment:
         return res("receipt not found", code=404)
     return res(data=payment.to_dict())
+
+
+@bp.route("/<int:payment_id>/cancel", methods=["POST"])
+@require_collect_capable()
+def cancel_pending(payment_id: int):
+    """Cancel a pending payment. Collector must own it (or have payment.view_all)."""
+    from ..qr.service import cancel_payment as _cancel
+    collector_id = int(get_jwt_identity())
+    payment = get_payment(payment_id, org_id=get_current_org_id())
+    if not payment:
+        return res("payment not found", code=404)
+    if payment.collector_id != collector_id and not current_user_has_permission("payment.view_all"):
+        return res("forbidden", code=403)
+    ok, msg = _cancel(payment)
+    if not ok:
+        return res(msg, code=400)
+    return res("payment cancelled", data=payment.to_dict())
+
+
+@bp.route("/<int:payment_id>/retry", methods=["POST"])
+@require_collect_capable()
+def retry_pending(payment_id: int):
+    """Re-issue the /pay page URL for a still-pending payment, resetting the QR timer."""
+    collector_id = int(get_jwt_identity())
+    payment = get_payment(payment_id, org_id=get_current_org_id())
+    if not payment:
+        return res("payment not found", code=404)
+    if payment.collector_id != collector_id:
+        return res("forbidden", code=403)
+    if payment.status != StatusEnum.pending:
+        return res("payment is no longer pending", code=400)
+    # Reset QR window so the user gets a fresh 10-minute countdown on the pay page
+    payment.payment_page_opened_at = None
+    db.session.commit()
+    method = payment.method.value
+    page = {"upi": "qr", "cheque": "cheque"}.get(method, "cash")
+    next_url = f"/pay/{page}/{payment.id}?t={make_action_token(payment.id)}"
+    return res("ok", data={
+        "paymentId": payment.id,
+        "method": method,
+        "amount": str(payment.amount),
+        "nextUrl": next_url,
+    })
