@@ -3,8 +3,10 @@ from marshmallow import ValidationError
 
 from flask_jwt_extended import get_jwt, jwt_required
 
+from ...extensions import db
+from ...models.contact_query import ContactQuery
 from ...middleware.permissions import require_permission
-from ...middleware.tenant import get_current_org_id
+from ...middleware.tenant import get_current_org_id, require_same_org
 from ...utils.helpers import res
 from .service import (
     submit_query_schema,
@@ -16,6 +18,12 @@ from .service import (
 )
 
 bp = Blueprint("contact", __name__)
+
+_query_in_org = require_same_org(
+    lambda query_id, **_: db.session.query(ContactQuery.org_id)
+    .filter(ContactQuery.id == query_id).first(),
+    "query not found",
+)
 
 
 # ── Public ─────────────────────────────────────────────────────────────────────
@@ -57,6 +65,7 @@ def list_queries():
 
 @bp.route("/queries/<int:query_id>", methods=["GET"])
 @require_permission("content.manage")
+@_query_in_org
 def query_detail(query_id: int):
     result = get_contact_query(query_id)
     if not result:
@@ -66,6 +75,7 @@ def query_detail(query_id: int):
 
 @bp.route("/queries/<int:query_id>/status", methods=["PATCH"])
 @require_permission("content.manage")
+@_query_in_org
 def update_status(query_id: int):
     body = request.get_json(silent=True) or {}
     try:

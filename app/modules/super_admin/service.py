@@ -39,7 +39,7 @@ create_provision_schema = CreateProvisionSchema()
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _gen_otp(length: int = 6) -> str:
-    return "".join(random.choices(string.digits, k=length))
+    return "".join(secrets.choice(string.digits) for _ in range(length))
 
 
 def _gen_password(length: int = 12) -> str:

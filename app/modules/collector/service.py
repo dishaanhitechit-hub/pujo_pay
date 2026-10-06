@@ -71,12 +71,12 @@ def get_payments(
     max_amount: str | None = None,
     search: str | None = None,
 ) -> dict:
-    # Join Donor to eliminate N+1 and enable donor-based filtering/search.
+    # Outer-join Donor (eager load + donor filters) — payments without a donor must still be listed.
     # Collector is always the logged-in user, so joinedload (no filter needed).
     query = (
         Payment.query
         .filter(Payment.collector_id == collector_id)
-        .join(Donor, Payment.donor_id == Donor.id)
+        .outerjoin(Donor, Payment.donor_id == Donor.id)
         .options(
             contains_eager(Payment.donor),
             joinedload(Payment.collector),

@@ -59,6 +59,25 @@ def _sync_pledge(payment: Payment) -> None:
 
 # ── Payment confirm ────────────────────────────────────────────────────────
 
+def _confirm_blocker(payment: Payment) -> str | None:
+    """Lock the payment's slip and re-check, so concurrent confirms can't double-confirm or overpay."""
+    if payment.slip_id:
+        from ..slip.service import lock_slip_outstanding
+        from ...models.contribution_slip import SlipStatusEnum
+        slip, outstanding = lock_slip_outstanding(payment.slip_id)
+        db.session.refresh(payment)  # another request may have confirmed it while we waited
+        if payment.status != StatusEnum.pending:
+            return "payment already processed"
+        if slip and slip.status == SlipStatusEnum.cancelled:
+            return "this slip has been cancelled"
+        if slip and Decimal(str(payment.amount)) > outstanding:
+            return (f"₹{payment.amount} is more than the slip's remaining balance of ₹{outstanding} "
+                    f"— cancel this payment and start a new one")
+    elif payment.status != StatusEnum.pending:
+        return "payment already processed"
+    return None
+
+
 def confirm_upi_payment(payment: Payment, utr_number: str | None) -> tuple[bool, str]:
     if payment.status != StatusEnum.pending:
         return False, "payment already processed"
@@ -73,6 +92,11 @@ def confirm_upi_payment(payment: Payment, utr_number: str | None) -> tuple[bool,
             db.session.commit()
             return False, "session expired"
 
+    blocker = _confirm_blocker(payment)
+    if blocker:
+        db.session.rollback()
+        return False, blocker
+
     payment.utr_number = utr_number or None
     payment.status = StatusEnum.completed
     payment.confirmed_at = now
@@ -85,6 +109,11 @@ def confirm_upi_payment(payment: Payment, utr_number: str | None) -> tuple[bool,
 def confirm_cash_payment(payment: Payment) -> tuple[bool, str]:
     if payment.status != StatusEnum.pending:
         return False, "payment already processed"
+
+    blocker = _confirm_blocker(payment)
+    if blocker:
+        db.session.rollback()
+        return False, blocker
 
     payment.status = StatusEnum.completed
     payment.confirmed_at = datetime.now(timezone.utc)
@@ -102,6 +131,11 @@ def confirm_cheque_payment(
 ) -> tuple[bool, str]:
     if payment.status != StatusEnum.pending:
         return False, "payment already processed"
+
+    blocker = _confirm_blocker(payment)
+    if blocker:
+        db.session.rollback()
+        return False, blocker
 
     from datetime import date
     parsed_date = None

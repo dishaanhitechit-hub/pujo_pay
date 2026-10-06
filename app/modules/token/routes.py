@@ -1,9 +1,13 @@
 from flask import Blueprint, request, render_template
 from flask_jwt_extended import get_jwt_identity, get_jwt
 from marshmallow import ValidationError
+from sqlalchemy import func
 
+from ...extensions import db
+from ...models.token import Token
+from ...models.user import User
 from ...middleware.permissions import require_permission
-from ...middleware.tenant import get_current_org_id
+from ...middleware.tenant import get_current_org_id, require_same_org
 from ...utils.helpers import res
 from .service import (
     generate_schema, bulk_schema,
@@ -14,6 +18,13 @@ from .service import (
 )
 
 bp = Blueprint("token", __name__)
+
+_token_in_org = require_same_org(
+    lambda token_no, **_: db.session.query(User.org_id)
+    .join(Token, Token.generated_by_id == User.id)
+    .filter(func.lower(Token.token_no) == token_no.lower()).first(),
+    "token not found",
+)
 
 
 # ── Admin: token config ────────────────────────────────────────────────────
@@ -94,6 +105,7 @@ def token_list():
 
 @bp.route("/api/token/<token_no>", methods=["GET"])
 @require_permission("token.generate")
+@_token_in_org
 def token_detail(token_no):
     token = get_token(token_no)
     if not token:
@@ -103,6 +115,7 @@ def token_detail(token_no):
 
 @bp.route("/api/token/<token_no>/void", methods=["POST"])
 @require_permission("users.manage")
+@_token_in_org
 def token_void(token_no):
     token = get_token(token_no)
     if not token:

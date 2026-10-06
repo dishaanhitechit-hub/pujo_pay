@@ -7,14 +7,14 @@ from datetime import datetime, date, time
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import or_
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import contains_eager, joinedload
 
 from ...extensions import db
 from ...models.meeting import Meeting, MeetingInvitee, MeetingStatusEnum, MeetingTypeEnum
 from ...models.meeting_agenda_item import MeetingAgendaItem, AgendaItemStatusEnum
 from ...models.meeting_discussion import MeetingDiscussion
 from ...models.meeting_attendance import MeetingAttendance, MeetingAttendanceDevice
-from ...models.user import User
+from ...models.user import User, RoleEnum
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -160,13 +160,13 @@ def list_invitees(meeting_id: int) -> list[dict] | None:
     return [r.to_dict() for r in rows]
 
 
-def add_invitees(meeting_id: int, payload: dict) -> tuple[dict | None, str | None]:
+def add_invitees(meeting_id: int, payload: dict, org_id: int | None) -> tuple[dict | None, str | None]:
     """
     payload keys:
       - user_ids: list[int]          — specific user IDs (individual)
       - roles: list[str]             — invite all active users with these roles (role_based)
       - invite_all: bool             — invite every active non-admin user (all)
-    Deduplicates: only inserts rows that don't already exist.
+    Only users of `org_id` can be invited. Deduplicates: only inserts rows that don't already exist.
     """
     m = Meeting.query.get(meeting_id)
     if not m:
@@ -174,32 +174,26 @@ def add_invitees(meeting_id: int, payload: dict) -> tuple[dict | None, str | Non
 
     user_ids: set[int] = set()
     invitation_types: dict[int, str] = {}
+    org_users = User.query.filter(User.org_id == org_id)
+    active = org_users.filter(User.is_active == True, User.role != RoleEnum.super_admin)
 
     if payload.get("invite_all"):
-        users = User.query.filter(
-            User.is_active == True,
-            User.role != "admin",
-        ).all()
-        for u in users:
+        for u in active.filter(User.role != RoleEnum.admin).all():
             user_ids.add(u.id)
             invitation_types[u.id] = "all"
 
-    if payload.get("roles"):
-        for role in payload["roles"]:
-            users = User.query.filter(
-                User.is_active == True,
-                User.role == role,
-            ).all()
-            for u in users:
-                user_ids.add(u.id)
-                invitation_types.setdefault(u.id, "role_based")
+    roles = [r for r in (payload.get("roles") or []) if r in RoleEnum._value2member_map_]
+    if roles:
+        for u in active.filter(User.role.in_(roles)).all():
+            user_ids.add(u.id)
+            invitation_types.setdefault(u.id, "role_based")
 
     for uid in (payload.get("user_ids") or []):
         user_ids.add(uid)
         invitation_types.setdefault(uid, "individual")
 
-    # Verify all user IDs exist
-    existing_ids = {u.id for u in User.query.filter(User.id.in_(user_ids)).all()}
+    # Verify all user IDs exist in this org
+    existing_ids = {u.id for u in org_users.filter(User.id.in_(user_ids)).all()}
     bad = user_ids - existing_ids
     if bad:
         return None, f"user ids not found: {sorted(bad)}"
@@ -241,14 +235,17 @@ def remove_invitee(meeting_id: int, user_id: int) -> str | None:
 
 # ── Member: meetings ───────────────────────────────────────────────────────
 
-def list_member_meetings(user_id: int) -> list[dict]:
-    """Return all meetings where the user has an invitee record."""
+def list_member_meetings(user_id: int, org_id: int | None) -> list[dict]:
+    """Return the org's meetings where the user has an invitee record."""
     rows = (
         MeetingInvitee.query
         .filter_by(user_id=user_id)
+        .join(Meeting, MeetingInvitee.meeting_id == Meeting.id)
+        .join(User, Meeting.created_by == User.id)
+        .filter(User.org_id == org_id)
         .options(
-            joinedload(MeetingInvitee.meeting).joinedload(Meeting.event),
-            joinedload(MeetingInvitee.meeting).joinedload(Meeting.creator),
+            contains_eager(MeetingInvitee.meeting).joinedload(Meeting.event),
+            contains_eager(MeetingInvitee.meeting).contains_eager(Meeting.creator),
         )
         .all()
     )

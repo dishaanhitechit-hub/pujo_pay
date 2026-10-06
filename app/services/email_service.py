@@ -1,10 +1,21 @@
 import os
+import html
 import smtplib
 import logging
+import threading
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 logger = logging.getLogger(__name__)
+
+
+def send_email_async(fn, *args, **kwargs) -> None:
+    """Run an email sender in the background so the request doesn't wait on SMTP.
+
+    Also keeps response time the same whether or not an email was sent, so timing
+    can't reveal which accounts exist.
+    """
+    threading.Thread(target=fn, args=args, kwargs=kwargs, daemon=True).start()
 
 
 def _smtp_config() -> dict:
@@ -119,4 +130,59 @@ def send_org_credentials_email(
         f"Use the Organisation Code and setup code on your first login to activate your account."
     )
 
+    return send_email(to_email, subject, html_body, text_body)
+
+
+def send_password_reset_email(to_email: str, name: str, otp_code: str, org_name: str | None, minutes: int) -> bool:
+    subject = "PujoPay — Your password reset code"
+    safe_name = html.escape(name or "there")
+    org_line = f" for <strong>{html.escape(org_name)}</strong>" if org_name else ""
+
+    html_body = f"""
+    <html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:auto;">
+      <h2 style="color:#4f46e5;">Reset your password</h2>
+      <p>Hi <strong>{safe_name}</strong>,</p>
+      <p>We received a request to reset your PujoPay password{org_line}. Use this code:</p>
+      <p style="font-size:30px;letter-spacing:8px;font-weight:bold;color:#d97706;
+                background:#fff3cd;border-radius:8px;padding:14px 0;text-align:center;">
+        {otp_code}
+      </p>
+      <p>This code is valid for <strong>{minutes} minutes</strong> and can be used only once.</p>
+      <hr style="margin:24px 0;border:none;border-top:1px solid #eee;">
+      <p style="font-size:12px;color:#999;">
+        If you didn't ask to reset your password, you can ignore this email — your password won't change.
+      </p>
+    </body></html>
+    """
+    text_body = (
+        f"Hi {name or 'there'},\n\n"
+        f"Your PujoPay password reset code is: {otp_code}\n"
+        f"It is valid for {minutes} minutes and can be used only once.\n\n"
+        f"If you didn't ask to reset your password, ignore this email."
+    )
+    return send_email(to_email, subject, html_body, text_body)
+
+
+def send_password_changed_email(to_email: str, name: str, changed_at_ist: str) -> bool:
+    subject = "PujoPay — Your password was changed"
+    safe_name = html.escape(name or "there")
+
+    html_body = f"""
+    <html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:auto;">
+      <h2 style="color:#4f46e5;">Password changed</h2>
+      <p>Hi <strong>{safe_name}</strong>,</p>
+      <p>The password for your PujoPay account was changed on <strong>{changed_at_ist}</strong>.
+         All other devices have been signed out.</p>
+      <p style="color:#e53e3e;font-size:13px;">
+        If this wasn't you, reset your password right away using "Forgot password?" on the login page
+        and contact your organisation admin.
+      </p>
+    </body></html>
+    """
+    text_body = (
+        f"Hi {name or 'there'},\n\n"
+        f"The password for your PujoPay account was changed on {changed_at_ist}. "
+        f"All other devices have been signed out.\n\n"
+        f"If this wasn't you, reset your password using \"Forgot password?\" and contact your admin."
+    )
     return send_email(to_email, subject, html_body, text_body)

@@ -2,8 +2,11 @@ from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity
 from marshmallow import ValidationError
 
+from ...extensions import db
+from ...models.event import Event
+from ...models.expense import Expense
 from ...middleware.permissions import require_permission
-from ...middleware.tenant import get_current_org_id
+from ...middleware.tenant import get_current_org_id, require_same_org
 from ...utils.helpers import res
 from .service import (
     create_expense_schema, update_expense_schema,
@@ -12,6 +15,13 @@ from .service import (
 )
 
 bp = Blueprint("expense", __name__)
+
+_expense_in_org = require_same_org(
+    lambda expense_id, **_: db.session.query(Event.org_id)
+    .join(Expense, Expense.event_id == Event.id)
+    .filter(Expense.id == expense_id).first(),
+    "expense not found",
+)
 
 
 @bp.route("/", methods=["GET"])
@@ -70,6 +80,7 @@ def create():
 
 @bp.route("/<int:expense_id>", methods=["PATCH"])
 @require_permission("expense.manage")
+@_expense_in_org
 def update(expense_id: int):
     body = request.get_json(silent=True) or {}
     try:
@@ -85,6 +96,7 @@ def update(expense_id: int):
 
 @bp.route("/<int:expense_id>", methods=["DELETE"])
 @require_permission("expense.manage")
+@_expense_in_org
 def delete(expense_id: int):
     found = delete_expense(expense_id)
     if not found:

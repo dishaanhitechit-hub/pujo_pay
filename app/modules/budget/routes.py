@@ -2,8 +2,11 @@ from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity
 from marshmallow import ValidationError
 
+from ...extensions import db
+from ...models.budget_category import BudgetCategory
+from ...models.event import Event
 from ...middleware.permissions import require_permission
-from ...middleware.tenant import get_current_org_id
+from ...middleware.tenant import get_current_org_id, require_same_org
 from ...utils.helpers import res
 from .service import (
     create_budget_category_schema, update_budget_category_schema, reorder_schema,
@@ -12,6 +15,13 @@ from .service import (
 )
 
 bp = Blueprint("budget", __name__)
+
+_category_in_org = require_same_org(
+    lambda cat_id, **_: db.session.query(Event.org_id)
+    .join(BudgetCategory, BudgetCategory.event_id == Event.id)
+    .filter(BudgetCategory.id == cat_id).first(),
+    "budget category not found",
+)
 
 
 @bp.route("/all-summary", methods=["GET"])
@@ -60,6 +70,7 @@ def create():
 
 @bp.route("/<int:cat_id>", methods=["PATCH"])
 @require_permission("event.manage")
+@_category_in_org
 def update(cat_id: int):
     body = request.get_json(silent=True) or {}
     try:
@@ -75,6 +86,7 @@ def update(cat_id: int):
 
 @bp.route("/<int:cat_id>", methods=["DELETE"])
 @require_permission("event.manage")
+@_category_in_org
 def delete(cat_id: int):
     found = delete_category(cat_id)
     if not found:

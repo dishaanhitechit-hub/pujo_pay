@@ -1,7 +1,8 @@
-from flask import Blueprint, render_template, request, redirect, url_for, abort
+from flask import Blueprint, render_template, request, redirect, url_for, abort, make_response
 
 from ...models.payment import Payment
 from ...models.app_config import AppConfig
+from ...utils.pay_token import valid_action_token, valid_receipt_token
 from .service import (
     generate_upi_qr_base64,
     open_qr_page,
@@ -14,14 +15,34 @@ from .service import (
 bp = Blueprint("qr", __name__)
 
 
+# ── Link signing ───────────────────────────────────────────────────────────
+# Every /pay page needs the signed `t` token issued by the authenticated API.
+# The token is checked before the DB lookup so unsigned requests can't probe IDs.
+
+def _token() -> str | None:
+    return request.args.get("t") or request.form.get("t")
+
+
+def _require(payment_id: int, is_valid) -> Payment:
+    if not is_valid(_token(), payment_id):
+        abort(make_response(render_template(
+            "pay/error.html", message="This payment link is invalid or has expired.",
+        ), 403))
+    return Payment.query.get_or_404(payment_id)
+
+
+def _receipt_redirect(payment_id: int):
+    return redirect(url_for("qr.receipt_page", payment_id=payment_id, t=_token()))
+
+
 # ── UPI QR page ────────────────────────────────────────────────────────────
 
 @bp.route("/qr/<int:payment_id>", methods=["GET"])
 def qr_page(payment_id):
-    payment = Payment.query.get_or_404(payment_id)
+    payment = _require(payment_id, valid_action_token)
 
     if payment.status.value in ("completed", "confirmed"):
-        return redirect(url_for("qr.receipt_page", payment_id=payment_id))
+        return _receipt_redirect(payment_id)
     if payment.status.value in ("cancelled", "expired"):
         return render_template("pay/error.html",
                                message=f"This payment has already been {payment.status.value}.")
@@ -40,12 +61,13 @@ def qr_page(payment_id):
                            payment=payment,
                            collector=payment.collector,
                            qr_b64=qr_b64,
-                           expiry_ts=expiry_ts)
+                           expiry_ts=expiry_ts,
+                           t=_token())
 
 
 @bp.route("/qr/<int:payment_id>/confirm", methods=["POST"])
 def qr_confirm(payment_id):
-    payment = Payment.query.get_or_404(payment_id)
+    payment = _require(payment_id, valid_action_token)
     utr = (request.form.get("utr_number") or "").strip() or None
 
     ok, msg = confirm_upi_payment(payment, utr)
@@ -62,14 +84,15 @@ def qr_confirm(payment_id):
                                collector=payment.collector,
                                qr_b64=generate_upi_qr_base64(upi_id, org_name, str(payment.amount)),
                                expiry_ts=expiry_ts,
-                               flash_error=msg)
+                               flash_error=msg,
+                               t=_token())
 
-    return redirect(url_for("qr.receipt_page", payment_id=payment_id))
+    return _receipt_redirect(payment_id)
 
 
 @bp.route("/qr/<int:payment_id>/cancel", methods=["POST"])
 def qr_cancel(payment_id):
-    payment = Payment.query.get_or_404(payment_id)
+    payment = _require(payment_id, valid_action_token)
     cancel_payment(payment)
     return render_template("pay/cancelled.html", payment=payment)
 
@@ -78,32 +101,33 @@ def qr_cancel(payment_id):
 
 @bp.route("/cash/<int:payment_id>", methods=["GET"])
 def cash_page(payment_id):
-    payment = Payment.query.get_or_404(payment_id)
+    payment = _require(payment_id, valid_action_token)
 
     if payment.status.value in ("completed", "confirmed"):
-        return redirect(url_for("qr.receipt_page", payment_id=payment_id))
+        return _receipt_redirect(payment_id)
     if payment.status.value in ("cancelled", "expired"):
         return render_template("pay/error.html",
                                message=f"This payment has already been {payment.status.value}.")
 
-    return render_template("pay/cash.html", payment=payment, collector=payment.collector)
+    return render_template("pay/cash.html", payment=payment, collector=payment.collector, t=_token())
 
 
 @bp.route("/cash/<int:payment_id>/confirm", methods=["POST"])
 def cash_confirm(payment_id):
-    payment = Payment.query.get_or_404(payment_id)
+    payment = _require(payment_id, valid_action_token)
     ok, msg = confirm_cash_payment(payment)
     if not ok:
         return render_template("pay/cash.html",
                                payment=payment,
                                collector=payment.collector,
-                               flash_error=msg)
-    return redirect(url_for("qr.receipt_page", payment_id=payment_id))
+                               flash_error=msg,
+                               t=_token())
+    return _receipt_redirect(payment_id)
 
 
 @bp.route("/cash/<int:payment_id>/cancel", methods=["POST"])
 def cash_cancel(payment_id):
-    payment = Payment.query.get_or_404(payment_id)
+    payment = _require(payment_id, valid_action_token)
     cancel_payment(payment)
     return render_template("pay/cancelled.html", payment=payment)
 
@@ -112,20 +136,20 @@ def cash_cancel(payment_id):
 
 @bp.route("/cheque/<int:payment_id>", methods=["GET"])
 def cheque_page(payment_id):
-    payment = Payment.query.get_or_404(payment_id)
+    payment = _require(payment_id, valid_action_token)
 
     if payment.status.value in ("completed", "confirmed"):
-        return redirect(url_for("qr.receipt_page", payment_id=payment_id))
+        return _receipt_redirect(payment_id)
     if payment.status.value in ("cancelled", "expired"):
         return render_template("pay/error.html",
                                message=f"This payment has already been {payment.status.value}.")
 
-    return render_template("pay/cheque.html", payment=payment, collector=payment.collector)
+    return render_template("pay/cheque.html", payment=payment, collector=payment.collector, t=_token())
 
 
 @bp.route("/cheque/<int:payment_id>/confirm", methods=["POST"])
 def cheque_confirm(payment_id):
-    payment = Payment.query.get_or_404(payment_id)
+    payment = _require(payment_id, valid_action_token)
     cheque_number = (request.form.get("cheque_number") or "").strip() or None
     bank_name = (request.form.get("bank_name") or "").strip() or None
     cheque_date = (request.form.get("cheque_date") or "").strip() or None
@@ -135,13 +159,14 @@ def cheque_confirm(payment_id):
         return render_template("pay/cheque.html",
                                payment=payment,
                                collector=payment.collector,
-                               flash_error=msg)
-    return redirect(url_for("qr.receipt_page", payment_id=payment_id))
+                               flash_error=msg,
+                               t=_token())
+    return _receipt_redirect(payment_id)
 
 
 @bp.route("/cheque/<int:payment_id>/cancel", methods=["POST"])
 def cheque_cancel(payment_id):
-    payment = Payment.query.get_or_404(payment_id)
+    payment = _require(payment_id, valid_action_token)
     cancel_payment(payment)
     return render_template("pay/cancelled.html", payment=payment)
 
@@ -153,7 +178,7 @@ def cheque_cancel(payment_id):
 
 @bp.route("/receipt/<int:payment_id>", methods=["GET"])
 def receipt_page(payment_id):
-    payment = Payment.query.get_or_404(payment_id)
+    payment = _require(payment_id, valid_receipt_token)
     source = request.args.get("from")
     if source == "dashboard":
         return render_template("pay/receipt_dashboard.html", payment=payment)

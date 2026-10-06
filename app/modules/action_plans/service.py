@@ -154,12 +154,14 @@ def delete_action_plan(plan_id: int) -> str | None:
 
 # ── Admin: Assignees ───────────────────────────────────────────────────────
 
-def add_assignees(plan_id: int, user_ids: list[int], assigned_by: int) -> tuple[dict | None, str | None]:
+def add_assignees(plan_id: int, user_ids: list[int], assigned_by: int, org_id: int | None) -> tuple[dict | None, str | None]:
     plan = ActionPlan.query.get(plan_id)
     if not plan:
         return None, "action plan not found"
 
-    existing_users = {u.id for u in User.query.filter(User.id.in_(user_ids)).all()}
+    existing_users = {
+        u.id for u in User.query.filter(User.id.in_(user_ids), User.org_id == org_id).all()
+    }
     bad = set(user_ids) - existing_users
     if bad:
         return None, f"user ids not found: {sorted(bad)}"
@@ -192,6 +194,7 @@ def remove_assignee(plan_id: int, user_id: int) -> str | None:
 
 def list_my_action_plans(
     user_id: int,
+    org_id: int | None,
     status: str | None = None,
     priority: str | None = None,
     event_id: int | None = None,
@@ -202,7 +205,8 @@ def list_my_action_plans(
     q = (
         ActionPlan.query
         .join(ActionPlanAssignee, ActionPlan.id == ActionPlanAssignee.action_plan_id)
-        .filter(ActionPlanAssignee.user_id == user_id)
+        .join(User, ActionPlan.created_by == User.id)
+        .filter(ActionPlanAssignee.user_id == user_id, User.org_id == org_id)
         .options(
             joinedload(ActionPlan.creator),
             joinedload(ActionPlan.event),

@@ -20,7 +20,10 @@ def create_app():
     # ── JWT blocklist check ─────────────────────────────────
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
-        return is_blocklisted(jwt_payload["jti"])
+        if is_blocklisted(jwt_payload["jti"]):
+            return True
+        from .modules.auth.service import token_issued_before_password_change
+        return token_issued_before_password_change(jwt_payload)
 
     # ── Error handlers ──────────────────────────────────────
     @app.errorhandler(413)
@@ -60,6 +63,7 @@ def create_app():
     from .models.circular import Circular  # noqa: F401
     from .models.org_provision import OrgProvision  # noqa: F401
     from .models.contact_diary import ContactDiaryEntry  # noqa: F401
+    from .models.password_reset import PasswordResetCode, RateLimitEvent  # noqa: F401
     from .models.committee_role import (  # noqa: F401
         ClubYear, YearRoleAssignment, EventRoleAssignment, CommitteeOrdering,
     )

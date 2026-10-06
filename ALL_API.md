@@ -418,7 +418,7 @@ Requires: `payment.initiate` (admin role is blocked)
     "donorName": "Subhash Roy",
     "status": "pending",
     "pledgeId": null,
-    "nextUrl": "/pay/qr/42"
+    "nextUrl": "/pay/qr/42?t=<signed-token>"
   }
 }
 ```

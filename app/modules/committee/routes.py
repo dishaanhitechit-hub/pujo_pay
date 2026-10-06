@@ -2,8 +2,10 @@ from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity
 from marshmallow import ValidationError
 
+from ...extensions import db
+from ...models.committee_member import CommitteeMember
 from ...middleware.permissions import require_permission
-from ...middleware.tenant import get_current_org_id
+from ...middleware.tenant import get_current_org_id, require_same_org
 from ...utils.helpers import res
 from .service import (
     create_committee_member_schema, update_committee_member_schema,
@@ -13,6 +15,12 @@ from .service import (
 from ..media.service import upload_committee_photo
 
 bp = Blueprint("committee", __name__)
+
+_member_in_org = require_same_org(
+    lambda member_id, **_: db.session.query(CommitteeMember.org_id)
+    .filter(CommitteeMember.id == member_id).first(),
+    "committee member not found",
+)
 
 
 @bp.route("/", methods=["GET"])
@@ -38,6 +46,7 @@ def create():
 
 @bp.route("/<int:member_id>", methods=["GET"])
 @require_permission("content.manage")
+@_member_in_org
 def detail(member_id):
     result = get_committee_member(member_id)
     if not result:
@@ -47,6 +56,7 @@ def detail(member_id):
 
 @bp.route("/<int:member_id>", methods=["PATCH"])
 @require_permission("content.manage")
+@_member_in_org
 def update(member_id):
     body = request.get_json(silent=True) or {}
     try:
@@ -64,6 +74,7 @@ def update(member_id):
 
 @bp.route("/<int:member_id>", methods=["DELETE"])
 @require_permission("content.manage")
+@_member_in_org
 def delete(member_id):
     err = delete_committee_member(member_id)
     if err == "committee member not found":
@@ -86,6 +97,7 @@ def reorder():
 
 @bp.route("/<int:member_id>/photo", methods=["POST"])
 @require_permission("content.manage")
+@_member_in_org
 def upload_photo(member_id):
     if "file" not in request.files:
         return res("no file in request", code=400)

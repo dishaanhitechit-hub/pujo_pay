@@ -65,7 +65,7 @@
 
   <hr class="divider">
 
-  <form method="POST" action="/pay/cheque/{{ payment.id }}/confirm">
+  <form method="POST" action="/pay/cheque/{{ payment.id }}/confirm?t={{ t }}">
     <div class="field-group">
       <label>Cheque Number</label>
       <input type="text" name="cheque_number" placeholder="e.g. 123456" maxlength="50">
@@ -81,7 +81,7 @@
     <button type="submit" class="btn">✓ Confirm Cheque Received</button>
   </form>
 
-  <form method="POST" action="/pay/cheque/{{ payment.id }}/cancel"
+  <form method="POST" action="/pay/cheque/{{ payment.id }}/cancel?t={{ t }}"
         onsubmit="return confirm('Cancel this payment? This cannot be undone.')">
     <button type="submit" class="btn btn-cancel">✕ Cancel Payment</button>
   </form>

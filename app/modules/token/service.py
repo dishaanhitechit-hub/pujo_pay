@@ -4,7 +4,8 @@ import base64
 from datetime import datetime, timezone
 
 from marshmallow import Schema, fields, validate, ValidationError  # noqa: F401
-from sqlalchemy import text
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 import qrcode
@@ -97,28 +98,48 @@ def _build_token_no(serial: int, cfg: dict) -> str:
     return f"{cfg['prefix']}{str(serial).zfill(cfg['pad_width'])}{cfg['suffix']}"
 
 
-def _next_serial() -> int:
-    """Atomically increment and return next token serial (PostgreSQL CTE)."""
-    result = db.session.execute(text("""
-        WITH upsert AS (
-            INSERT INTO app_config (key, value)
-            VALUES (
-                'token_current_number',
-                COALESCE(
-                    (SELECT (value::int + 1)::text
-                       FROM app_config WHERE key = 'token_current_number'),
-                    (SELECT COALESCE(value, '1')
-                       FROM app_config WHERE key = 'token_start_number'),
-                    '1'
-                )
-            )
-            ON CONFLICT (key) DO UPDATE
-                SET value = (app_config.value::int + 1)::text
-            RETURNING value::int AS serial
-        )
-        SELECT serial FROM upsert
-    """))
-    return result.scalar()
+_COUNTER_KEY = "token_current_number"
+
+
+def _locked_counter(org_id: int | None) -> AppConfig:
+    """The org's token counter row, row-locked until commit so concurrent generators queue up.
+
+    Its value is the last serial issued. A missing row starts just below the org's start number.
+    """
+    query = AppConfig.query.filter_by(org_id=org_id, key=_COUNTER_KEY).with_for_update()
+    row = query.first()
+    if row:
+        return row
+    start = int(AppConfig.get("token_start_number", org_id=org_id, default="1") or "1")
+    try:
+        with db.session.begin_nested():
+            row = AppConfig(org_id=org_id, key=_COUNTER_KEY, value=str(start - 1))
+            db.session.add(row)
+    except IntegrityError:  # another request created it first
+        row = query.first()
+    return row
+
+
+def _reserve_token_numbers(org_id: int | None, cfg: dict, count: int) -> list[tuple[int, str]]:
+    """Reserve `count` (serial, token_no) pairs from the org's counter.
+
+    Token numbers are unique platform-wide (the public QR page looks them up by number alone),
+    so numbers already used — e.g. by another org with the same prefix — are skipped.
+    """
+    counter = _locked_counter(org_id)
+    serial = int(counter.value)
+    reserved: list[tuple[int, str]] = []
+    while len(reserved) < count:
+        need = count - len(reserved)
+        candidates = [(s, _build_token_no(s, cfg)) for s in range(serial + 1, serial + 1 + need)]
+        taken = {
+            no for (no,) in db.session.query(Token.token_no)
+            .filter(Token.token_no.in_([no for _, no in candidates]))
+        }
+        reserved.extend(c for c in candidates if c[1] not in taken)
+        serial += need
+    counter.value = str(reserved[-1][0])
+    return reserved
 
 
 def make_qr_b64(url: str) -> str:
@@ -139,8 +160,7 @@ def make_qr_b64(url: str) -> str:
 
 def generate_token(data: dict, generated_by_id: int, org_id: int | None = None) -> Token:
     cfg = _cfg(org_id)
-    serial = _next_serial()
-    token_no = _build_token_no(serial, cfg)
+    [(serial, token_no)] = _reserve_token_numbers(org_id, cfg, 1)
     topic = data.get("topic") or cfg["default_topic"] or None
 
     token = Token(
@@ -163,10 +183,9 @@ def generate_bulk(count: int, generated_by_id: int, org_id: int | None = None) -
     batch_id = str(uuid.uuid4())
     tokens = []
     now = datetime.now(timezone.utc)
-    for _ in range(count):
-        serial = _next_serial()
+    for serial, token_no in _reserve_token_numbers(org_id, cfg, count):
         token = Token(
-            token_no=_build_token_no(serial, cfg),
+            token_no=token_no,
             token_serial=serial,
             type=TokenTypeEnum.bulk,
             participant_name=None,
@@ -185,7 +204,7 @@ def generate_bulk(count: int, generated_by_id: int, org_id: int | None = None) -
 # ── Queries ────────────────────────────────────────────────────────────────
 
 def get_token(token_no: str) -> Token | None:
-    return Token.query.filter(Token.token_no.ilike(token_no)).first()
+    return Token.query.filter(func.lower(Token.token_no) == token_no.lower()).first()
 
 
 def get_token_list(

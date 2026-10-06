@@ -60,24 +60,30 @@ def _event_abbr(name: str) -> str:
     return (letters[:3] or "SLP")
 
 
+_SLIP_LOCK_NAMESPACE = 7301  # arbitrary; pairs with org_id for pg_advisory_xact_lock
+
+
 def _next_slip_number(org_id: int | None, event: Event | None) -> str:
+    """Next number for this prefix, counted across the whole org.
+
+    Slip numbers are unique per org, and different events can share a prefix (same first three
+    letters + year, or Bengali names which all fall back to "SLP"), so the sequence is per
+    prefix, not per event. Concurrent creates in an org are serialised until the caller commits.
+    """
+    if db.session.get_bind().dialect.name == "postgresql":
+        db.session.execute(
+            db.text("SELECT pg_advisory_xact_lock(:ns, :org)"),
+            {"ns": _SLIP_LOCK_NAMESPACE, "org": org_id or 0},
+        )
     if event is None:
-        year = datetime.now().year
-        head = f"GEN{year}-"
-        rows = (
-            db.session.query(ContributionSlip.slip_number)
-            .filter(ContributionSlip.event_id.is_(None), ContributionSlip.org_id == org_id)
-            .all()
-        )
+        head = f"GEN{datetime.now().year}-"
     else:
-        abbr = _event_abbr(event.name)
-        year = event.year or datetime.now().year
-        head = f"{abbr}{year}-"
-        rows = (
-            db.session.query(ContributionSlip.slip_number)
-            .filter(ContributionSlip.event_id == event.id)
-            .all()
-        )
+        head = f"{_event_abbr(event.name)}{event.year or datetime.now().year}-"
+    rows = (
+        db.session.query(ContributionSlip.slip_number)
+        .filter(ContributionSlip.org_id == org_id, ContributionSlip.slip_number.like(f"{head}%"))
+        .all()
+    )
     max_n = 0
     for (num,) in rows:
         if num and num.startswith(head):
@@ -236,15 +242,36 @@ def recalc_slip(slip: ContributionSlip) -> None:
             slip.closed_at = None
 
 
+def lock_slip_outstanding(slip_id: int) -> tuple[ContributionSlip | None, Decimal]:
+    """Row-lock the slip until commit and return it with its live outstanding balance.
+
+    Every path that completes a payment calls this first, so two payments on the same slip
+    can't both pass the balance check at the same time and overpay it.
+    """
+    slip = (
+        ContributionSlip.query.filter_by(id=slip_id)
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+    if slip is None:
+        return None, Decimal("0")
+    paid = db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).filter(
+        Payment.slip_id == slip_id, Payment.status.in_(COMPLETED_STATUSES),
+    ).scalar()
+    return slip, Decimal(str(slip.total_amount)) - Decimal(str(paid))
+
+
 def add_manual_payment(slip_id, data, collector_id, can_view_all, org_id):
     slip, err = _slip_in_scope(slip_id, collector_id, can_view_all, org_id)
     if err:
         return None, err
+    slip, outstanding = lock_slip_outstanding(slip.id)
     if slip.status == SlipStatusEnum.cancelled:
         return None, "slip is cancelled"
     amount = Decimal(str(data["amount"]))
-    if amount > slip.outstanding():
-        return None, f"amount exceeds outstanding balance of ₹{slip.outstanding()}"
+    if amount > outstanding:
+        return None, f"amount exceeds outstanding balance of ₹{outstanding}"
 
     p = Payment(
         slip_id=slip.id, donor_id=slip.donor_id, collector_id=collector_id,
