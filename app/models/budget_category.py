@@ -19,7 +19,7 @@ class BudgetCategory(db.Model):
 
     id             = db.Column(db.Integer, primary_key=True)
     event_id       = db.Column(db.Integer, db.ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
-    title          = db.Column(db.String(200), nullable=False)
+    title          = db.Column(db.String(210), nullable=False)
     planned_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
     notes          = db.Column(db.Text, nullable=True)
     sort_order     = db.Column(db.Integer, nullable=False, default=0)

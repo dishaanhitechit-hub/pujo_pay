@@ -109,7 +109,7 @@ class EventRoleAssignment(db.Model):
     can_collect = db.Column(db.Boolean, nullable=False, default=False)
     # Cashier capability for this event: grants the old treasurer/cashier powers
     # (view/approve payments, manage expenses & handovers) scoped to THIS event only.
-    can_cashier = db.Column(db.Boolean, nullable=False, default=False)
+    can_cashier = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     is_public   = db.Column(db.Boolean, nullable=False, default=True)
     created_at  = db.Column(db.DateTime, server_default=db.func.now())
 
