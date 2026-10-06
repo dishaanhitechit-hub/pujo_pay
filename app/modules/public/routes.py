@@ -1,5 +1,5 @@
 import io
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file, abort, make_response
 
 from ...utils.helpers import res
 from ...models.app_config import AppConfig
@@ -23,7 +23,10 @@ def _resolve_org_id() -> int | None:
     if not slug:
         return None
     org = Organisation.query.filter_by(slug=slug, is_active=True).first()
-    return org.id if org else None
+    if not org:
+        # Fail loudly: falling back to org_id=None silently served an empty site for a mistyped slug.
+        abort(make_response(res(f"organisation '{slug}' not found or inactive")[0], 404))
+    return org.id
 
 
 def _cfg(key: str, org_id: int | None) -> str | None:

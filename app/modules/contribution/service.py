@@ -8,14 +8,24 @@ import os
 import uuid
 from datetime import datetime, date
 
-from sqlalchemy import func
-from sqlalchemy.orm import joinedload, contains_eager
+from sqlalchemy import exists, func, literal_column, select, union_all
+from sqlalchemy.orm import joinedload
 
 from ...extensions import db
 from ...models.self_contribution import SelfContribution, ContributionStatusEnum, PaymentMethodEnum
 from ...models.event import Event
 from ...models.app_config import AppConfig
 from ...utils.pay_token import make_receipt_token
+
+
+def _not_self_contribution_slip():
+    """Filter for "collected from member" queries: skip slips auto-created for a self-contribution.
+
+    Those payments already appear as the "self" entry once approved; counting them again as
+    "collected" doubled member totals.
+    """
+    from ...models.contribution_slip import ContributionSlip
+    return ~exists().where(SelfContribution.slip_id == ContributionSlip.id)
 
 
 # ── Payment info (UPI / bank) ───────────────────────────────────────────────────────
@@ -151,13 +161,27 @@ def submit_contribution(
     if org_id is not None:
         from ..slip.service import _next_slip_number
         from ...models.contribution_slip import ContributionSlip, DonorKindEnum, SlipStatusEnum
+        from ...models.donor import Donor
         from ...models.payment import Payment, MethodEnum, StatusEnum
+        from ...models.user import User
+
+        # Same as member slips made by collectors: the member is recorded as the donor, so the
+        # payment shows up (and is searchable) in payment lists and donor counts.
+        member = User.query.get(user_id)
+        donor = Donor(
+            name=member.name, phone=member.phone, address=member.address,
+            donor_type="Member", org_id=org_id,
+        )
+        db.session.add(donor)
+        db.session.flush()
+
         slip = ContributionSlip(
             org_id=org_id,
             event_id=event_obj.id if event_obj else None,
             collector_id=user_id,
             slip_number=_next_slip_number(org_id, event_obj),
             donor_kind=DonorKindEnum.member,
+            donor_id=donor.id,
             member_user_id=user_id,
             total_amount=amt,
             paid_amount=0,
@@ -217,6 +241,7 @@ def _collected_entries_for_member(user_id: int) -> list[dict]:
         .filter(
             ContributionSlip.member_user_id == user_id,
             Payment.status.in_(COMPLETED_STATUSES),
+            _not_self_contribution_slip(),
         )
         .all()
     )
@@ -307,6 +332,7 @@ def get_my_stats(user_id: int) -> dict:
         .filter(
             ContributionSlip.member_user_id == user_id,
             Payment.status.in_(COMPLETED_STATUSES),
+            _not_self_contribution_slip(),
         )
         .one()
     )
@@ -335,7 +361,10 @@ def admin_list_contributions(
     org_id: int | None = None,
 ) -> dict:
     """Member contributions for admins/finance — self-reported PLUS amounts collected from
-    members via slips (donor = member). Collected entries are read-only ('received')."""
+    members via slips (donor = member). Collected entries are read-only ('received').
+
+    Both sources are merged, sorted and paginated in SQL; only the current page is loaded.
+    """
     from ...models.user import User
     from ...models.payment import Payment, COMPLETED_STATUSES
     from ...models.contribution_slip import ContributionSlip
@@ -343,51 +372,88 @@ def admin_list_contributions(
     like = f"%{search.strip()}%" if search else None
 
     # ── self-reported ──
-    self_q = (
-        SelfContribution.query
-        .join(User, SelfContribution.user_id == User.id)
-        .options(
-            contains_eager(SelfContribution.user),
-            joinedload(SelfContribution.event),
-            joinedload(SelfContribution.reviewer),
-            joinedload(SelfContribution.slip),
+    self_sel = (
+        select(
+            literal_column("'self'").label("source"),
+            SelfContribution.id.label("id"),
+            SelfContribution.created_at.label("created_at"),
         )
+        .select_from(SelfContribution)
+        .join(User, SelfContribution.user_id == User.id)
     )
     if org_id is not None:
-        self_q = self_q.filter(User.org_id == org_id)
+        self_sel = self_sel.where(User.org_id == org_id)
     if status:
         try:
-            self_q = self_q.filter(SelfContribution.status == ContributionStatusEnum(status))
+            self_sel = self_sel.where(SelfContribution.status == ContributionStatusEnum(status))
         except ValueError:
             pass
     if user_id:
-        self_q = self_q.filter(SelfContribution.user_id == user_id)
+        self_sel = self_sel.where(SelfContribution.user_id == user_id)
     if event_id:
-        self_q = self_q.filter(SelfContribution.event_id == event_id)
+        self_sel = self_sel.where(SelfContribution.event_id == event_id)
     if like:
-        self_q = self_q.filter(db.or_(User.name.ilike(like), SelfContribution.note.ilike(like)))
-    self_items = [{**c.to_dict(include_screenshot_url=True), "source": "self"} for c in self_q.all()]
+        self_sel = self_sel.where(db.or_(User.name.ilike(like), SelfContribution.note.ilike(like)))
+    parts = [self_sel]
 
     # ── collected from members via slips (not pending/rejected buckets) ──
-    collected_items: list[dict] = []
     if status in (None, "", "approved"):
-        cq = (
+        coll_sel = (
+            select(
+                literal_column("'collected'").label("source"),
+                Payment.id.label("id"),
+                Payment.created_at.label("created_at"),
+            )
+            .select_from(Payment)
+            .join(ContributionSlip, Payment.slip_id == ContributionSlip.id)
+            .join(User, ContributionSlip.member_user_id == User.id)
+            .where(Payment.status.in_(COMPLETED_STATUSES), _not_self_contribution_slip())
+        )
+        if org_id is not None:
+            coll_sel = coll_sel.where(ContributionSlip.org_id == org_id)
+        if event_id:
+            coll_sel = coll_sel.where(Payment.event_id == event_id)
+        if user_id:
+            coll_sel = coll_sel.where(ContributionSlip.member_user_id == user_id)
+        if like:
+            coll_sel = coll_sel.where(User.name.ilike(like))
+        parts.append(coll_sel)
+
+    merged = (union_all(*parts) if len(parts) > 1 else parts[0]).subquery()
+    total = db.session.scalar(select(func.count()).select_from(merged)) or 0
+    page_rows = db.session.execute(
+        select(merged.c.source, merged.c.id)
+        .order_by(merged.c.created_at.desc().nulls_last(), merged.c.source, merged.c.id.desc())
+        .limit(per_page)
+        .offset((page - 1) * per_page)
+    ).all()
+
+    # Load full rows for this page only.
+    self_ids = [row_id for source, row_id in page_rows if source == "self"]
+    coll_ids = [row_id for source, row_id in page_rows if source == "collected"]
+    by_source: dict[str, dict[int, dict]] = {"self": {}, "collected": {}}
+    if self_ids:
+        for c in (
+            SelfContribution.query
+            .filter(SelfContribution.id.in_(self_ids))
+            .options(
+                joinedload(SelfContribution.user),
+                joinedload(SelfContribution.event),
+                joinedload(SelfContribution.reviewer),
+                joinedload(SelfContribution.slip),
+            )
+        ):
+            by_source["self"][c.id] = {**c.to_dict(include_screenshot_url=True), "source": "self"}
+    if coll_ids:
+        rows = (
             db.session.query(Payment, ContributionSlip, User)
             .join(ContributionSlip, Payment.slip_id == ContributionSlip.id)
             .join(User, ContributionSlip.member_user_id == User.id)
             .options(joinedload(Payment.collector), joinedload(Payment.event))
-            .filter(ContributionSlip.member_user_id.isnot(None), Payment.status.in_(COMPLETED_STATUSES))
+            .filter(Payment.id.in_(coll_ids))
         )
-        if org_id is not None:
-            cq = cq.filter(ContributionSlip.org_id == org_id)
-        if event_id:
-            cq = cq.filter(Payment.event_id == event_id)
-        if user_id:
-            cq = cq.filter(ContributionSlip.member_user_id == user_id)
-        if like:
-            cq = cq.filter(User.name.ilike(like))
-        for p, slip, member in cq.all():
-            collected_items.append({
+        for p, slip, member in rows:
+            by_source["collected"][p.id] = {
                 "id": p.id, "source": "collected", "status": "received",
                 "amount": float(p.amount),
                 "paymentMethod": p.method.value if p.method else None,
@@ -400,14 +466,12 @@ def admin_list_contributions(
                 "receiptToken": make_receipt_token(p.id),
                 "collector": {"id": p.collector.id, "name": p.collector.name} if p.collector else None,
                 "createdAt": p.created_at.isoformat() if p.created_at else None,
-            })
+            }
 
-    merged = self_items + collected_items
-    merged.sort(key=lambda x: x.get("createdAt") or "", reverse=True)
-    total = len(merged)
-    start = (page - 1) * per_page
     return {
-        "contributions": merged[start:start + per_page],
+        "contributions": [
+            by_source[source][row_id] for source, row_id in page_rows if row_id in by_source[source]
+        ],
         "page":    page,
         "pages":   max(1, (total + per_page - 1) // per_page),
         "total":   total,
@@ -453,23 +517,31 @@ def admin_review_contribution(
     # Complete or cancel the linked slip payment
     if contrib.slip_id:
         from ...models.payment import Payment, StatusEnum
-        from ...models.contribution_slip import SlipStatusEnum
+        from ...models.contribution_slip import ContributionSlip, SlipStatusEnum
         from ..slip.service import recalc_slip
         pending = (
             Payment.query
             .filter_by(slip_id=contrib.slip_id, status=StatusEnum.pending)
             .first()
         )
-        if pending:
-            if action == "approve":
+        from datetime import timezone
+        if action == "approve":
+            if pending:
                 pending.status = StatusEnum.completed
                 pending.assign_receipt_no()
-                from datetime import timezone
                 pending.confirmed_at = datetime.now(timezone.utc)
                 db.session.flush()
                 recalc_slip(pending.slip)
-            else:
+        else:
+            # The slip exists only for this contribution — cancel it too, or its unpaid
+            # amount keeps counting as "pending" in dashboards and budget totals.
+            if pending:
                 pending.status = StatusEnum.cancelled
+                pending.cancelled_at = datetime.now(timezone.utc)
+            slip = ContributionSlip.query.get(contrib.slip_id)
+            if slip:
+                slip.status = SlipStatusEnum.cancelled
+                slip.closed_at = datetime.now(timezone.utc)
 
     db.session.commit()
     return contrib.to_dict(include_screenshot_url=True), None

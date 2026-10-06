@@ -135,7 +135,7 @@ def get_all_payments(
 ) -> dict:
     query = (
         Payment.query
-        .join(Donor, Payment.donor_id == Donor.id)
+        .outerjoin(Donor, Payment.donor_id == Donor.id)
         .join(User, Payment.collector_id == User.id)
         .options(
             contains_eager(Payment.donor),
