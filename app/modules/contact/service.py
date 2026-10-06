@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields, validate
+from marshmallow import Schema, fields, validate, EXCLUDE
 
 from ...extensions import db
 from ...models.contact_query import ContactQuery, ContactQueryStatusEnum
@@ -7,6 +7,9 @@ from ...models.contact_query import ContactQuery, ContactQueryStatusEnum
 # ── Schemas ────────────────────────────────────────────────────────────────────
 
 class SubmitQuerySchema(Schema):
+    class Meta:
+        unknown = EXCLUDE  # orgSlug and other public-context fields pass through raw body
+
     name     = fields.Str(required=True, validate=validate.Length(min=1, max=150))
     phone    = fields.Str(required=True, validate=validate.Length(min=1, max=20))
     location = fields.Str(load_default=None, validate=validate.Length(max=200))
