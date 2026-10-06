@@ -61,7 +61,7 @@ def create_app():
     from .models.org_provision import OrgProvision  # noqa: F401
     from .models.contact_diary import ContactDiaryEntry  # noqa: F401
     from .models.committee_role import (  # noqa: F401
-        ClubYear, YearRoleAssignment, EventRoleAssignment,
+        ClubYear, YearRoleAssignment, EventRoleAssignment, CommitteeOrdering,
     )
 
     # ── DB seed (first-run admin + default permissions) ─────

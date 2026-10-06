@@ -174,14 +174,18 @@ def list_public_committee(org_id: int | None = None, event_id: int | None = None
     Checks the YearRoleAssignment system: current year first, then any year
     with public assignments (most recent), then falls back to the legacy table.
     """
-    from ...models.committee_role import ClubYear, YearRoleAssignment, COMMITTEE_ROLE_ORDER
+    from ...models.committee_role import ClubYear, YearRoleAssignment, COMMITTEE_ROLE_ORDER, CommitteeOrdering
 
-    def _sorted_assignments(assigns):
-        assigns.sort(
-            key=lambda a: COMMITTEE_ROLE_ORDER.get(
-                a.role.value if hasattr(a.role, "value") else a.role, 999
-            )
-        )
+    def _order_map(scope_id):
+        rows = CommitteeOrdering.query.filter_by(org_id=org_id, scope="year", scope_id=scope_id).all()
+        return {r.user_id: r.sort_order for r in rows}
+
+    def _sorted_assignments(assigns, scope_id):
+        omap = _order_map(scope_id)
+        assigns.sort(key=lambda a: (
+            omap.get(a.user_id, 10 ** 6),
+            COMMITTEE_ROLE_ORDER.get(a.role.value if hasattr(a.role, "value") else a.role, 999),
+        ))
         return [_year_role_dict(a) for a in assigns]
 
     # 1. Try current year
@@ -194,7 +198,7 @@ def list_public_committee(org_id: int | None = None, event_id: int | None = None
             .all()
         )
         if assignments:
-            return _sorted_assignments(assignments)
+            return _sorted_assignments(assignments, current_year.id)
 
     # 2. Any year with public assignments (most recently created first)
     all_years = (
@@ -213,7 +217,7 @@ def list_public_committee(org_id: int | None = None, event_id: int | None = None
             .all()
         )
         if assignments:
-            return _sorted_assignments(assignments)
+            return _sorted_assignments(assignments, year.id)
 
     # 3. Fall back to legacy CommitteeMember table
     query = CommitteeMember.query.filter_by(is_active=True, org_id=org_id)
@@ -228,11 +232,19 @@ def list_full_committee(org_id: int | None = None) -> dict:
 
     Used by the public Our Team page to show distinct sections per year/event.
     """
-    from ...models.committee_role import ClubYear, YearRoleAssignment, EventRoleAssignment, COMMITTEE_ROLE_ORDER
+    from ...models.committee_role import (
+        ClubYear, YearRoleAssignment, EventRoleAssignment, COMMITTEE_ROLE_ORDER, CommitteeOrdering,
+    )
 
-    def _role_key(a):
-        role = a.role.value if hasattr(a.role, "value") else a.role
-        return COMMITTEE_ROLE_ORDER.get(role, 999)
+    def _order_map(scope, scope_id):
+        rows = CommitteeOrdering.query.filter_by(org_id=org_id, scope=scope, scope_id=scope_id).all()
+        return {r.user_id: r.sort_order for r in rows}
+
+    def _sort_key(omap):
+        def key(a):
+            role = a.role.value if hasattr(a.role, "value") else a.role
+            return (omap.get(a.user_id, 10 ** 6), COMMITTEE_ROLE_ORDER.get(role, 999))
+        return key
 
     # ── Year committee ─────────────────────────────────────────────────────
     year_committee = None
@@ -250,7 +262,7 @@ def list_full_committee(org_id: int | None = None) -> dict:
             .all()
         )
         if assigns:
-            assigns.sort(key=_role_key)
+            assigns.sort(key=_sort_key(_order_map("year", year.id)))
             year_committee = {
                 "yearId":    year.id,
                 "yearLabel": year.label,
@@ -274,7 +286,7 @@ def list_full_committee(org_id: int | None = None) -> dict:
             .all()
         )
         if assigns:
-            assigns.sort(key=_role_key)
+            assigns.sort(key=_sort_key(_order_map("event", event.id)))
             event_committees.append({
                 "eventId":   event.id,
                 "eventName": event.name,

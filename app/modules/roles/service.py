@@ -3,11 +3,53 @@ from sqlalchemy.orm import joinedload
 from ...extensions import db
 from ...models.user import User, RoleEnum
 from ...models.committee_role import (
-    ClubYear, YearRoleAssignment, EventRoleAssignment,
+    ClubYear, YearRoleAssignment, EventRoleAssignment, CommitteeOrdering,
     CommitteeRoleEnum, COMMITTEE_ROLE_ORDER,
 )
 
 VALID_ROLES = [r.value for r in CommitteeRoleEnum]
+
+ORDER_SCOPE_YEAR = "year"
+ORDER_SCOPE_EVENT = "event"
+# Members without a manual order sort after ordered ones (then by role, then name).
+_UNORDERED = 10 ** 6
+
+
+def _order_map(org_id: int | None, scope: str, scope_id: int) -> dict[int, int]:
+    """user_id -> manual sort_order for a given scope (club year or event)."""
+    rows = CommitteeOrdering.query.filter_by(org_id=org_id, scope=scope, scope_id=scope_id).all()
+    return {r.user_id: r.sort_order for r in rows}
+
+
+def _apply_order(org_id: int | None, scope: str, scope_id: int, user_ids: list) -> None:
+    """Upsert manual order from an ordered list of user ids (index = position).
+
+    Only ids that are real non-admin members of this org are stored; duplicates
+    and unknown ids are ignored. Members omitted from the list keep their row.
+    """
+    valid_ids = {u.id for u in _non_admin_members(org_id)}
+    existing = {
+        r.user_id: r
+        for r in CommitteeOrdering.query.filter_by(org_id=org_id, scope=scope, scope_id=scope_id).all()
+    }
+    position = 0
+    seen: set[int] = set()
+    for raw in user_ids:
+        try:
+            uid = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if uid not in valid_ids or uid in seen:
+            continue
+        seen.add(uid)
+        row = existing.get(uid)
+        if row:
+            row.sort_order = position
+        else:
+            db.session.add(CommitteeOrdering(
+                org_id=org_id, scope=scope, scope_id=scope_id, user_id=uid, sort_order=position,
+            ))
+        position += 1
 
 
 def _valid_role(role: str) -> bool:
@@ -46,7 +88,10 @@ def list_year_committee(org_id: int | None, club_year_id: int) -> tuple[dict | N
         .all()
     )
     members = [_committee_member_dict(a) for a in rows if a.user]
-    members.sort(key=lambda m: (COMMITTEE_ROLE_ORDER.get(m["role"], 99), m["name"].lower()))
+    omap = _order_map(org_id, ORDER_SCOPE_YEAR, club_year_id)
+    members.sort(key=lambda m: (
+        omap.get(m["userId"], _UNORDERED), COMMITTEE_ROLE_ORDER.get(m["role"], 99), m["name"].lower(),
+    ))
     return {"year": year.to_dict(), "members": members}, None
 
 
@@ -75,7 +120,10 @@ def list_event_committee(org_id: int | None, event_id: int) -> tuple[dict | None
         .all()
     )
     members = [_committee_member_dict(a) for a in rows if a.user]
-    members.sort(key=lambda m: (COMMITTEE_ROLE_ORDER.get(m["role"], 99), m["name"].lower()))
+    omap = _order_map(org_id, ORDER_SCOPE_EVENT, event_id)
+    members.sort(key=lambda m: (
+        omap.get(m["userId"], _UNORDERED), COMMITTEE_ROLE_ORDER.get(m["role"], 99), m["name"].lower(),
+    ))
     return {
         "event": {"id": event.id, "name": event.name, "year": event.year},
         "members": members,
@@ -170,6 +218,14 @@ def create_club_year(org_id: int | None, label: str) -> tuple[dict | None, str |
                 org_id=org_id, club_year_id=year.id, user_id=a.user_id,
                 role=a.role, is_public=a.is_public,
             ))
+        # Carry the manual member order over to the new year too.
+        for o in CommitteeOrdering.query.filter_by(
+            org_id=org_id, scope=ORDER_SCOPE_YEAR, scope_id=source.id,
+        ).all():
+            db.session.add(CommitteeOrdering(
+                org_id=org_id, scope=ORDER_SCOPE_YEAR, scope_id=year.id,
+                user_id=o.user_id, sort_order=o.sort_order,
+            ))
 
     db.session.commit()
     return year.to_dict(), None
@@ -203,7 +259,10 @@ def list_year_assignments(org_id: int | None, club_year_id: int) -> tuple[dict |
             "role":     (a.role.value if a and isinstance(a.role, CommitteeRoleEnum) else (a.role if a else None)),
             "isPublic": a.is_public if a else True,
         })
-    members.sort(key=lambda m: (COMMITTEE_ROLE_ORDER.get(m["role"], 99), m["name"].lower()))
+    omap = _order_map(org_id, ORDER_SCOPE_YEAR, club_year_id)
+    members.sort(key=lambda m: (
+        omap.get(m["id"], _UNORDERED), COMMITTEE_ROLE_ORDER.get(m["role"], 99), m["name"].lower(),
+    ))
     return {"year": year.to_dict(), "members": members}, None
 
 
@@ -292,7 +351,10 @@ def list_event_assignments(org_id: int | None, event_id: int) -> tuple[dict | No
             "canCollect": a.can_collect if a else False,
             "isPublic":   a.is_public if a else True,
         })
-    members.sort(key=lambda m: (COMMITTEE_ROLE_ORDER.get(m["role"], 99), m["name"].lower()))
+    omap = _order_map(org_id, ORDER_SCOPE_EVENT, event_id)
+    members.sort(key=lambda m: (
+        omap.get(m["id"], _UNORDERED), COMMITTEE_ROLE_ORDER.get(m["role"], 99), m["name"].lower(),
+    ))
     return {
         "event": {"id": event.id, "name": event.name, "year": event.year,
                   "status": event.status.value if hasattr(event.status, "value") else event.status},
@@ -338,4 +400,24 @@ def clear_event_assignment(org_id, event_id, user_id) -> tuple[bool, str | None]
         db.session.flush()
         _sync_user_can_collect(user_id)
         db.session.commit()
+    return True, None
+
+
+# ── Manual ordering ──────────────────────────────────────────────────────────
+
+def reorder_year_assignments(org_id, club_year_id, user_ids) -> tuple[bool, str | None]:
+    year = ClubYear.query.filter_by(id=club_year_id, org_id=org_id).first()
+    if not year:
+        return False, "year not found"
+    _apply_order(org_id, ORDER_SCOPE_YEAR, club_year_id, user_ids or [])
+    db.session.commit()
+    return True, None
+
+
+def reorder_event_assignments(org_id, event_id, user_ids) -> tuple[bool, str | None]:
+    event = _event_in_org(org_id, event_id)
+    if not event:
+        return False, "event not found"
+    _apply_order(org_id, ORDER_SCOPE_EVENT, event_id, user_ids or [])
+    db.session.commit()
     return True, None

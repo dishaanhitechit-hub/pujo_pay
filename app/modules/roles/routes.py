@@ -8,6 +8,7 @@ from .service import (
     list_club_years, create_club_year, set_current_year,
     list_year_assignments, set_year_assignment, clear_year_assignment,
     list_event_assignments, set_event_assignment, clear_event_assignment,
+    reorder_year_assignments, reorder_event_assignments,
     get_my_roles, VALID_ROLES,
     list_committee_years, list_year_committee, list_committee_events, list_event_committee,
 )
@@ -127,6 +128,19 @@ def year_assignment_set(year_id):
     return res("assignment saved", data=data)
 
 
+@bp.route("/years/<int:year_id>/assignments/order", methods=["PUT"])
+@require_permission(PERM)
+def year_assignments_reorder(year_id):
+    body = request.get_json(silent=True) or {}
+    user_ids = body.get("userIds")
+    if not isinstance(user_ids, list):
+        return res("userIds (array) is required", code=400)
+    ok, err = reorder_year_assignments(get_current_org_id(), year_id, user_ids)
+    if err:
+        return res(err, code=404)
+    return res("order updated")
+
+
 @bp.route("/years/<int:year_id>/assignments/<int:user_id>", methods=["DELETE"])
 @require_permission(PERM)
 def year_assignment_clear(year_id, user_id):
@@ -163,6 +177,19 @@ def event_assignment_set(event_id):
         code = 404 if "not found" in err else 400
         return res(err, code=code)
     return res("assignment saved", data=data)
+
+
+@bp.route("/events/<int:event_id>/assignments/order", methods=["PUT"])
+@require_permission(PERM)
+def event_assignments_reorder(event_id):
+    body = request.get_json(silent=True) or {}
+    user_ids = body.get("userIds")
+    if not isinstance(user_ids, list):
+        return res("userIds (array) is required", code=400)
+    ok, err = reorder_event_assignments(get_current_org_id(), event_id, user_ids)
+    if err:
+        return res(err, code=404)
+    return res("order updated")
 
 
 @bp.route("/events/<int:event_id>/assignments/<int:user_id>", methods=["DELETE"])

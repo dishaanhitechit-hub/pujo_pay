@@ -75,6 +75,25 @@ class YearRoleAssignment(db.Model):
         }
 
 
+class CommitteeOrdering(db.Model):
+    """Manual display order for committee members, per scope (club year or event).
+
+    Covers ALL org members (not only those with a role) so admins can arrange the
+    whole list. One row per (scope, scope_id, user). Lower sort_order shows first.
+    """
+    __tablename__ = "committee_orderings"
+    __table_args__ = (
+        db.UniqueConstraint("scope", "scope_id", "user_id", name="uq_committee_order_scope_user"),
+    )
+
+    id         = db.Column(db.Integer, primary_key=True)
+    org_id     = db.Column(db.Integer, db.ForeignKey("organisations.id"), nullable=True, index=True)
+    scope      = db.Column(db.String(10), nullable=False)   # 'year' | 'event'
+    scope_id   = db.Column(db.Integer, nullable=False, index=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+
 class EventRoleAssignment(db.Model):
     """A member's committee role for a specific event (can_collect lives here)."""
     __tablename__ = "event_role_assignments"
