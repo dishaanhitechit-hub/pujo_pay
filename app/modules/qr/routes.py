@@ -179,6 +179,9 @@ def cheque_cancel(payment_id):
 @bp.route("/receipt/<int:payment_id>", methods=["GET"])
 def receipt_page(payment_id):
     payment = _require(payment_id, valid_receipt_token)
+    if payment.status.value not in ("completed", "confirmed"):
+        return render_template("pay/error.html",
+                               message=f"This payment was {payment.status.value} and has no receipt.")
     source = request.args.get("from")
     if source == "dashboard":
         return render_template("pay/receipt_dashboard.html", payment=payment)
