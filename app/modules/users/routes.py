@@ -28,7 +28,10 @@ _user_in_org = require_same_org(
 @require_permission("users.manage")
 def list_users():
     org_id = get_current_org_id()
-    users = User.query.filter_by(org_id=org_id).order_by(User.created_at.desc()).all()
+    users = (User.query
+             .filter_by(org_id=org_id, is_active=True)
+             .order_by(User.created_at.desc())
+             .all())
     return res(data=[u.to_dict() for u in users])
 
 
@@ -77,6 +80,8 @@ def update_user_route(user_id):
     user = User.query.filter_by(id=user_id, org_id=org_id).first()
     if not user:
         return res("user not found", code=404)
+    if not user.is_active:
+        return res("cannot edit a deleted user", code=403)
 
     body = request.get_json(silent=True) or {}
     try:
@@ -105,9 +110,26 @@ def deactivate_user(user_id):
         return res("user not found", code=404)
 
     user.is_active = False
-    from ...extensions import db
     db.session.commit()
     return res(f"user '{user.name}' deactivated")
+
+
+@bp.route("/<int:user_id>/soft-delete", methods=["POST"])
+@require_permission("users.manage")
+def soft_delete_user(user_id):
+    if int(get_jwt_identity()) == user_id:
+        return res("cannot delete your own account", code=400)
+
+    org_id = get_current_org_id()
+    user = User.query.filter_by(id=user_id, org_id=org_id).first()
+    if not user:
+        return res("user not found", code=404)
+
+    user.is_active = False
+    user.email     = None
+    user.phone     = None
+    db.session.commit()
+    return res(f"user '{user.name}' deleted")
 
 
 @bp.route("/<int:user_id>/login-qr", methods=["GET"])
