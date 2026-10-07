@@ -28,10 +28,7 @@ _user_in_org = require_same_org(
 @require_permission("users.manage")
 def list_users():
     org_id = get_current_org_id()
-    users = (User.query
-             .filter_by(org_id=org_id, is_active=True)
-             .order_by(User.created_at.desc())
-             .all())
+    users = User.query.filter_by(org_id=org_id).order_by(User.created_at.desc()).all()
     return res(data=[u.to_dict() for u in users])
 
 
