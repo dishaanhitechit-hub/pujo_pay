@@ -18,8 +18,8 @@ class BaseConfig:
         "max_overflow": 5,
     }
     JWT_SECRET_KEY = os.environ["JWT_SECRET_KEY"]
-    PDF_STORAGE_PATH = os.getenv("PDF_STORAGE_PATH", "/srv/pujo/recipet/storages/pdf")
-    MEDIA_STORAGE_PATH = os.getenv("MEDIA_STORAGE_PATH", "/srv/pujo/media")
+    # Base for all file storage: /srv/pujo-backend/{org_slug}/media and /pdf
+    STORAGE_BASE = os.getenv("STORAGE_BASE", "/srv/pujo-backend")
     MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10 MB upload limit
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(
         hours=int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES_HOURS", 8))

@@ -11,9 +11,14 @@ from ...models.donor import Donor
 # ── URL helpers ────────────────────────────────────────────────────────────
 
 def _media_url(path: str | None) -> str | None:
-    """Convert relative media storage path to a public URL path."""
+    """Return the public URL path for a media file.
+    Paths already starting with /media/ are returned as-is (new org-scoped format).
+    Legacy bare paths are wrapped with /media/.
+    """
     if not path:
         return None
+    if path.startswith("/media/"):
+        return path
     return f"/media/{path}"
 
 
