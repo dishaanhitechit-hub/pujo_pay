@@ -114,6 +114,7 @@ def deactivate_user(user_id):
 @bp.route("/<int:user_id>/soft-delete", methods=["POST"])
 @require_permission("users.manage")
 def soft_delete_user(user_id):
+    import uuid as _uuid
     if int(get_jwt_identity()) == user_id:
         return res("cannot delete your own account", code=400)
 
@@ -125,6 +126,7 @@ def soft_delete_user(user_id):
     user.is_active = False
     user.email     = None
     user.phone     = None
+    user.member_id = f"DEL-{_uuid.uuid4().hex[:12].upper()}"
     db.session.commit()
     return res(f"user '{user.name}' deleted")
 
