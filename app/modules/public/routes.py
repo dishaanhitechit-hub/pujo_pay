@@ -35,7 +35,15 @@ def _cfg(key: str, org_id: int | None) -> str | None:
 
 @bp.route("/site-config", methods=["GET"])
 def site_config():
+    import json as _json
     org_id = _resolve_org_id()
+    theme_raw = _cfg("theme.colors", org_id)
+    theme = None
+    if theme_raw:
+        try:
+            theme = _json.loads(theme_raw)
+        except Exception:
+            theme = None
     data = {
         "upiId":  _cfg("upi_id", org_id),
         "orgName": _cfg("org_name", org_id),
@@ -70,6 +78,7 @@ def site_config():
             "metaDescription": _cfg("club.meta_description", org_id),
             "ogImageUrl":      _cfg("club.og_image_url", org_id),
         },
+        "theme": theme,
     }
     return res(data=data)
 

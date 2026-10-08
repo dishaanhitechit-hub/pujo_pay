@@ -33,6 +33,36 @@ def update_config():
     return res("config updated", data=updated)
 
 
+@bp.route("/theme", methods=["GET"])
+@require_permission("users.manage")
+def get_theme():
+    import json as _json
+    from ...models.app_config import AppConfig
+    raw = AppConfig.get("theme.colors", org_id=get_current_org_id())
+    theme = None
+    if raw:
+        try:
+            theme = _json.loads(raw)
+        except Exception:
+            theme = None
+    return res(data={"theme": theme})
+
+
+@bp.route("/theme", methods=["POST"])
+@require_permission("users.manage")
+def save_theme():
+    import json as _json
+    from ...models.app_config import AppConfig
+    body = request.get_json(silent=True) or {}
+    theme = body.get("theme")
+    org_id = get_current_org_id()
+    if theme is None:
+        AppConfig.set("theme.colors", "", org_id=org_id)
+    else:
+        AppConfig.set("theme.colors", _json.dumps(theme), org_id=org_id)
+    return res("theme saved", data={"theme": theme})
+
+
 @bp.route("/config/media", methods=["POST"])
 @require_permission("users.manage")
 def upload_config_media():
