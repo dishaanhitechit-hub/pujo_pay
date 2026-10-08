@@ -111,6 +111,19 @@ def deactivate_user(user_id):
     return res(f"user '{user.name}' deactivated")
 
 
+@bp.route("/<int:user_id>/reactivate", methods=["POST"])
+@require_permission("users.manage")
+def reactivate_user(user_id):
+    org_id = get_current_org_id()
+    user = User.query.filter_by(id=user_id, org_id=org_id).first()
+    if not user:
+        return res("user not found", code=404)
+
+    user.is_active = True
+    db.session.commit()
+    return res(f"user '{user.name}' reactivated", data=user.to_dict())
+
+
 @bp.route("/<int:user_id>/soft-delete", methods=["POST"])
 @require_permission("users.manage")
 def soft_delete_user(user_id):
