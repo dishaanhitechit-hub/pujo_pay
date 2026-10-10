@@ -28,6 +28,10 @@ class BaseConfig:
     JWT_BLOCKLIST_ENABLED = True
     JWT_BLOCKLIST_TOKEN_CHECKS = ["access"]
 
+    # ── WhatsApp (Meta Cloud API) ──────────────────────────────
+    WHATSAPP_TOKEN           = os.getenv("WHATSAPP_TOKEN", "")
+    WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "1308933112312547")
+
     # ── Email (SMTP) ───────────────────────────────────────────
     MAIL_SERVER    = os.getenv("MAIL_SERVER", "smtp.gmail.com")
     MAIL_PORT      = int(os.getenv("MAIL_PORT", 587))

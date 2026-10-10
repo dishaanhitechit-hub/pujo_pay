@@ -89,5 +89,8 @@ def register_all(app: Flask) -> None:
     from .super_admin.ui_routes import ui_bp as super_admin_ui_bp
     app.register_blueprint(super_admin_ui_bp)
 
+    from .whatsapp.routes import bp as whatsapp_bp
+    app.register_blueprint(whatsapp_bp)
+
     from ..test_feature.routes import bp as test_bp
     app.register_blueprint(test_bp, url_prefix="/test")
