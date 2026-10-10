@@ -159,7 +159,8 @@ def send_membership_card(user_id: int):
     except Exception as exc:
         return res(f"Failed to save card image: {exc}", code=500)
 
-    image_url = f"{request.host_url.rstrip('/')}/media/{org_slug}/cards/{filename}"
+    site_url = current_app.config.get("SITE_URL") or request.host_url.rstrip("/")
+    image_url = f"{site_url}/media/{org_slug}/cards/{filename}"
     caption = f"🙏 {org_name} — Membership Card\n{user.name}"
     ok, detail = send_whatsapp_image(phone, image_url, caption)
 

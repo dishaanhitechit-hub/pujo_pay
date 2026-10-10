@@ -31,6 +31,8 @@ class BaseConfig:
     # ── WhatsApp (Meta Cloud API) ──────────────────────────────
     WHATSAPP_TOKEN           = os.getenv("WHATSAPP_TOKEN", "")
     WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "1308933112312547")
+    # Public base URL used when building links for external services (e.g. Meta fetching images)
+    SITE_URL = os.getenv("SITE_URL", "").rstrip("/")
 
     # ── Email (SMTP) ───────────────────────────────────────────
     MAIL_SERVER    = os.getenv("MAIL_SERVER", "smtp.gmail.com")
