@@ -11,7 +11,7 @@ Committee roles (chairman … treasurer … member) and the legacy ``User.role``
 grants no longer confer any permission — roles are titles only. The *gate*
 (require_permission) opens the screen when the user holds a capability on at
 least one event; the per-event data scoping (see middleware/event_scope.py)
-then limits what they can see or act on to exactly those events.
+then limits what they can see or act on to exactly those events
 """
 from flask import g
 
