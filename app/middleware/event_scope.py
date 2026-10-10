@@ -10,7 +10,7 @@ Admin / super_admin are unrestricted: the helpers return ``None`` for them,
 which every scoped query reads as "no event filter — all org events".
 
 One DB query per request loads both capability sets; results are cached on
-flask.g so repeated checks within a request are free.
+flask.g so repeated checks within a request are fre.
 """
 from flask import g
 from flask_jwt_extended import get_jwt, get_jwt_identity
