@@ -19,7 +19,6 @@ from ...services.whatsapp_service import (
     build_event_notification_message,
     build_circular_message,
 )
-from ...services.card_generator import generate_membership_card
 
 bp = Blueprint("whatsapp", __name__)
 
@@ -120,8 +119,8 @@ def _bulk_send(users: list, message: str) -> dict:
 @bp.route("/api/whatsapp/send-membership-card/<int:user_id>", methods=["POST"])
 @require_permission("users.manage")
 def send_membership_card(user_id: int):
-    """Send membership card image to a member's WhatsApp."""
-    import os
+    """Receive a base64 card PNG from the frontend and send it via WhatsApp."""
+    import os, base64
     from flask import current_app
 
     org_id = get_current_org_id()
@@ -137,18 +136,30 @@ def send_membership_card(user_id: int):
     org_name = org.name if org else "Organisation"
     org_slug = org.slug if org else str(org_id)
 
+    body = request.get_json(silent=True) or {}
+    image_b64 = body.get("imageBase64", "")
+    if not image_b64:
+        return res("imageBase64 is required", code=400)
+
+    # Strip data URI prefix if present
+    if "," in image_b64:
+        image_b64 = image_b64.split(",", 1)[1]
+
     storage_base = current_app.config.get("STORAGE_BASE", "/srv/pujo-backend")
     save_dir = os.path.join(storage_base, org_slug, "media", "cards")
+    os.makedirs(save_dir, exist_ok=True)
+
+    safe_id = (user.member_id or str(user.id)).replace("/", "_").replace(" ", "_")
+    filename = f"card_{safe_id}.png"
+    card_path = os.path.join(save_dir, filename)
 
     try:
-        card_path = generate_membership_card(user, org_name, save_dir)
+        with open(card_path, "wb") as f:
+            f.write(base64.b64decode(image_b64))
     except Exception as exc:
-        return res(f"Card generation failed: {exc}", code=500)
+        return res(f"Failed to save card image: {exc}", code=500)
 
-    # Build public URL for the card image
-    rel = os.path.relpath(card_path, os.path.join(storage_base, org_slug, "media"))
-    image_url = f"{request.host_url.rstrip('/')}/media/{org_slug}/{rel}"
-
+    image_url = f"{request.host_url.rstrip('/')}/media/{org_slug}/cards/{filename}"
     caption = f"🙏 {org_name} — Membership Card\n{user.name}"
     ok, detail = send_whatsapp_image(phone, image_url, caption)
 
