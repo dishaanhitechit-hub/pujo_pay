@@ -135,7 +135,7 @@
     status.style.color = '#888';
     status.textContent = '';
     try {
-      const res = await fetch('/receipt/{{ payment.id }}/send-whatsapp', {
+      const res = await fetch('/pay/receipt/{{ payment.id }}/send-whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ t })
@@ -158,6 +158,8 @@
       btn.textContent = '📲 Send Receipt via WhatsApp';
     }
   }
+
+  // Fix URL — qr blueprint is mounted at /pay
 </script>
 </body>
 </html>
