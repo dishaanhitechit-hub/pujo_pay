@@ -12,12 +12,14 @@ from ...middleware.tenant import get_current_org_id
 from ...utils.helpers import res
 from ...services.whatsapp_service import (
     send_whatsapp_text,
+    send_whatsapp_image,
     build_receipt_message,
     build_token_message,
     build_membership_card_message,
     build_event_notification_message,
     build_circular_message,
 )
+from ...services.card_generator import generate_membership_card
 
 bp = Blueprint("whatsapp", __name__)
 
@@ -118,7 +120,10 @@ def _bulk_send(users: list, message: str) -> dict:
 @bp.route("/api/whatsapp/send-membership-card/<int:user_id>", methods=["POST"])
 @require_permission("users.manage")
 def send_membership_card(user_id: int):
-    """Send membership card to a member's WhatsApp."""
+    """Send membership card image to a member's WhatsApp."""
+    import os
+    from flask import current_app
+
     org_id = get_current_org_id()
     user = User.query.filter_by(id=user_id, org_id=org_id).first()
     if not user:
@@ -128,9 +133,24 @@ def send_membership_card(user_id: int):
     if not phone:
         return res("no WhatsApp / phone number for this member", code=400)
 
-    org_name = _get_org_name(org_id)
-    message = build_membership_card_message(user, org_name)
-    ok, detail = send_whatsapp_text(phone, message)
+    org = Organisation.query.get(org_id)
+    org_name = org.name if org else "Organisation"
+    org_slug = org.slug if org else str(org_id)
+
+    storage_base = current_app.config.get("STORAGE_BASE", "/srv/pujo-backend")
+    save_dir = os.path.join(storage_base, org_slug, "media", "cards")
+
+    try:
+        card_path = generate_membership_card(user, org_name, save_dir)
+    except Exception as exc:
+        return res(f"Card generation failed: {exc}", code=500)
+
+    # Build public URL for the card image
+    rel = os.path.relpath(card_path, os.path.join(storage_base, org_slug, "media"))
+    image_url = f"{request.host_url.rstrip('/')}/media/{org_slug}/{rel}"
+
+    caption = f"🙏 {org_name} — Membership Card\n{user.name}"
+    ok, detail = send_whatsapp_image(phone, image_url, caption)
 
     if ok:
         return res("membership card sent", data={"messageId": detail, "phone": phone})
