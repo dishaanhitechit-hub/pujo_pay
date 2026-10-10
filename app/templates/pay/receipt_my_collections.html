@@ -39,7 +39,10 @@
          font-weight: 700; cursor: pointer; transition: opacity .2s; }
   .btn-green  { background: #2d9d5a; color: #fff; }
   .btn-outline { background: #fff; color: #4361ee; border: 2px solid #4361ee; }
+  .btn-wa  { background: #25d366; color: #fff; }
   .btn:hover { opacity: .88; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  #wa-status { text-align: center; font-size: 13px; margin-top: 4px; min-height: 18px; }
 
   /* ── Print / PDF styles ── */
   @media print {
@@ -110,6 +113,10 @@
 
   <!-- ── Actions: manual navigation only, no auto-redirect ── -->
   <div class="actions no-print">
+    {% if payment.donor.phone %}
+    <button class="btn btn-wa" id="wa-btn" onclick="sendWhatsApp()">📲 Send Receipt via WhatsApp</button>
+    <div id="wa-status"></div>
+    {% endif %}
     <button class="btn btn-outline" onclick="window.print()">⬇ Download as PDF</button>
     <button class="btn btn-green" onclick="goCollections()">← Back to My Collections</button>
   </div>
@@ -118,6 +125,38 @@
 <script>
   const MY_COLLECTIONS = "http://132.154.156.82:3001/my-collections";
   function goCollections() { window.location.href = MY_COLLECTIONS; }
+
+  async function sendWhatsApp() {
+    const btn = document.getElementById('wa-btn');
+    const status = document.getElementById('wa-status');
+    const t = new URLSearchParams(window.location.search).get('t') || '';
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    status.style.color = '#888';
+    try {
+      const res = await fetch('/receipt/{{ payment.id }}/send-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ t })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        status.style.color = '#2d9d5a';
+        status.textContent = '✅ Sent to ' + data.phone;
+        btn.textContent = '✅ Sent';
+      } else {
+        status.style.color = '#e53e3e';
+        status.textContent = '⚠ ' + (data.error || 'Failed');
+        btn.disabled = false;
+        btn.textContent = '📲 Send Receipt via WhatsApp';
+      }
+    } catch (e) {
+      status.style.color = '#e53e3e';
+      status.textContent = '⚠ Network error';
+      btn.disabled = false;
+      btn.textContent = '📲 Send Receipt via WhatsApp';
+    }
+  }
 </script>
 </body>
 </html>

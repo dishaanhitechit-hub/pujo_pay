@@ -1,8 +1,9 @@
-from flask import Blueprint, render_template, request, redirect, url_for, abort, make_response
+from flask import Blueprint, render_template, request, redirect, url_for, abort, make_response, jsonify
 
 from ...models.payment import Payment
 from ...models.app_config import AppConfig
 from ...utils.pay_token import valid_action_token, valid_receipt_token
+from ...services.whatsapp_service import send_whatsapp_text, build_receipt_message
 from .service import (
     generate_upi_qr_base64,
     open_qr_page,
@@ -188,3 +189,39 @@ def receipt_page(payment_id):
     if source == "my-collections":
         return render_template("pay/receipt_my_collections.html", payment=payment)
     return render_template("pay/receipt.html", payment=payment)
+
+
+@bp.route("/receipt/<int:payment_id>/send-whatsapp", methods=["POST"])
+def receipt_send_whatsapp(payment_id):
+    """Send receipt via WhatsApp. Authenticated via signed receipt token in body."""
+    from flask import current_app
+    from ...models.organisation import Organisation
+
+    token = (request.get_json(silent=True) or {}).get("t", "")
+    if not valid_receipt_token(token, payment_id):
+        return jsonify({"ok": False, "error": "Invalid or expired token"}), 403
+
+    payment = Payment.query.get(payment_id)
+    if not payment:
+        return jsonify({"ok": False, "error": "Payment not found"}), 404
+
+    phone = (request.get_json(silent=True) or {}).get("phone") or (
+        payment.donor.phone if payment.donor else None
+    )
+    if not phone:
+        return jsonify({"ok": False, "error": "No phone number available"}), 400
+
+    collector_user = payment.collector
+    org_name = "Organisation"
+    if collector_user and collector_user.org_id:
+        org = Organisation.query.get(collector_user.org_id)
+        if org:
+            org_name = org.name
+
+    site_url = current_app.config.get("SITE_URL") or request.host_url.rstrip("/")
+    message = build_receipt_message(payment, org_name, site_url)
+    ok, detail = send_whatsapp_text(phone, message)
+
+    if ok:
+        return jsonify({"ok": True, "messageId": detail, "phone": phone})
+    return jsonify({"ok": False, "error": detail}), 502
