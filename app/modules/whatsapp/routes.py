@@ -13,6 +13,7 @@ from ...utils.helpers import res
 from ...services.whatsapp_service import (
     send_whatsapp_text,
     send_whatsapp_image,
+    send_whatsapp_membership_card_template,
     build_receipt_message,
     build_token_message,
     build_membership_card_message,
@@ -161,8 +162,7 @@ def send_membership_card(user_id: int):
 
     site_url = current_app.config.get("SITE_URL") or request.host_url.rstrip("/")
     image_url = f"{site_url}/media/{org_slug}/cards/{filename}"
-    caption = f"🙏 {org_name} — Membership Card\n{user.name}"
-    ok, detail = send_whatsapp_image(phone, image_url, caption)
+    ok, detail = send_whatsapp_membership_card_template(phone, image_url, org_name, user.name)
 
     if ok:
         return res("membership card sent", data={"messageId": detail, "phone": phone})

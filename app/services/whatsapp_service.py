@@ -122,6 +122,75 @@ def send_whatsapp_image(to_phone: str, image_url: str, caption: str = "") -> tup
         return False, str(exc)
 
 
+def send_whatsapp_membership_card_template(
+    to_phone: str,
+    image_url: str,
+    club_name: str,
+    name: str,
+) -> tuple[bool, str]:
+    """Send membership card via approved 'membership_card' template with named variables."""
+    token = current_app.config.get("WHATSAPP_TOKEN", "")
+    phone_id = current_app.config.get("WHATSAPP_PHONE_NUMBER_ID", "")
+    if not token or not phone_id:
+        return False, "WhatsApp credentials not configured"
+
+    to = _normalize_phone(to_phone)
+    if not to:
+        return False, f"invalid phone number: {to_phone}"
+
+    url = f"https://graph.facebook.com/{_GRAPH_VERSION}/{phone_id}/messages"
+    payload = json.dumps({
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "template",
+        "template": {
+            "name": "membership_card",
+            "language": {"code": "en"},
+            "components": [
+                {
+                    "type": "header",
+                    "parameters": [
+                        {"type": "image", "image": {"link": image_url}},
+                    ],
+                },
+                {
+                    "type": "body",
+                    "parameters": [
+                        {"type": "text", "parameter_name": "club_name", "text": club_name},
+                        {"type": "text", "parameter_name": "name", "text": name},
+                    ],
+                },
+            ],
+        },
+    }).encode()
+
+    req = Request(url, data=payload, method="POST", headers={
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    })
+
+    try:
+        with urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+            msg_id = data.get("messages", [{}])[0].get("id", "ok")
+            logger.info("WhatsApp membership card template sent to %s, id=%s", to, msg_id)
+            return True, msg_id
+    except HTTPError as exc:
+        try:
+            err_body = json.loads(exc.read())
+            err_msg = err_body.get("error", {}).get("message", str(exc))
+        except Exception:
+            err_msg = str(exc)
+        logger.error("WhatsApp template API error %s: %s", exc.code, err_msg)
+        return False, err_msg
+    except URLError as exc:
+        logger.error("WhatsApp template network error: %s", exc.reason)
+        return False, str(exc.reason)
+    except Exception as exc:
+        logger.error("WhatsApp template unexpected error: %s", exc)
+        return False, str(exc)
+
+
 def build_receipt_message(payment, org_name: str, base_url: str) -> str:
     donor = payment.donor.name if payment.donor else "Donor"
     method_label = {"cash": "Cash", "upi": "UPI/Online", "cheque": "Cheque"}.get(
