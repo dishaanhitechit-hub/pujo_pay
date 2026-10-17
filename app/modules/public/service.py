@@ -107,7 +107,7 @@ def _year_role_dict(assignment) -> dict:
         "id":        assignment.id,
         "name":      assignment.user.name if assignment.user else "",
         "roleTitle": _ROLE_LABELS.get(role, role.replace("_", " ").title()),
-        "photoUrl":  None,
+        "photoUrl":  _media_url(assignment.user.photo_url) if assignment.user else None,
         "sortOrder": COMMITTEE_ROLE_ORDER.get(role, 999),
     }
 
@@ -119,7 +119,7 @@ def _event_role_dict(assignment) -> dict:
         "id":        assignment.id,
         "name":      assignment.user.name if assignment.user else "",
         "roleTitle": _ROLE_LABELS.get(role, role.replace("_", " ").title()),
-        "photoUrl":  None,
+        "photoUrl":  _media_url(assignment.user.photo_url) if assignment.user else None,
         "sortOrder": COMMITTEE_ROLE_ORDER.get(role, 999),
     }
 
