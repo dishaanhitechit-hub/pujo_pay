@@ -104,6 +104,8 @@ class CreateUserSchema(Schema):
                              validate=validate.Length(max=30), allow_none=True)
     email       = fields.Email(load_default=None, allow_none=True)
     address     = fields.Str(load_default=None, validate=validate.Length(max=300), allow_none=True)
+    photo_url   = fields.Str(load_default=None, data_key="photoUrl",
+                             validate=validate.Length(max=300), allow_none=True)
     password    = fields.Str(required=True, validate=validate.Length(min=6))
     can_collect = fields.Bool(load_default=False, data_key="canCollect")
 
@@ -128,6 +130,7 @@ class UpdateUserSchema(Schema):
                              allow_none=True)
     email       = fields.Email(allow_none=True)
     address     = fields.Str(validate=validate.Length(max=300), allow_none=True)
+    photo_url   = fields.Str(data_key="photoUrl", validate=validate.Length(max=300), allow_none=True)
     password    = fields.Str(validate=validate.Length(min=6))
     is_active   = fields.Bool(data_key="isActive")
     can_collect = fields.Bool(data_key="canCollect")
@@ -155,6 +158,7 @@ def create_user(data: dict, created_by: int, org_id: int | None = None) -> User:
         phone=_normalize_phone(data.get("phone")),
         whatsapp_no=_normalize_phone(data.get("whatsapp_no")),
         address=data.get("address") or None,
+        photo_url=data.get("photo_url") or None,
         role=role,
         member_category=data.get("member_category"),
         member_since=data.get("member_since"),
@@ -186,6 +190,9 @@ def update_user(user: User, data: dict) -> User:
 
     if "address" in data:
         user.address = data["address"] or None
+
+    if "photo_url" in data:
+        user.photo_url = data["photo_url"] or None
 
     if "member_category" in data:
         user.member_category = data["member_category"]

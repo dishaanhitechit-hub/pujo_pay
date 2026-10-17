@@ -109,6 +109,10 @@ class User(db.Model):
     # UTC; JWTs issued before this moment are rejected (logs out every other session).
     password_changed_at = db.Column(db.DateTime, nullable=True)
 
+    # Optional profile photo — stores a /media/... path returned by the upload endpoint.
+    # Migration: ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url VARCHAR(300);
+    photo_url = db.Column(db.String(300), nullable=True)
+
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
         self.password_changed_at = utcnow()
@@ -153,5 +157,6 @@ class User(db.Model):
             "memberCategory": self.member_category,
             "memberSince":    self.member_since.isoformat() if self.member_since else None,
             "memberId":    self.member_id,
+            "photoUrl":    self.photo_url,
             "createdAt":   self.created_at.isoformat() if self.created_at else None,
         }
