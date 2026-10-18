@@ -254,6 +254,27 @@ def build_membership_card_message(user, org_name: str) -> str:
     ])
 
 
+def build_welcome_card_message(user, org_name: str) -> str:
+    since = ""
+    if user.member_since:
+        since = f"\nMember Since: {user.member_since.strftime('%d %b %Y')}"
+    category = f"\nCategory: {user.member_category.replace('_', ' ').title()}" if user.member_category else ""
+    member_id = f"\nMember ID: *{user.member_id}*" if user.member_id else ""
+    mobile = f"\nMobile: {user.phone}" if user.phone else ""
+    address = f"\nAddress: {user.address}" if user.address else ""
+    return "\n".join([
+        f"🙏 *{org_name}*",
+        "",
+        f"Dear *{user.name}*,",
+        "",
+        "🎊 *Your Welcome Card*",
+        f"Name: {user.name}" + member_id + category + mobile + address + since,
+        "",
+        "We are delighted to welcome you to our club family!",
+        "Shubho Pujo! 🎉",
+    ])
+
+
 def build_event_notification_message(event, org_name: str) -> str:
     lines = [
         f"🙏 *{org_name}*",

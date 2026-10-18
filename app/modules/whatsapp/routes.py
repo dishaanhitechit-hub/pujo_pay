@@ -17,6 +17,7 @@ from ...services.whatsapp_service import (
     build_receipt_message,
     build_token_message,
     build_membership_card_message,
+    build_welcome_card_message,
     build_event_notification_message,
     build_circular_message,
 )
@@ -120,7 +121,12 @@ def _bulk_send(users: list, message: str) -> dict:
 @bp.route("/api/whatsapp/send-membership-card/<int:user_id>", methods=["POST"])
 @require_permission("users.manage")
 def send_membership_card(user_id: int):
-    """Receive a base64 card PNG from the frontend and send it via WhatsApp."""
+    """Receive a base64 card PNG from the frontend and send it via WhatsApp.
+
+    Body fields:
+      imageBase64  – base64-encoded PNG of the rendered card (required)
+      cardType     – "membership" (portrait ID card, default) or "welcome" (landscape welcome card)
+    """
     import os, base64
     from flask import current_app
 
@@ -142,6 +148,8 @@ def send_membership_card(user_id: int):
     if not image_b64:
         return res("imageBase64 is required", code=400)
 
+    card_type = body.get("cardType", "membership")  # "membership" | "welcome"
+
     # Strip data URI prefix if present
     if "," in image_b64:
         image_b64 = image_b64.split(",", 1)[1]
@@ -151,7 +159,9 @@ def send_membership_card(user_id: int):
     os.makedirs(save_dir, exist_ok=True)
 
     safe_id = (user.member_id or str(user.id)).replace("/", "_").replace(" ", "_")
-    filename = f"card_{safe_id}.png"
+    # Use distinct filenames so welcome and membership cards don't overwrite each other
+    prefix = "welcome" if card_type == "welcome" else "card"
+    filename = f"{prefix}_{safe_id}.png"
     card_path = os.path.join(save_dir, filename)
 
     try:
@@ -162,10 +172,19 @@ def send_membership_card(user_id: int):
 
     site_url = current_app.config.get("SITE_URL") or request.host_url.rstrip("/")
     image_url = f"{site_url}/media/{org_slug}/cards/{filename}"
-    ok, detail = send_whatsapp_membership_card_template(phone, image_url, org_name, user.name)
+
+    if card_type == "welcome":
+        # Welcome card — free-form image message with a tailored caption
+        caption = build_welcome_card_message(user, org_name)
+        ok, detail = send_whatsapp_image(phone, image_url, caption)
+        success_msg = "welcome card sent"
+    else:
+        # Membership ID card — use the approved 'membership_card' template
+        ok, detail = send_whatsapp_membership_card_template(phone, image_url, org_name, user.name)
+        success_msg = "membership card sent"
 
     if ok:
-        return res("membership card sent", data={"messageId": detail, "phone": phone})
+        return res(success_msg, data={"messageId": detail, "phone": phone})
     return res(f"WhatsApp send failed: {detail}", code=502)
 
 
