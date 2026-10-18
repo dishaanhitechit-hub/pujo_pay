@@ -180,22 +180,15 @@ def send_membership_card(user_id: int):
         image_url = f"{site_url}/media/{org_slug}/cards/{filename}"
 
         if card_type == "welcome":
-            # Welcome card: try free-form image with custom caption first so the
-            # recipient sees a distinct welcome message instead of the membership
-            # card template text.  Free-form only works within the 24-hour
-            # conversation window; if Meta rejects it, fall back to the approved
-            # membership_card template so delivery is still guaranteed.
-            caption = build_welcome_card_message(user, org_name)
-            ok, detail = send_whatsapp_image(phone, image_url, caption)
+            ok, detail = send_whatsapp_welcome_card_template(phone, image_url, org_name, user.name)
             if not ok:
                 logger.warning(
-                    "Free-form welcome image failed for user %s (%s), "
-                    "falling back to membership_card template",
+                    "welcome_card template failed for user %s (%s), "
+                    "falling back to free-form image",
                     user_id, detail,
                 )
-                ok, detail = send_whatsapp_membership_card_template(
-                    phone, image_url, org_name, user.name
-                )
+                caption = build_welcome_card_message(user, org_name)
+                ok, detail = send_whatsapp_image(phone, image_url, caption)
             success_msg = "welcome card sent"
         else:
             ok, detail = send_whatsapp_membership_card_template(phone, image_url, org_name, user.name)
