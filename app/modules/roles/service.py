@@ -59,12 +59,16 @@ def _valid_role(role: str) -> bool:
 def _committee_member_dict(a) -> dict:
     """Read-only committee entry — NO phone number is included."""
     role = a.role.value if isinstance(a.role, CommitteeRoleEnum) else a.role
+    photo = a.user.photo_url if a.user else None
+    if photo and not photo.startswith("/media/"):
+        photo = f"/media/{photo}"
     return {
         "userId":         a.user_id,
         "name":           a.user.name if a.user else "—",
         "memberId":       a.user.member_id if a.user else None,
         "memberCategory": a.user.member_category if a.user else None,
         "role":           role,
+        "photoUrl":       photo,
     }
 
 
