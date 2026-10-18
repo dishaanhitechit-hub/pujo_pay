@@ -14,6 +14,7 @@ from ...services.whatsapp_service import (
     send_whatsapp_text,
     send_whatsapp_image,
     send_whatsapp_membership_card_template,
+    send_whatsapp_welcome_card_template,
     build_receipt_message,
     build_token_message,
     build_membership_card_message,
@@ -173,11 +174,18 @@ def send_membership_card(user_id: int):
     site_url = current_app.config.get("SITE_URL") or request.host_url.rstrip("/")
     image_url = f"{site_url}/media/{org_slug}/cards/{filename}"
 
-    # Both card types use the approved 'membership_card' template so delivery works
-    # regardless of whether the member has an open 24-hour conversation window.
-    # The image differs (welcome card vs portrait ID card) — that's the key distinction.
-    ok, detail = send_whatsapp_membership_card_template(phone, image_url, org_name, user.name)
-    success_msg = "welcome card sent" if card_type == "welcome" else "membership card sent"
+    if card_type == "welcome":
+        # Try the dedicated 'welcome_card' template first (different body text).
+        # If it isn't approved on Meta yet, fall back to 'membership_card' so
+        # delivery still works — only the caption text differs, the image is correct.
+        ok, detail = send_whatsapp_welcome_card_template(phone, image_url, org_name, user.name)
+        if not ok and "template" in detail.lower():
+            logger.warning("welcome_card template not approved, falling back to membership_card")
+            ok, detail = send_whatsapp_membership_card_template(phone, image_url, org_name, user.name)
+        success_msg = "welcome card sent"
+    else:
+        ok, detail = send_whatsapp_membership_card_template(phone, image_url, org_name, user.name)
+        success_msg = "membership card sent"
 
     if ok:
         return res(success_msg, data={"messageId": detail, "phone": phone})

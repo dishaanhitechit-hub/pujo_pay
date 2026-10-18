@@ -122,13 +122,14 @@ def send_whatsapp_image(to_phone: str, image_url: str, caption: str = "") -> tup
         return False, str(exc)
 
 
-def send_whatsapp_membership_card_template(
+def _send_card_template(
     to_phone: str,
     image_url: str,
+    template_name: str,
     club_name: str,
     name: str,
 ) -> tuple[bool, str]:
-    """Send membership card via approved 'membership_card' template with named variables."""
+    """Internal helper — sends any image-header + body template with club_name / name vars."""
     token = current_app.config.get("WHATSAPP_TOKEN", "")
     phone_id = current_app.config.get("WHATSAPP_PHONE_NUMBER_ID", "")
     if not token or not phone_id:
@@ -144,7 +145,7 @@ def send_whatsapp_membership_card_template(
         "to": to,
         "type": "template",
         "template": {
-            "name": "membership_card",
+            "name": template_name,
             "language": {"code": "en"},
             "components": [
                 {
@@ -173,7 +174,7 @@ def send_whatsapp_membership_card_template(
         with urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read())
             msg_id = data.get("messages", [{}])[0].get("id", "ok")
-            logger.info("WhatsApp membership card template sent to %s, id=%s", to, msg_id)
+            logger.info("WhatsApp template '%s' sent to %s, id=%s", template_name, to, msg_id)
             return True, msg_id
     except HTTPError as exc:
         try:
@@ -181,14 +182,46 @@ def send_whatsapp_membership_card_template(
             err_msg = err_body.get("error", {}).get("message", str(exc))
         except Exception:
             err_msg = str(exc)
-        logger.error("WhatsApp template API error %s: %s", exc.code, err_msg)
+        logger.error("WhatsApp template '%s' API error %s: %s", template_name, exc.code, err_msg)
         return False, err_msg
     except URLError as exc:
-        logger.error("WhatsApp template network error: %s", exc.reason)
+        logger.error("WhatsApp template '%s' network error: %s", template_name, exc.reason)
         return False, str(exc.reason)
     except Exception as exc:
-        logger.error("WhatsApp template unexpected error: %s", exc)
+        logger.error("WhatsApp template '%s' unexpected error: %s", template_name, exc)
         return False, str(exc)
+
+
+def send_whatsapp_membership_card_template(
+    to_phone: str,
+    image_url: str,
+    club_name: str,
+    name: str,
+) -> tuple[bool, str]:
+    """Send portrait membership ID card via the approved 'membership_card' template."""
+    return _send_card_template(to_phone, image_url, "membership_card", club_name, name)
+
+
+def send_whatsapp_welcome_card_template(
+    to_phone: str,
+    image_url: str,
+    club_name: str,
+    name: str,
+) -> tuple[bool, str]:
+    """Send landscape welcome card via the approved 'welcome_card' template.
+
+    Template body text to submit on Meta (same variable structure as membership_card):
+      Header : IMAGE
+      Body   : Welcome to *{{club_name}}*, dear *{{name}}*! 🎊
+               Here is your official Welcome Card. We are delighted to have you
+               as a valued member of our club family.
+               Shubho Pujo! 🙏
+      Footer : (optional) Your club, your family.
+
+    If the 'welcome_card' template is not yet approved this function returns
+    (False, "template_not_approved") so the caller can fall back gracefully.
+    """
+    return _send_card_template(to_phone, image_url, "welcome_card", club_name, name)
 
 
 def build_receipt_message(payment, org_name: str, base_url: str) -> str:
