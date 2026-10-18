@@ -173,15 +173,11 @@ def send_membership_card(user_id: int):
     site_url = current_app.config.get("SITE_URL") or request.host_url.rstrip("/")
     image_url = f"{site_url}/media/{org_slug}/cards/{filename}"
 
-    if card_type == "welcome":
-        # Welcome card — free-form image message with a tailored caption
-        caption = build_welcome_card_message(user, org_name)
-        ok, detail = send_whatsapp_image(phone, image_url, caption)
-        success_msg = "welcome card sent"
-    else:
-        # Membership ID card — use the approved 'membership_card' template
-        ok, detail = send_whatsapp_membership_card_template(phone, image_url, org_name, user.name)
-        success_msg = "membership card sent"
+    # Both card types use the approved 'membership_card' template so delivery works
+    # regardless of whether the member has an open 24-hour conversation window.
+    # The image differs (welcome card vs portrait ID card) — that's the key distinction.
+    ok, detail = send_whatsapp_membership_card_template(phone, image_url, org_name, user.name)
+    success_msg = "welcome card sent" if card_type == "welcome" else "membership card sent"
 
     if ok:
         return res(success_msg, data={"messageId": detail, "phone": phone})
