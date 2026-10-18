@@ -1,4 +1,10 @@
-from flask import Blueprint, request
+import logging
+import os
+import base64
+import time
+from flask import Blueprint, request, current_app
+
+logger = logging.getLogger(__name__)
 
 from ...extensions import db
 from ...models.payment import Payment, COMPLETED_STATUSES
@@ -128,68 +134,71 @@ def send_membership_card(user_id: int):
       imageBase64  – base64-encoded PNG of the rendered card (required)
       cardType     – "membership" (portrait ID card, default) or "welcome" (landscape welcome card)
     """
-    import os, base64
-    from flask import current_app
-
-    org_id = get_current_org_id()
-    user = User.query.filter_by(id=user_id, org_id=org_id).first()
-    if not user:
-        return res("user not found", code=404)
-
-    phone = _user_phone(user)
-    if not phone:
-        return res("no WhatsApp / phone number for this member", code=400)
-
-    org = Organisation.query.get(org_id)
-    org_name = org.name if org else "Organisation"
-    org_slug = org.slug if org else str(org_id)
-
-    body = request.get_json(silent=True) or {}
-    image_b64 = body.get("imageBase64", "")
-    if not image_b64:
-        return res("imageBase64 is required", code=400)
-
-    card_type = body.get("cardType", "membership")  # "membership" | "welcome"
-
-    # Strip data URI prefix if present
-    if "," in image_b64:
-        image_b64 = image_b64.split(",", 1)[1]
-
-    storage_base = current_app.config.get("STORAGE_BASE", "/srv/pujo-backend")
-    save_dir = os.path.join(storage_base, org_slug, "media", "cards")
-    os.makedirs(save_dir, exist_ok=True)
-
-    safe_id = (user.member_id or str(user.id)).replace("/", "_").replace(" ", "_")
-    # Use distinct filenames so welcome and membership cards don't overwrite each other
-    prefix = "welcome" if card_type == "welcome" else "card"
-    filename = f"{prefix}_{safe_id}.png"
-    card_path = os.path.join(save_dir, filename)
-
     try:
-        with open(card_path, "wb") as f:
-            f.write(base64.b64decode(image_b64))
-    except Exception as exc:
-        return res(f"Failed to save card image: {exc}", code=500)
+        org_id = get_current_org_id()
+        user = User.query.filter_by(id=user_id, org_id=org_id).first()
+        if not user:
+            return res("user not found", code=404)
 
-    site_url = current_app.config.get("SITE_URL") or request.host_url.rstrip("/")
-    image_url = f"{site_url}/media/{org_slug}/cards/{filename}"
+        phone = _user_phone(user)
+        if not phone:
+            return res("no WhatsApp / phone number for this member", code=400)
 
-    if card_type == "welcome":
-        # Try the dedicated 'welcome_card' template first (different body text).
-        # If it isn't approved on Meta yet, fall back to 'membership_card' so
-        # delivery still works — only the caption text differs, the image is correct.
-        ok, detail = send_whatsapp_welcome_card_template(phone, image_url, org_name, user.name)
-        if not ok and "template" in detail.lower():
-            logger.warning("welcome_card template not approved, falling back to membership_card")
+        org = db.session.get(Organisation, org_id)
+        org_name = org.name if org else "Organisation"
+        org_slug = org.slug if org else str(org_id)
+
+        body = request.get_json(silent=True) or {}
+        image_b64 = body.get("imageBase64", "")
+        if not image_b64:
+            return res("imageBase64 is required", code=400)
+
+        card_type = body.get("cardType", "membership")  # "membership" | "welcome"
+
+        # Strip data URI prefix if present
+        if "," in image_b64:
+            image_b64 = image_b64.split(",", 1)[1]
+
+        storage_base = current_app.config.get("STORAGE_BASE", "/srv/pujo-backend")
+        save_dir = os.path.join(storage_base, org_slug, "media", "cards")
+        os.makedirs(save_dir, exist_ok=True)
+
+        safe_id = (user.member_id or str(user.id)).replace("/", "_").replace(" ", "_")
+        # Include timestamp so Meta never serves a stale cached image for the same member
+        prefix = "welcome" if card_type == "welcome" else "card"
+        filename = f"{prefix}_{safe_id}_{int(time.time())}.png"
+        card_path = os.path.join(save_dir, filename)
+
+        try:
+            with open(card_path, "wb") as f:
+                f.write(base64.b64decode(image_b64))
+        except Exception as exc:
+            logger.error("Failed to save card image for user %s: %s", user_id, exc)
+            return res(f"Failed to save card image: {exc}", code=500)
+
+        site_url = current_app.config.get("SITE_URL") or request.host_url.rstrip("/")
+        image_url = f"{site_url}/media/{org_slug}/cards/{filename}"
+
+        if card_type == "welcome":
+            # Try the dedicated 'welcome_card' template first (different body text).
+            # If it isn't approved on Meta yet, fall back to 'membership_card' so
+            # delivery still works — only the caption text differs, the image is correct.
+            ok, detail = send_whatsapp_welcome_card_template(phone, image_url, org_name, user.name)
+            if not ok and "template" in str(detail).lower():
+                logger.warning("welcome_card template not approved, falling back to membership_card")
+                ok, detail = send_whatsapp_membership_card_template(phone, image_url, org_name, user.name)
+            success_msg = "welcome card sent"
+        else:
             ok, detail = send_whatsapp_membership_card_template(phone, image_url, org_name, user.name)
-        success_msg = "welcome card sent"
-    else:
-        ok, detail = send_whatsapp_membership_card_template(phone, image_url, org_name, user.name)
-        success_msg = "membership card sent"
+            success_msg = "membership card sent"
 
-    if ok:
-        return res(success_msg, data={"messageId": detail, "phone": phone})
-    return res(f"WhatsApp send failed: {detail}", code=502)
+        if ok:
+            return res(success_msg, data={"messageId": detail, "phone": phone})
+        return res(f"WhatsApp send failed: {detail}", code=502)
+
+    except Exception as exc:
+        logger.exception("Unhandled error in send_membership_card for user %s", user_id)
+        return res(f"Internal error: {exc}", code=500)
 
 
 @bp.route("/api/whatsapp/notify-event/<int:event_id>", methods=["POST"])
